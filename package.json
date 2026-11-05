@@ -2,10 +2,12 @@
   "name": "apidecorator",
   "version": "1.0.0",
   "description": "",
-  "main": "./src/index.js",
+  "main": "./src/app.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsc -w"
+    "dev": "tsx watch src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +22,7 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
