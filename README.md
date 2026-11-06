@@ -55,7 +55,7 @@ await app.listen({ port: 3000 });
 ```bash
 pnpm add sashiko
 ```
-*(O TypeBox já vem incluído e re-exportado como `Type`, `Static` e `TSchema`)*
+_(O TypeBox já vem incluído e re-exportado como `Type`, `Static` e `TSchema`)_
 
 `tsconfig.json` mínimo:
 
@@ -78,12 +78,16 @@ As rotas ficam em classes marcadas com `@Router`, a "permissão" para o app usar
 ```ts
 @Router('/users')
 class UserRoutes {
-  @Get('/')         list() {}
-  @Get('/:id')      get(ctx: Context) { return { id: ctx.params.id }; }
-  @Post('/')        create() {}
-  @Put('/:id')      replace() {}
-  @Patch('/:id')    update() {}
-  @Delete('/:id')   remove(ctx: Context) { ctx.status(204); }
+  @Get('/') list() {}
+  @Get('/:id') get(ctx: Context) {
+    return { id: ctx.params.id };
+  }
+  @Post('/') create() {}
+  @Put('/:id') replace() {}
+  @Patch('/:id') update() {}
+  @Delete('/:id') remove(ctx: Context) {
+    ctx.status(204);
+  }
 }
 ```
 
@@ -101,21 +105,22 @@ const userRoutes = new UserRoutes(repo);
 
 app
   .mount(HealthRoutes)
-  .mount(userRoutes)                                                     // como declarado
-  .mount(userRoutes, { prefix: '/v2/users' })                            // a mesma instância em outro prefixo
+  .mount(userRoutes) // como declarado
+  .mount(userRoutes, { prefix: '/v2/users' }) // a mesma instância em outro prefixo
   .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.list, r.get] }) // exposição parcial
   .mount(new AdminRoutes(repo), { middlewares: [authenticate], guards: [isAdmin] }); // regras para o grupo
 ```
 
-| Opção | Efeito |
-|---|---|
-| `prefix` | Substitui o prefixo do `@Router` |
+| Opção             | Efeito                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prefix`          | Substitui o prefixo do `@Router`                                                                                                                        |
 | `only` / `except` | Registra só os métodos selecionados, ou todos menos esses: `(r) => [r.list, r.get]`. O seletor é checado pelo TypeScript; usar os dois juntos gera erro |
-| `auto` | `false` registra só as [rotas manuais](#mapeamento-manual). Padrão: `true` |
-| `middlewares` | Valem para todas as rotas do grupo; rodam antes dos `@Middlewares` da classe |
-| `guards` | Valem para todas as rotas do grupo; rodam antes dos `@Guards` da classe |
+| `auto`            | `false` registra só as [rotas manuais](#mapeamento-manual). Padrão: `true`                                                                              |
+| `middlewares`     | Valem para todas as rotas do grupo; rodam antes dos `@Middlewares` da classe                                                                            |
+| `guards`          | Valem para todas as rotas do grupo; rodam antes dos `@Guards` da classe                                                                                 |
 
 Erros de registro aparecem na inicialização, com mensagem clara:
+
 - classe sem `@Router`;
 - seletor em `only`/`except` que não aponta para um método de rota;
 - a mesma classe registrada duas vezes com o mesmo prefixo.
@@ -127,9 +132,7 @@ Erros de registro aparecem na inicialização, com mensagem clara:
 Para aplicar prefixo, middlewares e guards a **várias** classes de uma vez:
 
 ```ts
-app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g) =>
-  g.mount(UserRoutes).mount(new OrderRoutes(db)),
-);
+app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g) => g.mount(UserRoutes).mount(new OrderRoutes(db)));
 // GET /v2/users, GET /v2/orders…
 ```
 
@@ -143,9 +146,7 @@ app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g)
 
 ```ts
 export function audit(app: SashikoApp, opts: { store: AuditStore }) {
-  return app
-    .group({ prefix: '/audit', guards: [isAdmin] }, (g) => g.mount(new AuditRoutes(opts.store)))
-    .onClose(() => opts.store.flush());
+  return app.group({ prefix: '/audit', guards: [isAdmin] }, (g) => g.mount(new AuditRoutes(opts.store))).onClose(() => opts.store.flush());
 }
 
 audit(app, { store });
@@ -158,16 +159,16 @@ Depois do `mount`, os verbos `.get()`, `.post()`, `.put()`, `.patch()` e `.delet
 ```ts
 @Router('/users')
 class UserRoutes {
-  @Get('/:id', byId)  getUser(ctx: Context<typeof byId>) {}
-  @Schema(csv)        exportCsv(ctx: Context<typeof csv>) {}  // sem verbo: só por mapeamento manual
-  private findOr404() {}                                       // sem decorator: nunca pode ser exposto
+  @Get('/:id', byId) getUser(ctx: Context<typeof byId>) {}
+  @Schema(csv) exportCsv(ctx: Context<typeof csv>) {} // sem verbo: só por mapeamento manual
+  private findOr404() {} // sem decorator: nunca pode ser exposto
 }
 
 app
   .mount(new UserRoutes(repo))
-  .get('/legacy/:id', (r) => r.getUser)                                 // GET /users/legacy/:id
+  .get('/legacy/:id', (r) => r.getUser) // GET /users/legacy/:id
   .get('/export.csv', (r) => r.exportCsv, { middlewares: [cache()], guards: [isAuditor] })
-  .mount(HealthRoutes);                                                 // o encadeamento continua
+  .mount(HealthRoutes); // o encadeamento continua
 ```
 
 - **Seletor:** funciona com instância (inclusive inline, `mount(new X(repo))`) e com a classe. "Ir para a definição" e renomear no editor funcionam.
@@ -208,11 +209,13 @@ list(ctx: Context<typeof list>) {
 ```
 
 **Path e `params` conferidos**
+
 - **Em compilação:** com schema de `params` no verbo, todo parâmetro do path precisa estar no schema. `@Get('/:userId', { params: Type.Object({ id: Type.String() }) })` é erro de tipo (`Missing in params schema: "userId"`).
 - **No registro:** o `app.mount()` confere path x schema nos dois sentidos, já com o prefixo do `@Router`/`mount` (que pode ter parâmetros, como `'/orgs/:org'`), também para `@Schema` separado e rotas manuais. Também recusa path malformado: `/:`, nome repetido, regex sem fechamento, `*` fora do fim.
 - **Sem schema:** `Context<'/:org/users/:id'>` tipa `ctx.params` pelo path (`{ org: string; id: string }`). O utilitário `PathParams<'/:a/:b'>` dá `'a' | 'b'`.
 
 **Validação**
+
 - **Tipagem:** com `Context<typeof schemas>`, `ctx.params`, `ctx.query` e `ctx.body` são tipados a partir do schema. Sem o genérico, `Context` usa tipos genéricos.
 - **Coerção:** params, query e headers chegam como texto e são convertidos para o tipo declarado. O **body não sofre coerção**: `"30"` não vira `30`.
 - **Defaults:** valores `default` são aplicados.
@@ -229,6 +232,7 @@ list(ctx: Context<typeof list>) {
 - **Campos extras:** use `additionalProperties: false` nos bodies para rejeitar campos não previstos. É a proteção contra mass assignment.
 
 **Resposta**
+
 - **Filtro:** o schema de `response` serializa a saída com `fast-json-stringify`, e **campos não declarados não saem**, por exemplo `password`.
 - **Status padrão:** se só existe um 2xx declarado (como `201`), ele é o status padrão; não é preciso chamar `ctx.status(201)`.
 - **Status sem schema:** se a rota declara schemas de resposta e o handler devolve um status sem schema, a resposta é **500**, com o motivo no log, e não o objeto sem filtro.
@@ -240,13 +244,13 @@ list(ctx: Context<typeof list>) {
 
 O valor retornado pelo handler vira a resposta. Sem schema de resposta, o formato vem do tipo do valor:
 
-| Retorno | Resposta |
-|---|---|
-| objeto, array, número, booleano, `null` | `application/json` |
-| `string` | `text/plain; charset=utf-8`, sem aspas |
-| `Buffer` / `Uint8Array` | `application/octet-stream` |
-| `Readable` (stream) | enviado em stream |
-| `undefined` | sem corpo |
+| Retorno                                 | Resposta                               |
+| --------------------------------------- | -------------------------------------- |
+| objeto, array, número, booleano, `null` | `application/json`                     |
+| `string`                                | `text/plain; charset=utf-8`, sem aspas |
+| `Buffer` / `Uint8Array`                 | `application/octet-stream`             |
+| `Readable` (stream)                     | enviado em stream                      |
+| `undefined`                             | sem corpo                              |
 
 Um `Content-Type` definido no handler (`ctx.header('Content-Type', ...)`) sempre prevalece.
 
@@ -296,6 +300,7 @@ run(ctx: Context<typeof job>) {
 **O `status()` tipa o corpo.** Com schemas de resposta, `ctx.status()` só aceita os status declarados, e o `json()`/`send()` seguinte exige o corpo daquele status. `ctx.status(202).json({ result })` e `ctx.status(201)` são erros de compilação no exemplo acima.
 
 Estilo recomendado:
+
 - `return` para o caso comum;
 - `ctx.status(x).json(body)` quando o status é decidido em runtime;
 - `throw` para erros.
@@ -304,23 +309,23 @@ Os schemas de resposta valem para o que o **handler** envia. Middlewares e guard
 
 ### Helpers do `ctx`
 
-| Método | Uso |
-|---|---|
-| `ctx.status(code)` | Define o status |
-| `ctx.header(name, value)` | Define um header da resposta |
-| `ctx.get(name)` | Lê um header da requisição |
-| `ctx.json(data)` | Envia JSON pelo pipeline (schema, filtro, status padrão) |
-| `ctx.text(str)` | `text/plain; charset=utf-8`, pelo pipeline |
-| `ctx.send(body, contentType?)` | Qualquer corpo pelo pipeline: string, bytes, stream ou objeto (negociado pelo `Accept`) |
-| `ctx.redirect(url, status?)` | 302 por padrão; aceita 301, 303, 307, 308 |
-| `ctx.cookies` | Cookies da requisição (objeto sem protótipo) |
+| Método                              | Uso                                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `ctx.status(code)`                  | Define o status                                                                          |
+| `ctx.header(name, value)`           | Define um header da resposta                                                             |
+| `ctx.get(name)`                     | Lê um header da requisição                                                               |
+| `ctx.json(data)`                    | Envia JSON pelo pipeline (schema, filtro, status padrão)                                 |
+| `ctx.text(str)`                     | `text/plain; charset=utf-8`, pelo pipeline                                               |
+| `ctx.send(body, contentType?)`      | Qualquer corpo pelo pipeline: string, bytes, stream ou objeto (negociado pelo `Accept`)  |
+| `ctx.redirect(url, status?)`        | 302 por padrão; aceita 301, 303, 307, 308                                                |
+| `ctx.cookies`                       | Cookies da requisição (objeto sem protótipo)                                             |
 | `ctx.setCookie(name, value, opts?)` | Adiciona um `Set-Cookie`, com `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/` por padrão |
-| `ctx.clearCookie(name, opts?)` | Remove um cookie (use o mesmo `path` e `domain` da criação) |
-| `ctx.throw(status, message)` | Lança um `HttpError` |
+| `ctx.clearCookie(name, opts?)`      | Remove um cookie (use o mesmo `path` e `domain` da criação)                              |
+| `ctx.throw(status, message)`        | Lança um `HttpError`                                                                     |
 
 Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.sentBody`, `ctx.sentType`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
 
-> ⚠️ `ctx.send` não faz escape de HTML; escape o conteúdo dinâmico antes. `ctx.redirect` com uma URL vinda do usuário abre um *open redirect*; valide o destino.
+> ⚠️ `ctx.send` não faz escape de HTML; escape o conteúdo dinâmico antes. `ctx.redirect` com uma URL vinda do usuário abre um _open redirect_; valide o destino.
 
 ## Middlewares e guards
 
@@ -338,7 +343,9 @@ Por classe ou por método, use `@Middlewares` e `@Guards`; para um grupo inteiro
 
 ```ts
 declare module 'sashiko' {
-  interface ContextState { user?: { id: string; role: 'admin' | 'user' } }  // ctx.state tipado
+  interface ContextState {
+    user?: { id: string; role: 'admin' | 'user' };
+  } // ctx.state tipado
 }
 
 const authenticate: Middleware = async (ctx, next) => {
@@ -374,9 +381,13 @@ Para o que acontece **antes** do handler (autenticação, rate limit, preparar o
 
 ```ts
 app
-  .onSend((ctx, payload) => { ctx.header('ETag', etag(payload.body)); })   // antes de escrever (síncrono)
+  .onSend((ctx, payload) => {
+    ctx.header('ETag', etag(payload.body));
+  }) // antes de escrever (síncrono)
   .onResponse((ctx, { status, ms }) => metrics.observe(ctx.path, status, ms)) // depois do envio
-  .onClose(async () => { await db.close(); });                              // em qualquer close()
+  .onClose(async () => {
+    await db.close();
+  }); // em qualquer close()
 ```
 
 - **`onSend`:** roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive erros e 404. É **síncrono**, como a escrita do pipeline. Pode alterar headers ou devolver `{ body, contentType }` novos. Se lançar, o erro é logado e a resposta original é enviada.
@@ -386,23 +397,25 @@ app
 **Cache com middleware.** Depois do `await next()`, `ctx.sentBody` e `ctx.sentType` contêm o corpo exatamente como foi enviado, já filtrado pelo schema:
 
 ```ts
-const cache = (ttlMs: number): Middleware => async (ctx, next) => {
-  const hit = store.get(ctx.url.href);
-  if (hit) return void ctx.header('X-Cache', 'HIT').send(hit.body, hit.type);
-  ctx.header('X-Cache', 'MISS');   // headers antes do next(): depois dele a resposta já foi enviada
-  await next();
-  if (ctx.res.statusCode === 200 && ctx.sentBody) store.set(ctx.url.href, { body: ctx.sentBody, type: ctx.sentType! });
-};
+const cache =
+  (ttlMs: number): Middleware =>
+  async (ctx, next) => {
+    const hit = store.get(ctx.url.href);
+    if (hit) return void ctx.header('X-Cache', 'HIT').send(hit.body, hit.type);
+    ctx.header('X-Cache', 'MISS'); // headers antes do next(): depois dele a resposta já foi enviada
+    await next();
+    if (ctx.res.statusCode === 200 && ctx.sentBody) store.set(ctx.url.href, { body: ctx.sentBody, type: ctx.sentType! });
+  };
 app.mount(products, { middlewares: [cache(60_000)] });
 ```
 
-| Fastify | Sashiko |
-|---|---|
+| Fastify                   | Sashiko                                                           |
+| ------------------------- | ----------------------------------------------------------------- |
 | `onRequest`, `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |
-| `onError` | `app.onError` |
-| `onSend` | `app.onSend` (síncrono) |
-| `onResponse` | `app.onResponse` |
-| `onClose` | `app.onClose` |
+| `onError`                 | `app.onError`                                                     |
+| `onSend`                  | `app.onSend` (síncrono)                                           |
+| `onResponse`              | `app.onResponse`                                                  |
+| `onClose`                 | `app.onClose`                                                     |
 
 ## Erros
 
@@ -421,14 +434,14 @@ Todos os erros, inclusive 404, 405, validação e `Host` inválido, saem no form
 { "type": "about:blank", "title": "Not Found", "status": 404, "detail": "user not found", "code": "NOT_FOUND" }
 ```
 
-| Campo | Conteúdo |
-|---|---|
-| `type` | URI do tipo do problema (opção `type` do `HttpError`); `about:blank` por padrão |
-| `title` | Frase do status (`Not Found`) |
-| `status` | Status HTTP |
-| `detail` | A mensagem do erro; omitido quando igual ao título ou em 5xx não expostos |
-| `code` | Código estável para o cliente tratar: `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `NOT_ACCEPTABLE`, `INVALID_HOST`, `FORBIDDEN`, `RATE_LIMITED`, `CSRF_ORIGIN`, `CSRF_TOKEN`… |
-| `details` | Dados extras: os erros de validação, `allowed` no 405, `available` no 406 |
+| Campo     | Conteúdo                                                                                                                                                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`    | URI do tipo do problema (opção `type` do `HttpError`); `about:blank` por padrão                                                                                                                                               |
+| `title`   | Frase do status (`Not Found`)                                                                                                                                                                                                 |
+| `status`  | Status HTTP                                                                                                                                                                                                                   |
+| `detail`  | A mensagem do erro; omitido quando igual ao título ou em 5xx não expostos                                                                                                                                                     |
+| `code`    | Código estável para o cliente tratar: `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `NOT_ACCEPTABLE`, `INVALID_HOST`, `FORBIDDEN`, `RATE_LIMITED`, `CSRF_ORIGIN`, `CSRF_TOKEN`… |
+| `details` | Dados extras: os erros de validação, `allowed` no 405, `available` no 406                                                                                                                                                     |
 
 - **Erros 4xx:** a mensagem vai para o cliente.
 - **Erros 5xx e erros comuns** (`throw new Error(...)`): a resposta é sempre `{ "type": "about:blank", "title": "Internal Server Error", "status": 500 }`. O erro completo vai para o log, com `reqId`. Para mostrar uma mensagem de 5xx ao cliente, use `expose: true`.
@@ -443,8 +456,8 @@ createApp()
   .openapi({
     info: { title: 'Minha API', version: '1.0.0' },
     servers: [{ url: 'https://api.exemplo.dev' }],
-    docs: true,               // Swagger UI em /docs (desligado por padrão)
-    guards: [isAdmin],        // só para /openapi.json e /docs
+    docs: true, // Swagger UI em /docs (desligado por padrão)
+    guards: [isAdmin], // só para /openapi.json e /docs
   });
 ```
 
@@ -456,14 +469,14 @@ createApp()
 - **`app.openapiDocument()`:** devolve o objeto, para gravar em arquivo, gerar clientes ou testar no CI.
 - **O que entra no documento:**
 
-  | Origem | Vira |
-  |---|---|
-  | Path (`/:id(^\\d+)`) | `/{id}` |
-  | `params`, `query`, `headers` | `parameters`, com `required` |
-  | `body` | `requestBody` em JSON |
-  | `response` | uma resposta por status, com os `contentType` declarados |
-  | Erros | resposta `default` com o schema `ProblemDetails`; com `formatError`, só a descrição |
-  | Classe e método | `tags` e `operationId` (`UserRoutes.getUser`) |
+  | Origem                       | Vira                                                                                |
+  | ---------------------------- | ----------------------------------------------------------------------------------- |
+  | Path (`/:id(^\\d+)`)         | `/{id}`                                                                             |
+  | `params`, `query`, `headers` | `parameters`, com `required`                                                        |
+  | `body`                       | `requestBody` em JSON                                                               |
+  | `response`                   | uma resposta por status, com os `contentType` declarados                            |
+  | Erros                        | resposta `default` com o schema `ProblemDetails`; com `formatError`, só a descrição |
+  | Classe e método              | `tags` e `operationId` (`UserRoutes.getUser`)                                       |
 
 - **Limites:** só schemas JSON Schema (TypeBox) entram como estão. Rotas sem schema de resposta aparecem com um `200` genérico. Em produção, proteja as rotas com `guards`/`middlewares` ou gere só o arquivo com `openapiDocument()`.
 
@@ -471,17 +484,17 @@ createApp()
 
 Ligado por padrão:
 
-| Proteção | Detalhe |
-|---|---|
+| Proteção             | Detalhe                                                                                                                                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Headers de segurança | `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin`. HSTS é opt-in. Para servir páginas, use `securityHeaders: 'web'` (CSP `default-src 'self'`, `X-Frame-Options: SAMEORIGIN`). |
-| Limite de body | 1 MiB (`bodyLimit`). Recusado já pelo `Content-Length`, com a conexão fechada. |
-| Timeouts | `requestTimeout` 30s, `headersTimeout` 10s, `keepAliveTimeout` 5s (contra Slowloris). |
-| Query | Até 1000 pares (`queryMaxKeys`); `__proto__`, `constructor` e `prototype` são descartados. |
-| Body JSON | `__proto__` e `constructor.prototype` em qualquer nível, inclusive com escapes `\u`, recebem 400 (`PROTO_POISONING`). Com `protoPoisoning: 'remove'`, as chaves são descartadas e a requisição segue. |
-| Logs | `authorization`, `cookie`, `password`, `token`, `apiKey` e afins saem como `[REDACTED]` no logger padrão. |
-| Erros 5xx | Sem detalhes para o cliente. |
-| Request id | Ids recebidos só são aceitos se forem seguros (contra log injection). |
-| Host e path | `Host` malformado → 400. O path vem do request-target com base fixa: `//evil.com/x` continua sendo esse path e não muda o host. `ctx.url` usa o host validado. |
+| Limite de body       | 1 MiB (`bodyLimit`). Recusado já pelo `Content-Length`, com a conexão fechada.                                                                                                                                                                                                                                                              |
+| Timeouts             | `requestTimeout` 30s, `headersTimeout` 10s, `keepAliveTimeout` 5s (contra Slowloris).                                                                                                                                                                                                                                                       |
+| Query                | Até 1000 pares (`queryMaxKeys`); `__proto__`, `constructor` e `prototype` são descartados.                                                                                                                                                                                                                                                  |
+| Body JSON            | `__proto__` e `constructor.prototype` em qualquer nível, inclusive com escapes `\u`, recebem 400 (`PROTO_POISONING`). Com `protoPoisoning: 'remove'`, as chaves são descartadas e a requisição segue.                                                                                                                                       |
+| Logs                 | `authorization`, `cookie`, `password`, `token`, `apiKey` e afins saem como `[REDACTED]` no logger padrão.                                                                                                                                                                                                                                   |
+| Erros 5xx            | Sem detalhes para o cliente.                                                                                                                                                                                                                                                                                                                |
+| Request id           | Ids recebidos só são aceitos se forem seguros (contra log injection).                                                                                                                                                                                                                                                                       |
+| Host e path          | `Host` malformado → 400. O path vem do request-target com base fixa: `//evil.com/x` continua sendo esse path e não muda o host. `ctx.url` usa o host validado.                                                                                                                                                                              |
 
 Opt-in:
 
@@ -493,19 +506,18 @@ createApp({
   securityHeaders: { strictTransportSecurity: true }, // só atrás de HTTPS
 })
   .use(cors({ origin: ['https://app.exemplo.com', 'https://*.exemplo.dev'], credentials: true }))
-  .use(rateLimit({ max: 100, windowMs: 60_000 }));     // 429 + Retry-After
+  .use(rateLimit({ max: 100, windowMs: 60_000 })); // 429 + Retry-After
 ```
 
 - **`cors()`:** a origem é obrigatória, sem default permissivo. Responde ao preflight com 204 e envia `Vary: Origin`. Combinar `origin: '*'` com `credentials: true` gera erro.
 - **Regras de origem e de host, seguras por padrão** (as mesmas para `cors()` e `allowedHosts`):
 
-  | Regra | Casa com | Não casa com |
-  |---|---|---|
+  | Regra                       | Casa com                                                                     | Não casa com                                            |
+  | --------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------- |
   | `'https://app.exemplo.com'` | a mesma origem, depois de normalizar (maiúsculas, porta padrão, barra final) | `http://…`, outra porta, `app.exemplo.com.atacante.com` |
-  | `'https://*.exemplo.dev'` | qualquer subdomínio | `exemplo.dev` em si, `exemplo.dev.atacante.com` |
-  | RegExp | a string **inteira**, como se tivesse `^…$` | qualquer casamento parcial |
-  | função | o que ela decidir, sob sua responsabilidade | — |
-
+  | `'https://*.exemplo.dev'`   | qualquer subdomínio                                                          | `exemplo.dev` em si, `exemplo.dev.atacante.com`         |
+  | RegExp                      | a string **inteira**, como se tivesse `^…$`                                  | qualquer casamento parcial                              |
+  | função                      | o que ela decidir, sob sua responsabilidade                                  | —                                                       |
   - **RegExp sem âncora não vira brecha:** `/app\.exemplo\.com/` não aceita `app.exemplo.com.atacante.com`. As flags `g`, `y` e `m` são descartadas, então o resultado não muda entre requisições.
   - **Prefira o curinga à RegExp:** uma regex mal escrita pode ser lenta com uma entrada maliciosa (ReDoS).
   - **Regras inválidas falham na inicialização,** por exemplo uma origem sem esquema (`'app.exemplo.com'`).
@@ -517,6 +529,7 @@ createApp({
 
   const painel = basicAuth({ verify: (user, pass) => safeEqual(user, 'admin') && safeEqual(pass, process.env.ADMIN_PASS!) });
   ```
+
   Credencial ausente, malformada ou recusada recebe **o mesmo** 401, com `WWW-Authenticate` e sem dizer o motivo. Para comparar segredos, use `safeEqual()`, que tem tempo constante e também não revela o tamanho. Use o `basicAuth` só sobre HTTPS.
 - **`rateLimit()`:** guarda os contadores em memória por padrão. Para várias instâncias, implemente `RateLimitStore` (Redis etc.).
 - **Cookies:** `ctx.setCookie()` usa `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/` por padrão (os navegadores aceitam `Secure` em `http://localhost`). Nome, `path` e `domain` são validados contra injeção de atributos, e os prefixos `__Host-` e `__Secure-` têm as regras conferidas.
@@ -527,6 +540,7 @@ createApp({
   app.use(csrf({ trustedOrigins: ['https://app.exemplo.com'] })); // front em outra origem
   app.use(csrf({ token: true }));                               // + double-submit token
   ```
+
   Com `token: true`, o middleware cria o cookie `__Host-csrf` (legível pelo JS, `SameSite=Strict`) e o expõe em `ctx.state.csrfToken`; o cliente o devolve no header `X-CSRF-Token`. Rotas GET nunca devem alterar estado.
 - **Atrás de proxy:** `ctx.ip`, `ctx.host` e `ctx.protocol` usam o socket e o `Host` por padrão. Com `trustProxy: 1` (o número de proxies à frente do app) ou `true` (toda a cadeia), passam a usar o `X-Forwarded-For`, o `-Host` e o `-Proto`. Só ligue isso atrás de um proxy que reescreve esses headers, porque o cliente pode forjá-los.
 - **`allowedHosts`:** com `allowedHosts: ['api.exemplo.com', '*.exemplo.dev']`, qualquer outro `Host` recebe 400. Protege contra host header injection e DNS rebinding. Um host sem porta aceita qualquer porta; com porta (`'api.exemplo.com:8443'`), exige a porta exata.
@@ -549,6 +563,7 @@ createApp({ logger: pino(), logRequests: true });
   ```ts
   createApp({ logger: consoleLogger({ redact: ['cpf', 'cardNumber'] }) }); // soma às chaves padrão; false desliga
   ```
+
   Com o pino, configure o [`redact`](https://getpino.io/#/docs/redaction) dele.
 
 ## Ciclo de vida e testes
@@ -594,6 +609,7 @@ await app.listen({
     },
   }
   ```
+
   Sem certificado principal, um domínio fora da lista não completa o handshake. Para recusar o domínio também na camada HTTP, combine com `allowedHosts`.
 - **Renovação sem reiniciar:** `app.reloadTLS({ key, cert, sni })` troca os certificados. As conexões novas usam os novos, e as abertas continuam com os antigos. Um certificado inválido lança erro e mantém os atuais. É o ponto de integração para um cliente ACME externo, como Let's Encrypt via certbot:
 
@@ -616,8 +632,10 @@ await app.listen({
 ```ts
 createApp({
   shutdown: {
-    timeoutMs: 10_000,                        // prazo para as requisições em andamento (padrão)
-    onShutdown: async () => { await db.close(); }, // depois que o servidor fecha
+    timeoutMs: 10_000, // prazo para as requisições em andamento (padrão)
+    onShutdown: async () => {
+      await db.close();
+    }, // depois que o servidor fecha
   },
 });
 ```
@@ -633,16 +651,16 @@ createApp({
 ```ts
 app.health({
   checks: {
-    db: () => db.query('select 1'),       // lançar ou devolver false = falha
+    db: () => db.query('select 1'), // lançar ou devolver false = falha
     cache: () => redis.ping(),
   },
-  timeoutMs: 2000,                        // por check (padrão)
+  timeoutMs: 2000, // por check (padrão)
 });
 ```
 
-| Rota | Responde | Uso |
-|---|---|---|
-| `GET /livez` | 200 `{ "status": "ok" }` enquanto o processo estiver de pé | liveness: reiniciar o processo travado |
+| Rota          | Responde                                                                                             | Uso                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `GET /livez`  | 200 `{ "status": "ok" }` enquanto o processo estiver de pé                                           | liveness: reiniciar o processo travado        |
 | `GET /readyz` | 200 com o resultado de cada check; 503 se algum falhar ou estourar o tempo, e durante o encerramento | readiness: tirar a instância do balanceamento |
 
 - **Os checks rodam em paralelo.** O motivo da falha vai só para o log, nunca para a resposta, porque pode conter host, usuário ou URL do banco.
@@ -661,10 +679,10 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 
 ```ts
 const app = createApp({
-  logger: consoleLogger({ format: 'json' }),            // uma linha JSON por evento, com redact
-  trustProxy: 1,                                        // atrás de 1 proxy/load balancer
+  logger: consoleLogger({ format: 'json' }), // uma linha JSON por evento, com redact
+  trustProxy: 1, // atrás de 1 proxy/load balancer
   allowedHosts: ['api.exemplo.com'],
-  securityHeaders: { strictTransportSecurity: true },   // HSTS: só com HTTPS na frente
+  securityHeaders: { strictTransportSecurity: true }, // HSTS: só com HTTPS na frente
   shutdown: { drainDelayMs: 5_000, timeoutMs: 10_000 },
 })
   .use(rateLimit({ max: 100, windowMs: 60_000 }))
@@ -676,39 +694,39 @@ await app.listen({ port: Number(process.env.PORT ?? 3000), host: '0.0.0.0' });
 
 Checklist:
 
-| Item | Como |
-|---|---|
-| Escutar fora do container | `host: '0.0.0.0'` (o padrão é `127.0.0.1`), porta por `PORT` |
-| TLS | No proxy ou load balancer (recomendado), ou `listen({ tls })` |
-| Proxy à frente | `trustProxy` com o número **exato** de proxies; nunca `true` se o app for acessível direto |
-| Domínios | `allowedHosts` com os domínios servidos |
-| HSTS | `securityHeaders: { strictTransportSecurity: true }`, só quando todo acesso for HTTPS |
-| Logs | `consoleLogger({ format: 'json' })` ou pino; campos sensíveis já mascarados |
-| Healthchecks | `/livez` (liveness) e `/readyz` (readiness) com `app.health()` |
-| Encerramento | SIGTERM já tratado; `drainDelayMs` maior que o intervalo da sonda de readiness |
-| Rate limit com várias instâncias | `RateLimitStore` compartilhado (Redis), porque o padrão é em memória por processo |
-| Autenticação por cookie | `csrf()` ativo |
-| Documentação da API | `openapi({ guards })`, ou gerar só o arquivo com `openapiDocument()` |
-| Processo | Rode `node dist/server.js` direto (não via `npm start`), para o SIGTERM chegar ao Node; em container, `--init` ou `tini` como PID 1 |
+| Item                             | Como                                                                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Escutar fora do container        | `host: '0.0.0.0'` (o padrão é `127.0.0.1`), porta por `PORT`                                                                        |
+| TLS                              | No proxy ou load balancer (recomendado), ou `listen({ tls })`                                                                       |
+| Proxy à frente                   | `trustProxy` com o número **exato** de proxies; nunca `true` se o app for acessível direto                                          |
+| Domínios                         | `allowedHosts` com os domínios servidos                                                                                             |
+| HSTS                             | `securityHeaders: { strictTransportSecurity: true }`, só quando todo acesso for HTTPS                                               |
+| Logs                             | `consoleLogger({ format: 'json' })` ou pino; campos sensíveis já mascarados                                                         |
+| Healthchecks                     | `/livez` (liveness) e `/readyz` (readiness) com `app.health()`                                                                      |
+| Encerramento                     | SIGTERM já tratado; `drainDelayMs` maior que o intervalo da sonda de readiness                                                      |
+| Rate limit com várias instâncias | `RateLimitStore` compartilhado (Redis), porque o padrão é em memória por processo                                                   |
+| Autenticação por cookie          | `csrf()` ativo                                                                                                                      |
+| Documentação da API              | `openapi({ guards })`, ou gerar só o arquivo com `openapiDocument()`                                                                |
+| Processo                         | Rode `node dist/server.js` direto (não via `npm start`), para o SIGTERM chegar ao Node; em container, `--init` ou `tini` como PID 1 |
 
 ## Referência: `createApp(options)`
 
-| Opção | Padrão | Descrição |
-|---|---|---|
-| `bodyLimit` | `1048576` | Tamanho máximo do body JSON, em bytes |
-| `queryMaxKeys` | `1000` | Máximo de pares lidos da query string |
-| `requireSchemas` | `false` | Exige schemas de body e de resposta no registro das rotas |
-| `securityHeaders` | `'api'` | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar |
-| `serializers` | — | Serializadores por content type, para responder em outros formatos |
-| `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `drainDelayMs`, `onShutdown`, `exit`; `false` desliga |
-| `protoPoisoning` | `'error'` | Body com `__proto__`/`constructor.prototype`: `'error'` (400) ou `'remove'` |
-| `trustProxy` | `false` | `true` ou o número de proxies: `ctx.ip`/`host`/`protocol` passam a usar os `X-Forwarded-*` |
-| `allowedHosts` | qualquer host válido | Lista de hosts (string ou RegExp); os demais recebem 400 |
-| `formatError` | Problem Details | `(problem, ctx) => corpo`, para personalizar o corpo de todos os erros |
-| `timeouts` | 30s / 10s / 5s | `requestTimeout`, `headersTimeout`, `keepAliveTimeout` |
-| `logger` | `consoleLogger()` | Logger compatível com pino; `false` desliga |
-| `logRequests` | `false` | Log de cada requisição concluída |
-| `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
+| Opção             | Padrão                | Descrição                                                                                  |
+| ----------------- | --------------------- | ------------------------------------------------------------------------------------------ |
+| `bodyLimit`       | `1048576`             | Tamanho máximo do body JSON, em bytes                                                      |
+| `queryMaxKeys`    | `1000`                | Máximo de pares lidos da query string                                                      |
+| `requireSchemas`  | `false`               | Exige schemas de body e de resposta no registro das rotas                                  |
+| `securityHeaders` | `'api'`               | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar                            |
+| `serializers`     | —                     | Serializadores por content type, para responder em outros formatos                         |
+| `shutdown`        | SIGINT/SIGTERM, 10s   | `signals`, `timeoutMs`, `drainDelayMs`, `onShutdown`, `exit`; `false` desliga              |
+| `protoPoisoning`  | `'error'`             | Body com `__proto__`/`constructor.prototype`: `'error'` (400) ou `'remove'`                |
+| `trustProxy`      | `false`               | `true` ou o número de proxies: `ctx.ip`/`host`/`protocol` passam a usar os `X-Forwarded-*` |
+| `allowedHosts`    | qualquer host válido  | Lista de hosts (string ou RegExp); os demais recebem 400                                   |
+| `formatError`     | Problem Details       | `(problem, ctx) => corpo`, para personalizar o corpo de todos os erros                     |
+| `timeouts`        | 30s / 10s / 5s        | `requestTimeout`, `headersTimeout`, `keepAliveTimeout`                                     |
+| `logger`          | `consoleLogger()`     | Logger compatível com pino; `false` desliga                                                |
+| `logRequests`     | `false`               | Log de cada requisição concluída                                                           |
+| `requestId`       | header `x-request-id` | `header`, `trustIncoming`, `generate`                                                      |
 
 Métodos do app: `use()`, `mount()`, `group()`, `health()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
@@ -743,8 +761,11 @@ pnpm install
 pnpm test            # node:test + tsx
 pnpm test:coverage   # com limites mínimos de cobertura
 pnpm typecheck
+pnpm check           # lint + formatação (Biome); pnpm format corrige a formatação
 pnpm build           # dist/
 ```
+
+Para o `git blame` ignorar o commit de formatação: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 Mudanças notáveis estão no [CHANGELOG](CHANGELOG.md). Para reportar uma vulnerabilidade e conhecer a política de dependências, veja o [SECURITY.md](SECURITY.md).
 

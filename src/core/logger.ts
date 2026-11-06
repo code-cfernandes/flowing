@@ -54,8 +54,20 @@ function toJsonLine(record: Record<string, unknown>): string {
 
 /** Chaves mascaradas por padrão: credenciais, cookies e tokens. */
 export const DEFAULT_REDACT_KEYS: readonly string[] = [
-  'authorization', 'proxy-authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key',
-  'password', 'passwd', 'secret', 'client-secret', 'token', 'access-token', 'refresh-token', 'id-token',
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'api-key',
+  'password',
+  'passwd',
+  'secret',
+  'client-secret',
+  'token',
+  'access-token',
+  'refresh-token',
+  'id-token',
 ];
 
 const REDACTED = '[REDACTED]';
@@ -105,6 +117,9 @@ export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<
 
 /** Logger que descarta tudo (`createApp({ logger: false })`). */
 export const silentLogger: Logger = {
-  debug() {}, info() {}, warn() {}, error() {},
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
   child: () => silentLogger,
 };

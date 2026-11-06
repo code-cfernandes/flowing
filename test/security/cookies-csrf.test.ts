@@ -43,14 +43,22 @@ describe('cookies · escrita', () => {
 
 @Router('/c')
 class Cookies {
-  @Get('/read') read(ctx: Context) { return { ...ctx.cookies }; }
+  @Get('/read') read(ctx: Context) {
+    return { ...ctx.cookies };
+  }
   @Get('/set') set(ctx: Context) {
     ctx.setCookie('sid', 'abc', { maxAge: 3600 }).setCookie('theme', 'dark', { httpOnly: false });
     return { ok: true };
   }
-  @Get('/clear') clear(ctx: Context) { ctx.clearCookie('sid'); }
-  @Post('/write') write() { return { ok: true }; }
-  @Get('/token') token(ctx: Context) { return { token: ctx.state.csrfToken ?? null }; }
+  @Get('/clear') clear(ctx: Context) {
+    ctx.clearCookie('sid');
+  }
+  @Post('/write') write() {
+    return { ok: true };
+  }
+  @Get('/token') token(ctx: Context) {
+    return { token: ctx.state.csrfToken ?? null };
+  }
 }
 
 describe('ctx.cookies, setCookie e clearCookie', () => {
@@ -71,12 +79,16 @@ describe('ctx.cookies, setCookie e clearCookie', () => {
 
   it('clearCookie expira o cookie', async () => {
     const res = await app.inject('/c/clear');
-    assert.deepEqual([res.headers['set-cookie']].flat(), ['sid=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; Secure; SameSite=Lax']);
+    assert.deepEqual([res.headers['set-cookie']].flat(), [
+      'sid=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; Secure; SameSite=Lax',
+    ]);
   });
 });
 
 describe('csrf() · origem', () => {
-  const app = createApp({ logger: false }).use(csrf({ trustedOrigins: ['https://*.exemplo.dev'] })).mount(Cookies);
+  const app = createApp({ logger: false })
+    .use(csrf({ trustedOrigins: ['https://*.exemplo.dev'] }))
+    .mount(Cookies);
   const post = (headers: Record<string, string>) => app.inject({ method: 'POST', url: '/c/write', headers });
 
   it('métodos seguros passam mesmo de outra origem', async () => {
@@ -89,7 +101,13 @@ describe('csrf() · origem', () => {
     assert.equal((await post({ 'sec-fetch-site': 'none' })).status, 200);
     const cross = await post({ 'sec-fetch-site': 'cross-site', origin: 'https://atacante.com' });
     assert.equal(cross.status, 403);
-    assert.deepEqual(cross.json(), { type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Cross-origin request blocked', code: 'CSRF_ORIGIN' });
+    assert.deepEqual(cross.json(), {
+      type: 'about:blank',
+      title: 'Forbidden',
+      status: 403,
+      detail: 'Cross-origin request blocked',
+      code: 'CSRF_ORIGIN',
+    });
     assert.equal((await post({ 'sec-fetch-site': 'same-site', origin: 'https://irmao.localhost' })).status, 403);
     assert.equal((await post({ 'sec-fetch-site': 'cross-site' })).status, 403, 'cross-site sem Origin');
   });
@@ -112,7 +130,9 @@ describe('csrf() · origem', () => {
 });
 
 describe('csrf() · double-submit token', () => {
-  const app = createApp({ logger: false }).use(csrf({ token: true })).mount(Cookies);
+  const app = createApp({ logger: false })
+    .use(csrf({ token: true }))
+    .mount(Cookies);
 
   it('GET gera o token no cookie __Host-csrf (legível pelo JS) e em ctx.state', async () => {
     const res = await app.inject('/c/token');
@@ -140,14 +160,21 @@ describe('csrf() · double-submit token', () => {
     ]) {
       const res = await app.inject({ method: 'POST', url: '/c/write', headers });
       assert.equal(res.status, 403);
-      assert.deepEqual(res.json(), { type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Invalid CSRF token', code: 'CSRF_TOKEN' });
+      assert.deepEqual(res.json(), {
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        detail: 'Invalid CSRF token',
+        code: 'CSRF_TOKEN',
+      });
     }
   });
 
   it('a checagem de origem continua valendo junto com o token', async () => {
     const token = 'd'.repeat(43);
     const res = await app.inject({
-      method: 'POST', url: '/c/write',
+      method: 'POST',
+      url: '/c/write',
       headers: { cookie: `__Host-csrf=${token}`, 'x-csrf-token': token, origin: 'https://atacante.com' },
     });
     assert.equal(res.status, 403);

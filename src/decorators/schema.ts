@@ -6,10 +6,11 @@ import { getOrCreateMethod, mergeSchemas, metadataFor, type RouteSchemas } from 
  * desde que não declarem a mesma parte (ex.: `body`) duas vezes.
  */
 export function Schema(schemas: RouteSchemas) {
-  return function <This, Args extends [any, ...unknown[]], Return>(
+  // biome-ignore lint/suspicious/noExplicitAny: o primeiro parâmetro precisa ser bivariante para aceitar Context<S> de qualquer S.
+  return <This, Args extends [any, ...unknown[]], Return>(
     _target: (this: This, ...args: Args) => Return,
     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
-  ) {
+  ) => {
     const meta = metadataFor(context, 'Schema');
     mergeSchemas(getOrCreateMethod(meta, context.name), schemas, '@Schema');
   };

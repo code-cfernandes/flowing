@@ -1,9 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import {
-  type Context, createApp, Get, Middlewares, type Middleware, Post, Router, type RouteSchemas,
-} from 'sashiko';
+import { type Context, createApp, Get, Middlewares, type Middleware, Post, Router, type RouteSchemas } from 'sashiko';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const leaky = { id: '1', name: 'Ana', password: 'hash' };
@@ -20,14 +18,22 @@ const jobResponses = { response: job.response } satisfies RouteSchemas;
 const created = { response: { 201: User } } satisfies RouteSchemas;
 const csvOrJson = { response: { 200: { contentType: ['application/json', 'text/csv'], schema: Type.Array(User) } } } satisfies RouteSchemas;
 
-const maintenance: Middleware = (ctx) => { ctx.status(503).json({ error: 'maintenance', extra: true }); };
+const maintenance: Middleware = (ctx) => {
+  ctx.status(503).json({ error: 'maintenance', extra: true });
+};
 
 @Router('/p')
 class P {
   // Mesmo dado, dois estilos: a resposta precisa ser idêntica
-  @Get('/return', one) viaReturn() { return leaky; }
-  @Get('/json', one) viaJson(ctx: Context<typeof one>) { ctx.json(leaky); }
-  @Get('/send', one) viaSend(ctx: Context<typeof one>) { ctx.send(leaky); }
+  @Get('/return', one) viaReturn() {
+    return leaky;
+  }
+  @Get('/json', one) viaJson(ctx: Context<typeof one>) {
+    ctx.json(leaky);
+  }
+  @Get('/send', one) viaSend(ctx: Context<typeof one>) {
+    ctx.send(leaky);
+  }
 
   // Status decidido em runtime
   @Post('/job', job)
@@ -37,30 +43,47 @@ class P {
   }
 
   // Status padrão (B-05) também no envio imperativo
-  @Post('/created', created) create(ctx: Context<typeof created>) { ctx.json(leaky); }
+  @Post('/created', created) create(ctx: Context<typeof created>) {
+    ctx.json(leaky);
+  }
 
   // Negociação no ctx.send(objeto)
-  @Get('/list', csvOrJson) list(ctx: Context<typeof csvOrJson>) { ctx.send([leaky]); }
+  @Get('/list', csvOrJson) list(ctx: Context<typeof csvOrJson>) {
+    ctx.send([leaky]);
+  }
 
   // Corpo que não bate com o schema do status → 500, igual ao return
-  @Get('/wrong', jobResponses) wrong(ctx: Context<typeof jobResponses>) { ctx.status(202).json({ result: 'x' } as unknown as { jobId: string }); }
+  @Get('/wrong', jobResponses) wrong(ctx: Context<typeof jobResponses>) {
+    ctx.status(202).json({ result: 'x' } as unknown as { jobId: string });
+  }
 
   // ctx.json(string) é JSON; ctx.text é texto
-  @Get('/json-string') js(ctx: Context) { ctx.json('olá'); }
-  @Get('/text') tx(ctx: Context) { ctx.text('olá'); }
+  @Get('/json-string') js(ctx: Context) {
+    ctx.json('olá');
+  }
+  @Get('/text') tx(ctx: Context) {
+    ctx.text('olá');
+  }
 
   // Middleware responde antes do handler: sem schema da rota
-  @Middlewares(maintenance) @Get('/maint', one) maint() { return leaky; }
+  @Middlewares(maintenance) @Get('/maint', one) maint() {
+    return leaky;
+  }
 }
 
-const app = createApp({ logger: false, serializers: { 'text/csv': (rows) => (rows as { id: string; name: string }[]).map((r) => `${r.id},${r.name}`).join('\n') } }).mount(P);
+const app = createApp({
+  logger: false,
+  serializers: { 'text/csv': (rows) => (rows as { id: string; name: string }[]).map((r) => `${r.id},${r.name}`).join('\n') },
+}).mount(P);
 
 describe('F-32 · pipeline único de resposta', () => {
   it('return, ctx.json e ctx.send produzem a mesma resposta e não vazam campos', async () => {
-    const bodies = await Promise.all(['/p/return', '/p/json', '/p/send'].map(async (u) => {
-      const r = await app.inject(u);
-      return { status: r.status, type: r.headers['content-type'], body: r.body };
-    }));
+    const bodies = await Promise.all(
+      ['/p/return', '/p/json', '/p/send'].map(async (u) => {
+        const r = await app.inject(u);
+        return { status: r.status, type: r.headers['content-type'], body: r.body };
+      }),
+    );
     assert.deepEqual(bodies[0], { status: 200, type: 'application/json; charset=utf-8', body: '{"id":"1","name":"Ana"}' });
     assert.deepEqual(bodies[1], bodies[0]);
     assert.deepEqual(bodies[2], bodies[0]);
@@ -89,7 +112,9 @@ describe('F-32 · pipeline único de resposta', () => {
     const errorLog = mock.method(console, 'error', () => {});
     try {
       assert.equal((await createApp().mount(P).inject('/p/wrong')).status, 500);
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 
   it('ctx.json(string) codifica como JSON; ctx.text envia texto', async () => {

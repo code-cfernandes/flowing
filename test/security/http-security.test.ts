@@ -2,20 +2,24 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import {
-  type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer,
-} from 'sashiko';
+import { type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer } from 'sashiko';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 @Router('/api')
 class Api {
-  @Get('/data') data() { return { ok: true }; }
-  @Post('/data') save(ctx: Context) { return ctx.body; }
+  @Get('/data') data() {
+    return { ok: true };
+  }
+  @Post('/data') save(ctx: Context) {
+    return ctx.body;
+  }
 }
 
 describe('S-04 / S-02 · headers de segurança', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().mount(Api)); });
+  before(async () => {
+    srv = await startServer(createApp().mount(Api));
+  });
   after(() => srv.close());
 
   it('aplica os headers padrão em respostas de sucesso', async () => {
@@ -55,7 +59,9 @@ describe('S-04 / S-02 · headers de segurança', () => {
 
 describe('F-08 · HEAD e OPTIONS automáticos', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().mount(Api)); });
+  before(async () => {
+    srv = await startServer(createApp().mount(Api));
+  });
   after(() => srv.close());
 
   it('HEAD usa o handler do GET sem corpo', async () => {
@@ -144,7 +150,11 @@ describe('S-01 · CORS', () => {
   });
 
   it("origin '*' responde com * e sem Vary", async () => {
-    const s = await startServer(createApp().use(cors({ origin: '*' })).mount(Api));
+    const s = await startServer(
+      createApp()
+        .use(cors({ origin: '*' }))
+        .mount(Api),
+    );
     try {
       const res = await fetch(s.url + '/api/data', { headers: { origin: 'https://qualquer.com' } });
       assert.equal(res.headers.get('access-control-allow-origin'), '*');
@@ -158,7 +168,9 @@ describe('S-01 · CORS', () => {
 describe('S-06 · DoS', () => {
   it('rate limit responde 429 com Retry-After após exceder', async () => {
     const s = await startServer(
-      createApp().use(rateLimit({ max: 2, windowMs: 60_000, store: new MemoryRateLimitStore() })).mount(Api),
+      createApp()
+        .use(rateLimit({ max: 2, windowMs: 60_000, store: new MemoryRateLimitStore() }))
+        .mount(Api),
     );
     try {
       const statuses = [];
@@ -207,17 +219,24 @@ describe('S-06 · DoS', () => {
 
 describe('S-07 · requireSchemas', () => {
   it('falha no registro de POST sem body schema', () => {
-    @Router('/x') class NoBody { @Post('/') @Schema({ response: { 200: Type.Object({}) } }) a() {} }
+    @Router('/x')
+    class NoBody {
+      @Post('/') @Schema({ response: { 200: Type.Object({}) } }) a() {}
+    }
     assert.throws(() => createApp({ requireSchemas: true }).mount(NoBody), /no body schema/);
   });
 
   it('falha no registro de rota sem response schema', () => {
-    @Router('/x') class NoResp { @Get('/') b() {} }
+    @Router('/x')
+    class NoResp {
+      @Get('/') b() {}
+    }
     assert.throws(() => createApp({ requireSchemas: true }).mount(NoResp), /no response schema/);
   });
 
   it('aceita rotas com schemas completos', () => {
-    @Router('/x') class Ok {
+    @Router('/x')
+    class Ok {
       @Post('/') @Schema({ body: Type.Object({}), response: { 201: Type.Object({}) } }) c() {}
     }
     assert.doesNotThrow(() => createApp({ requireSchemas: true }).mount(Ok));
@@ -229,7 +248,10 @@ describe('B-04 · timer', () => {
     const measured: number[] = [];
     class T {
       @timer({ log: (_m, ms) => measured.push(ms) })
-      async slow() { await new Promise((r) => setTimeout(r, 30)); return 'ok'; }
+      async slow() {
+        await new Promise((r) => setTimeout(r, 30));
+        return 'ok';
+      }
     }
     assert.equal(await new T().slow(), 'ok');
     assert.equal(measured.length, 1);
@@ -238,7 +260,11 @@ describe('B-04 · timer', () => {
 
   it('mede mesmo quando o handler lança', () => {
     const measured: number[] = [];
-    class T { @timer({ log: (_m, ms) => measured.push(ms) }) boom() { throw new Error('x'); } }
+    class T {
+      @timer({ log: (_m, ms) => measured.push(ms) }) boom() {
+        throw new Error('x');
+      }
+    }
     assert.throws(() => new T().boom(), /x/);
     assert.equal(measured.length, 1);
   });

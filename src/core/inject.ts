@@ -61,7 +61,9 @@ export function inject(listener: Listener, opts: InjectOptions): Promise<InjectR
     const noBody = req.method === 'HEAD';
     const collect = (chunk: unknown, encoding?: unknown) => {
       if (noBody || chunk === undefined || chunk === null || typeof chunk === 'function') return;
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), (typeof encoding === 'string' ? encoding : 'utf8') as BufferEncoding));
+      chunks.push(
+        Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), (typeof encoding === 'string' ? encoding : 'utf8') as BufferEncoding),
+      );
     };
 
     // Sem socket conectado, o 'finish' não dispara: interceptamos write/end para capturar o corpo

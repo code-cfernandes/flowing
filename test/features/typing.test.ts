@@ -2,12 +2,22 @@ import { type Static, Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, Router, createApp, Get, type InferBody, type InferParams, type InferQuery, type InferResponse,
-  type InferSchema, Post, type RouteSchemas, Schema,
+  type Context,
+  Router,
+  createApp,
+  Get,
+  type InferBody,
+  type InferParams,
+  type InferQuery,
+  type InferResponse,
+  type InferSchema,
+  Post,
+  type RouteSchemas,
+  Schema,
 } from 'sashiko';
 
 // ---------- Asserções de tipo: falham no `pnpm typecheck` ----------
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 const assertType = <T extends true>(_?: T) => {};
 
 const User = Type.Object({ id: Type.String(), name: Type.String(), age: Type.Optional(Type.Integer()) });
@@ -49,13 +59,15 @@ class Users {
   @Post('/')
   @Schema(create)
   create(ctx: Context<typeof create>): InferResponse<typeof create, 201> {
-    const { name } = ctx.body;           // string, sem cast
+    const { name } = ctx.body; // string, sem cast
     const dry: boolean = ctx.query.dryRun; // boolean após coerção + default
     return { id: dry ? 'dry' : `${ctx.params.org}-1`, name };
   }
 
   @Get('/plain')
-  plain(ctx: Context) { return { org: ctx.params.org }; } // sem schema: Record<string, string>
+  plain(ctx: Context) {
+    return { org: ctx.params.org };
+  } // sem schema: Record<string, string>
 }
 
 describe('F-02 · Context<S> tipado pelo schema', () => {

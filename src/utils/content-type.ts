@@ -9,12 +9,17 @@ export function mediaType(header: string | undefined): string {
  * devolve o primeiro. Retorna `undefined` quando nenhum é aceitável (→ 406).
  */
 export function negotiate(accept: string | undefined, available: readonly string[]): string | undefined {
-  if (!accept || !accept.trim()) return available[0];
+  if (!accept?.trim()) return available[0];
   const ranges = accept
     .split(',')
     .map((part, index) => {
       const [range = '', ...params] = part.trim().toLowerCase().split(';');
-      const q = Number(params.map((p) => p.trim()).find((p) => p.startsWith('q='))?.slice(2) ?? '1');
+      const q = Number(
+        params
+          .map((p) => p.trim())
+          .find((p) => p.startsWith('q='))
+          ?.slice(2) ?? '1',
+      );
       return { range: range.trim(), q: Number.isFinite(q) ? q : 1, index };
     })
     .filter((r) => r.range && r.q > 0)

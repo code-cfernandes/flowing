@@ -31,7 +31,9 @@ type CheckResult = 'ok' | 'error' | 'timeout';
 
 function withTimeout(check: HealthCheck, ms: number): Promise<CheckResult> {
   let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<CheckResult>((resolve) => { timer = setTimeout(() => resolve('timeout'), ms); });
+  const timeout = new Promise<CheckResult>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+  });
   const run = Promise.resolve()
     .then(check)
     .then((v): CheckResult => (v === false ? 'error' : 'ok'));
@@ -60,21 +62,26 @@ export function compileHealth(opts: HealthOptions, log: Logger): HealthConfig {
       const isReady = ready !== false && ctx.path === ready;
       if (!isLive && !isReady) return false;
 
-      await compose(ctx, [...pipeline, async () => {
-        if (isLive) return reply(ctx, 200, { status: 'ok' });
-        if (shuttingDown) return reply(ctx, 503, { status: 'shutting_down' });
-        const results = await Promise.all(checks.map(async ([name, check]) => {
-          const result = await withTimeout(check, timeoutMs).catch((err: unknown) => {
-            // O motivo vai para o log, nunca para a resposta (pode conter host, usuário do banco…).
-            log.warn({ err, check: name }, 'health check failed');
-            return 'error' as const;
-          });
-          if (result === 'timeout') log.warn({ check: name, timeoutMs }, 'health check timed out');
-          return [name, result] as const;
-        }));
-        const failed = results.some(([, r]) => r !== 'ok');
-        reply(ctx, failed ? 503 : 200, { status: failed ? 'error' : 'ok', checks: Object.fromEntries(results) });
-      }]);
+      await compose(ctx, [
+        ...pipeline,
+        async () => {
+          if (isLive) return reply(ctx, 200, { status: 'ok' });
+          if (shuttingDown) return reply(ctx, 503, { status: 'shutting_down' });
+          const results = await Promise.all(
+            checks.map(async ([name, check]) => {
+              const result = await withTimeout(check, timeoutMs).catch((err: unknown) => {
+                // O motivo vai para o log, nunca para a resposta (pode conter host, usuário do banco…).
+                log.warn({ err, check: name }, 'health check failed');
+                return 'error' as const;
+              });
+              if (result === 'timeout') log.warn({ check: name, timeoutMs }, 'health check timed out');
+              return [name, result] as const;
+            }),
+          );
+          const failed = results.some(([, r]) => r !== 'ok');
+          reply(ctx, failed ? 503 : 200, { status: failed ? 'error' : 'ok', checks: Object.fromEntries(results) });
+        },
+      ]);
       return true;
     },
   };

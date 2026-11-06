@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
-import {
-  type Context, Router, createApp, Get, HttpError, internal, notFound, Post,
-} from 'sashiko';
+import { type Context, Router, createApp, Get, HttpError, internal, notFound, Post } from 'sashiko';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 @Router('/t')
@@ -67,17 +65,28 @@ describe('tratamento de erros', () => {
       assert.deepEqual(await res.json(), { type: 'about:blank', title: "I'm a Teapot", status: 418, detail: "I'm a teapot" });
     });
 
-
     it('JSON malformado responde 400', async () => {
       const res = await postJson('/t/echo', '{oops');
       assert.equal(res.status, 400);
-      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Invalid JSON', code: 'INVALID_JSON' });
+      assert.deepEqual(await res.json(), {
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Invalid JSON',
+        code: 'INVALID_JSON',
+      });
     });
 
     it('payload acima do bodyLimit responde 413', async () => {
       const res = await postJson('/t/echo', JSON.stringify({ a: 'x'.repeat(2048) }));
       assert.equal(res.status, 413);
-      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Payload Too Large', status: 413, detail: 'Payload too large', code: 'PAYLOAD_TOO_LARGE' });
+      assert.deepEqual(await res.json(), {
+        type: 'about:blank',
+        title: 'Payload Too Large',
+        status: 413,
+        detail: 'Payload too large',
+        code: 'PAYLOAD_TOO_LARGE',
+      });
     });
   });
 
@@ -85,7 +94,13 @@ describe('tratamento de erros', () => {
     it('HttpError 4xx expõe a mensagem', async () => {
       const res = await get('/t/not-found');
       assert.equal(res.status, 404);
-      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Not Found', status: 404, detail: 'user not found', code: 'NOT_FOUND' });
+      assert.deepEqual(await res.json(), {
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'user not found',
+        code: 'NOT_FOUND',
+      });
     });
 
     it('Error comum vira 500 genérico', async () => {
@@ -103,7 +118,13 @@ describe('tratamento de erros', () => {
     it('HttpError 5xx com expose: true mostra a mensagem', async () => {
       const res = await get('/t/http-500-exposed');
       assert.equal(res.status, 503);
-      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Service Unavailable', status: 503, detail: 'Maintenance window', code: 'MAINTENANCE' });
+      assert.deepEqual(await res.json(), {
+        type: 'about:blank',
+        title: 'Service Unavailable',
+        status: 503,
+        detail: 'Maintenance window',
+        code: 'MAINTENANCE',
+      });
     });
 
     it('valor lançado que não é Error vira 500 genérico', async () => {

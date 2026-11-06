@@ -40,7 +40,10 @@ export function parseRequestTarget(raw: string | undefined): URL {
  */
 export function pickForwarded(header: string | string[] | undefined, trust: boolean | number): string | undefined {
   if (!trust || header === undefined) return undefined;
-  const list = (Array.isArray(header) ? header.join(',') : header).split(',').map((v) => v.trim()).filter(Boolean);
+  const list = (Array.isArray(header) ? header.join(',') : header)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
   if (list.length === 0) return undefined;
   if (trust === true) return list[0];
   return list[Math.max(0, list.length - trust)];

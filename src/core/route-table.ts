@@ -36,8 +36,7 @@ export class RouteTable {
   find(method: string, path: string): RouteMatch | null {
     // F-08: HEAD usa o handler do GET quando não houver rota HEAD própria.
     // O Node já descarta o corpo de respostas a HEAD.
-    const found = this.inner.find(method as Method, path)
-      ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
+    const found = this.inner.find(method as Method, path) ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
     if (!found) return null;
     return { ...(found.store as RouteDefinition), params: found.params as Record<string, string> };
   }

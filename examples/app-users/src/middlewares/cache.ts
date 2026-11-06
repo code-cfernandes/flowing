@@ -1,6 +1,10 @@
-import type { Middleware } from "sashiko";
+import type { Middleware } from 'sashiko';
 
-interface Entry { body: Buffer; type: string; expiresAt: number }
+interface Entry {
+  body: Buffer;
+  type: string;
+  expiresAt: number;
+}
 
 /**
  * Cache em memória por URL para respostas 200 (F-04). Usa `ctx.sentBody`, o corpo exatamente como

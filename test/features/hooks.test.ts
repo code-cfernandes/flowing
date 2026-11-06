@@ -10,11 +10,23 @@ let calls = 0;
 
 @Router('/h')
 class H {
-  @Get('/user', one) user() { calls++; return { id: '1', password: 'hash' }; }
-  @Get('/text') text() { return 'olá'; }
-  @Get('/stream') stream() { return Readable.from(['a', 'b']); }
-  @Get('/boom') boom() { throw new Error('x'); }
-  @Get('/slow') async slow() { await new Promise((r) => setTimeout(r, 20)); return { ok: true }; }
+  @Get('/user', one) user() {
+    calls++;
+    return { id: '1', password: 'hash' };
+  }
+  @Get('/text') text() {
+    return 'olá';
+  }
+  @Get('/stream') stream() {
+    return Readable.from(['a', 'b']);
+  }
+  @Get('/boom') boom() {
+    throw new Error('x');
+  }
+  @Get('/slow') async slow() {
+    await new Promise((r) => setTimeout(r, 20));
+    return { ok: true };
+  }
 }
 
 describe('F-04 · ctx.sentBody e cache por middleware', () => {
@@ -23,7 +35,7 @@ describe('F-04 · ctx.sentBody e cache por middleware', () => {
   const cache: Middleware = async (ctx, next) => {
     const hit = store.get(ctx.url.href);
     if (hit) return void ctx.header('X-Cache', 'HIT').send(hit.body, hit.type);
-    ctx.header('X-Cache', 'MISS');   // antes do next(): depois dele, a resposta já foi enviada
+    ctx.header('X-Cache', 'MISS'); // antes do next(): depois dele, a resposta já foi enviada
     await next();
     if (ctx.res.statusCode === 200 && ctx.sentBody) store.set(ctx.url.href, { body: ctx.sentBody, type: ctx.sentType! });
   };
@@ -41,7 +53,10 @@ describe('F-04 · ctx.sentBody e cache por middleware', () => {
 
   it('sentBody fica vazio em streams', async () => {
     let seen: unknown = 'nada';
-    const spy: Middleware = async (ctx, next) => { await next(); seen = ctx.sentBody; };
+    const spy: Middleware = async (ctx, next) => {
+      await next();
+      seen = ctx.sentBody;
+    };
     await createApp({ logger: false }).use(spy).mount(H).inject('/h/stream');
     assert.equal(seen, undefined);
   });
@@ -54,7 +69,9 @@ describe('F-04 · onSend', () => {
         ctx.header('ETag', `"${createHash('sha1').update(payload.body).digest('hex').slice(0, 8)}"`);
       })
       .onSend((_ctx, payload) =>
-        payload.contentType.startsWith('text/plain') ? { body: String(payload.body).toUpperCase(), contentType: payload.contentType } : payload,
+        payload.contentType.startsWith('text/plain')
+          ? { body: String(payload.body).toUpperCase(), contentType: payload.contentType }
+          : payload,
       )
       .mount(H);
     const text = await app.inject('/h/text');
@@ -66,19 +83,30 @@ describe('F-04 · onSend', () => {
 
   it('não roda para streams', async () => {
     let ran = false;
-    await createApp({ logger: false }).onSend(() => { ran = true; }).mount(H).inject('/h/stream');
+    await createApp({ logger: false })
+      .onSend(() => {
+        ran = true;
+      })
+      .mount(H)
+      .inject('/h/stream');
     assert.equal(ran, false);
   });
 
   it('se um onSend lançar, loga e envia a resposta original', async () => {
     const errorLog = mock.method(console, 'error', () => {});
     try {
-      const app = createApp().onSend(() => { throw new Error('hook quebrado'); }).mount(H);
+      const app = createApp()
+        .onSend(() => {
+          throw new Error('hook quebrado');
+        })
+        .mount(H);
       const res = await app.inject('/h/text');
       assert.equal(res.status, 200);
       assert.equal(res.body, 'olá');
       assert.ok(errorLog.mock.calls.some((c) => String(c.arguments[0]).includes('onSend hook failed')));
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 });
 
@@ -88,8 +116,13 @@ describe('F-04 · onResponse', () => {
     const errorLog = mock.method(console, 'error', () => {});
     try {
       const app = createApp()
-        .onResponse(async (ctx, info) => { await new Promise((r) => setTimeout(r, 5)); seen.push({ path: ctx.path, ...info }); })
-        .onResponse(() => { throw new Error('métrica quebrada'); })
+        .onResponse(async (ctx, info) => {
+          await new Promise((r) => setTimeout(r, 5));
+          seen.push({ path: ctx.path, ...info });
+        })
+        .onResponse(() => {
+          throw new Error('métrica quebrada');
+        })
         .mount(H);
       const server = await app.listen(0);
       const { port } = server.address() as { port: number };
@@ -100,7 +133,9 @@ describe('F-04 · onResponse', () => {
       assert.equal(seen[0]!.status, 200);
       assert.ok(seen[0]!.ms >= 15, `duração ${seen[0]!.ms}ms`);
       assert.ok(errorLog.mock.calls.some((c) => String(c.arguments[0]).includes('onResponse hook failed')));
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 });
 
@@ -108,7 +143,13 @@ describe('F-04 · onClose', () => {
   it('roda no close(), em ordem, depois que o servidor fecha', async () => {
     const order: string[] = [];
     const app = createApp({ logger: false, shutdown: false });
-    app.onClose(() => { order.push('db'); }).onClose(async () => { order.push('fila'); });
+    app
+      .onClose(() => {
+        order.push('db');
+      })
+      .onClose(async () => {
+        order.push('fila');
+      });
     const server = await app.listen(0);
     await app.close();
     assert.deepEqual(order, ['db', 'fila']);
@@ -117,7 +158,9 @@ describe('F-04 · onClose', () => {
 
   it('roda uma vez por ciclo, inclusive num app que nunca ouviu (testes com inject)', async () => {
     let n = 0;
-    const app = createApp({ logger: false }).onClose(() => { n++; });
+    const app = createApp({ logger: false }).onClose(() => {
+      n++;
+    });
     await app.close();
     await app.close();
     assert.equal(n, 1);
@@ -128,31 +171,49 @@ describe('F-04 · onClose', () => {
     const order: string[] = [];
     try {
       const app = createApp({ shutdown: false })
-        .onClose(() => { throw new Error('falhou'); })
-        .onClose(() => { order.push('segundo'); });
+        .onClose(() => {
+          throw new Error('falhou');
+        })
+        .onClose(() => {
+          order.push('segundo');
+        });
       await app.listen(0);
       await assert.rejects(app.close(), /1 onClose hook\(s\) failed/);
       assert.deepEqual(order, ['segundo']);
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 
   it('no shutdown por sinal: onClose antes do onShutdown, e erro → saída 1', async () => {
     const exit = mock.method(process, 'exit', (() => undefined) as never);
     const order: string[] = [];
     try {
-      const app = createApp({ logger: false, shutdown: { onShutdown: () => { order.push('onShutdown'); } } })
-        .onClose(() => { order.push('onClose'); });
+      const app = createApp({
+        logger: false,
+        shutdown: {
+          onShutdown: () => {
+            order.push('onShutdown');
+          },
+        },
+      }).onClose(() => {
+        order.push('onClose');
+      });
       await app.listen(0);
       process.emit('SIGTERM');
       for (let i = 0; i < 50 && exit.mock.callCount() === 0; i++) await new Promise((r) => setTimeout(r, 10));
       assert.deepEqual(order, ['onClose', 'onShutdown']);
       assert.deepEqual(exit.mock.calls.at(-1)?.arguments, [0]);
 
-      const bad = createApp({ logger: false }).onClose(() => { throw new Error('x'); });
+      const bad = createApp({ logger: false }).onClose(() => {
+        throw new Error('x');
+      });
       await bad.listen(0);
       process.emit('SIGTERM');
       for (let i = 0; i < 50 && exit.mock.callCount() < 2; i++) await new Promise((r) => setTimeout(r, 10));
       assert.deepEqual(exit.mock.calls.at(-1)?.arguments, [1]);
-    } finally { exit.mock.restore(); }
+    } finally {
+      exit.mock.restore();
+    }
   });
 });

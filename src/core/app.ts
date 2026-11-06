@@ -3,7 +3,18 @@ import http from 'node:http';
 import https from 'node:https';
 import { compileTls, type SniTable, type TlsOptions } from '../server/tls.ts';
 import { performance } from 'node:perf_hooks';
-import { childScope, compileAutoRoutes, compileManualRoute, createGroup, ROOT_SCOPE, type CompiledRoute, type GroupOptions, type MountOptions, type RouteScope, type RouterRef } from './compiler.ts';
+import {
+  childScope,
+  compileAutoRoutes,
+  compileManualRoute,
+  createGroup,
+  ROOT_SCOPE,
+  type CompiledRoute,
+  type GroupOptions,
+  type MountOptions,
+  type RouteScope,
+  type RouterRef,
+} from './compiler.ts';
 import { RouteGroupScope } from './mounted-group.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
@@ -247,9 +258,12 @@ export class SashikoApp {
   mountIn(scope: RouteScope, ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
     const group = createGroup(ref, options, scope);
     for (const route of compileAutoRoutes(group)) this.addRoute(group.name, route);
-    return new MountedGroup(this, group, (g, method, path, select, opts) =>
-      this.addRoute(g.name, compileManualRoute(g, method, path, select, opts)),
-    scope);
+    return new MountedGroup(
+      this,
+      group,
+      (g, method, path, select, opts) => this.addRoute(g.name, compileManualRoute(g, method, path, select, opts)),
+      scope,
+    );
   }
 
   /**
@@ -293,18 +307,21 @@ export class SashikoApp {
     const isSpec = ctx.path === cfg.path;
     if (!isSpec && !(cfg.docs && ctx.path === cfg.docs)) return false;
 
-    await compose(ctx, [...cfg.pipeline, () => {
-      if (isSpec) {
-        cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
-        ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
-        return;
-      }
-      const nonce = randomBytes(16).toString('base64');
-      const { html, csp } = docsPage(cfg.path, cfg.opts.info?.title ?? 'API', nonce);
-      ctx.res.setHeader('Content-Security-Policy', csp);
-      ctx.res.setHeader('Cache-Control', 'no-store');
-      ctx[kRawSend](html, 'text/html; charset=utf-8');
-    }]);
+    await compose(ctx, [
+      ...cfg.pipeline,
+      () => {
+        if (isSpec) {
+          cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
+          ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
+          return;
+        }
+        const nonce = randomBytes(16).toString('base64');
+        const { html, csp } = docsPage(cfg.path, cfg.opts.info?.title ?? 'API', nonce);
+        ctx.res.setHeader('Content-Security-Policy', csp);
+        ctx.res.setHeader('Cache-Control', 'no-store');
+        ctx[kRawSend](html, 'text/html; charset=utf-8');
+      },
+    ]);
     return true;
   }
 
@@ -317,13 +334,11 @@ export class SashikoApp {
     } catch (err) {
       throw new Error(
         `[sashiko] app.mount(${owner}): ${route.method} ${route.path} is already registered. ` +
-        `Use a different "prefix" to mount the same class twice.`,
+          `Use a different "prefix" to mount the same class twice.`,
         { cause: err },
       );
     }
   }
-
-
 
   async handle(ctx: Context): Promise<void> {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
@@ -341,7 +356,11 @@ export class SashikoApp {
           ctx.res.setHeader('Allow', allowed.join(', '));
           // F-08: OPTIONS automático para qualquer path com rotas.
           if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
-          return void sendProblem(ctx, problem(405, undefined, { code: 'METHOD_NOT_ALLOWED', details: { allowed } }), this.opts.formatError);
+          return void sendProblem(
+            ctx,
+            problem(405, undefined, { code: 'METHOD_NOT_ALLOWED', details: { allowed } }),
+            this.opts.formatError,
+          );
         }
         return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.opts.formatError);
       }
@@ -414,7 +433,11 @@ export class SashikoApp {
       };
       try {
         const ctx = new Context(req, res, {
-          queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log, trustProxy: this.opts.trustProxy, onSend: this.onSendHooks,
+          queryMaxKeys: this.opts.queryMaxKeys,
+          id,
+          logger: this.log,
+          trustProxy: this.opts.trustProxy,
+          onSend: this.onSendHooks,
         });
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         if (!ctx.host || (this.allowedHosts && !this.allowedHosts(ctx.hostname, ctx.host))) {
@@ -562,7 +585,6 @@ export class SashikoApp {
   inject(opts: InjectOptions | string): Promise<InjectResponse> {
     return inject(this.callback(), typeof opts === 'string' ? { url: opts } : opts);
   }
-
 }
 
 export function createApp(opts?: AppOptions): SashikoApp {

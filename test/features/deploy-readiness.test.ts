@@ -5,7 +5,9 @@ import { consoleLogger, createApp, Get, type Middleware, Router, unauthorized } 
 
 @Router('/')
 class Api {
-  @Get('/ping') ping() { return { pong: true }; }
+  @Get('/ping') ping() {
+    return { pong: true };
+  }
 }
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
@@ -23,16 +25,30 @@ describe('app.health()', () => {
 
   it('readyz roda os checks em paralelo; falha, false e timeout dão 503 sem expor o motivo', async () => {
     const warn = mock.fn();
-    const log = { debug() {}, info() {}, warn, error() {}, child() { return log; } };
-    const app = createApp({ logger: log }).mount(Api).health({
-      timeoutMs: 50,
-      checks: {
-        db: async () => { await tick(5); },
-        cache: () => { throw new Error('ECONNREFUSED redis://user:senha@10.0.0.5'); },
-        queue: () => false,
-        slow: () => tick(500),
+    const log = {
+      debug() {},
+      info() {},
+      warn,
+      error() {},
+      child() {
+        return log;
       },
-    });
+    };
+    const app = createApp({ logger: log })
+      .mount(Api)
+      .health({
+        timeoutMs: 50,
+        checks: {
+          db: async () => {
+            await tick(5);
+          },
+          cache: () => {
+            throw new Error('ECONNREFUSED redis://user:senha@10.0.0.5');
+          },
+          queue: () => false,
+          slow: () => tick(500),
+        },
+      });
     const started = Date.now();
     const res = await app.inject('/readyz');
     assert.ok(Date.now() - started < 400, 'checks em paralelo, limitados pelo timeout');
@@ -44,7 +60,10 @@ describe('app.health()', () => {
   });
 
   it('rotas próprias, desligadas, e servidas antes dos middlewares globais', async () => {
-    const auth: Middleware = (ctx, next) => { if (!ctx.get('authorization')) throw unauthorized(); return next(); };
+    const auth: Middleware = (ctx, next) => {
+      if (!ctx.get('authorization')) throw unauthorized();
+      return next();
+    };
     const app = createApp({ logger: false }).use(auth).mount(Api).health({ live: '/health', ready: false });
     assert.equal((await app.inject('/health')).status, 200, 'sonda sem credencial passa');
     assert.equal((await app.inject('/readyz')).status, 401, 'readyz desligado cai nas rotas normais');
@@ -52,7 +71,9 @@ describe('app.health()', () => {
   });
 
   it('guards próprios restringem os healthchecks', async () => {
-    const app = createApp({ logger: false }).mount(Api).health({ guards: [(ctx) => ctx.get('x-probe') === '1'] });
+    const app = createApp({ logger: false })
+      .mount(Api)
+      .health({ guards: [(ctx) => ctx.get('x-probe') === '1'] });
     assert.equal((await app.inject('/readyz')).status, 403);
     assert.equal((await app.inject({ url: '/readyz', headers: { 'x-probe': '1' } })).status, 200);
   });
@@ -64,7 +85,9 @@ describe('app.health()', () => {
 
 describe('shutdown com drain', () => {
   it('no sinal, /readyz vira 503 durante o drainDelayMs, e o servidor ainda atende', async () => {
-    const app = createApp({ logger: false, shutdown: { exit: false, drainDelayMs: 150, timeoutMs: 1000 } }).mount(Api).health();
+    const app = createApp({ logger: false, shutdown: { exit: false, drainDelayMs: 150, timeoutMs: 1000 } })
+      .mount(Api)
+      .health();
     const server = await app.listen(0);
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     assert.equal((await fetch(`${url}/readyz`)).status, 200);
@@ -106,10 +129,18 @@ describe("consoleLogger({ format: 'json' })", () => {
       assert.equal(record.level, 'info');
       assert.equal(record.msg, 'user created');
       assert.match(record.time, /^\d{4}-\d{2}-\d{2}T/);
-      assert.deepEqual({ reqId: record.reqId, userId: record.userId, password: record.password, n: record.n }, {
-        reqId: 'r1', userId: 7, password: '[REDACTED]', n: '10',
-      });
-    } finally { info.mock.restore(); }
+      assert.deepEqual(
+        { reqId: record.reqId, userId: record.userId, password: record.password, n: record.n },
+        {
+          reqId: 'r1',
+          userId: 7,
+          password: '[REDACTED]',
+          n: '10',
+        },
+      );
+    } finally {
+      info.mock.restore();
+    }
   });
 
   it('erros com stack e propriedades, ciclos sem quebrar, mesmo com redact: false', () => {
@@ -125,6 +156,8 @@ describe("consoleLogger({ format: 'json' })", () => {
       assert.equal(record.err.code, 'E_DB');
       assert.match(record.err.stack, /boom/);
       assert.deepEqual(record.cyclic, { self: '[Circular]' });
-    } finally { error.mock.restore(); }
+    } finally {
+      error.mock.restore();
+    }
   });
 });

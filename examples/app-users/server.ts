@@ -1,10 +1,10 @@
-import { consoleLogger, cors, createApp, rateLimit } from "sashiko";
-import { AdminRoutes, HealthRoutes } from "./src/routes/admin.ts";
-import { apiKeyGuard } from "./src/guards/api-key.ts";
-import { UserRoutes } from "./src/routes/users.ts";
-import { cache } from "./src/middlewares/cache.ts";
-import { csvSerializer } from "./src/serializers/csv.ts";
-import { UserRepository } from "./src/store/users.ts";
+import { consoleLogger, cors, createApp, rateLimit } from 'sashiko';
+import { AdminRoutes, HealthRoutes } from './src/routes/admin.ts';
+import { apiKeyGuard } from './src/guards/api-key.ts';
+import { UserRoutes } from './src/routes/users.ts';
+import { cache } from './src/middlewares/cache.ts';
+import { csvSerializer } from './src/serializers/csv.ts';
+import { UserRepository } from './src/store/users.ts';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173').split(',');
@@ -45,18 +45,24 @@ app
   // - classe sem dependências vai direto; com dependências, passe a instância (B-10)
   // - prefix, only/except, middlewares e guards são decididos aqui, sem tocar nas classes
   .mount(HealthRoutes)
-  .mount(new AdminRoutes(users), { guards: [apiKeyGuard] })          // toda a área /admin exige a API key
+  .mount(new AdminRoutes(users), { guards: [apiKeyGuard] }) // toda a área /admin exige a API key
   .mount(userRoutes)
   // Mapeamento manual (F-30): paths que a classe não declara, relativos ao prefixo do grupo
   .get('/export.csv', (r) => r.exportCsv, { guards: [apiKeyGuard] }) // exige a API key só aqui
-  .get('/by-id/:id', (r) => r.getUser)                                // alias legado de GET /users/:id
+  .get('/by-id/:id', (r) => r.getUser) // alias legado de GET /users/:id
   // Vitrine só leitura, mesma instância, com cache de 10s por URL e Accept (F-04: ctx.sentBody)
   .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser], middlewares: [cache(10_000)] })
   // OpenAPI 3.1 gerado das rotas acima: /openapi.json e Swagger UI em /docs (F-16).
   // Aberto no exemplo; em produção, proteja com guards: [apiKeyGuard] ou desligue o docs.
   .openapi({ info: { title: 'Sashiko · exemplo de usuários', version: '1.0.0' }, docs: true })
   // Healthchecks para load balancer: /livez e /readyz (503 durante o encerramento)
-  .health({ checks: { store: () => { users.list(0, 1); } } });
+  .health({
+    checks: {
+      store: () => {
+        users.list(0, 1);
+      },
+    },
+  });
 
 // SIGINT/SIGTERM já são tratados: o app espera as requisições em andamento e fecha (F-07)
 await app.listen({ port: PORT });

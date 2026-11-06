@@ -2,7 +2,17 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, Router, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Middlewares, Guards,
+  type Context,
+  Router,
+  createApp,
+  Get,
+  type Guard,
+  type Middleware,
+  Post,
+  Schema,
+  unauthorized,
+  Middlewares,
+  Guards,
 } from 'sashiko';
 
 declare module 'sashiko' {
@@ -12,10 +22,12 @@ declare module 'sashiko' {
   }
 }
 
-const mark = (name: string): Middleware => async (ctx, next) => {
-  (ctx.state.trail ??= []).push(name);
-  await next();
-};
+const mark =
+  (name: string): Middleware =>
+  async (ctx, next) => {
+    (ctx.state.trail ??= []).push(name);
+    await next();
+  };
 
 // Autenticação fake: "Authorization: Bearer <role>"
 const authenticate: Middleware = async (ctx, next) => {
@@ -35,36 +47,50 @@ class M {
   @Middlewares(mark('method-1'))
   @Middlewares(mark('method-2'))
   @Get('/order')
-  order(ctx: Context) { return { trail: [...(ctx.state.trail ?? []), 'handler'] }; }
+  order(ctx: Context) {
+    return { trail: [...(ctx.state.trail ?? []), 'handler'] };
+  }
 
   @Get('/plain')
-  plain(ctx: Context) { return { trail: ctx.state.trail }; }
+  plain(ctx: Context) {
+    return { trail: ctx.state.trail };
+  }
 }
 
 @Middlewares(authenticate)
 @Guards(isLogged)
 @Router('/admin')
 class Admin {
-  @Get('/me') me(ctx: Context) { return ctx.state.user; }
+  @Get('/me') me(ctx: Context) {
+    return ctx.state.user;
+  }
 
   @Guards(isAdmin)
   @Post('/danger')
   @Schema({ body: Type.Object({ confirm: Type.Literal(true) }) })
-  danger() { return { done: true }; }
+  danger() {
+    return { done: true };
+  }
 }
 
 @Router('/admin2')
 class ChildAdmin extends Admin {
-  @Get('/child') child(ctx: Context) { return { role: ctx.state.user?.role }; }
+  @Get('/child') child(ctx: Context) {
+    return { role: ctx.state.user?.role };
+  }
 }
 
-const shortCircuit: Middleware = (ctx) => { ctx.status(503).json({ error: 'maintenance' }); };
+const shortCircuit: Middleware = (ctx) => {
+  ctx.status(503).json({ error: 'maintenance' });
+};
 @Router('/sc')
-class SC { @Middlewares(shortCircuit) @Get('/') never() { throw new Error('não deveria executar'); } }
+class SC {
+  @Middlewares(shortCircuit) @Get('/') never() {
+    throw new Error('não deveria executar');
+  }
+}
 
-const app = createApp()
-  .use(mark('global'))
-  .mount(M).mount(Admin).mount(ChildAdmin).mount(SC);
+const app = createApp().use(mark('global')).mount(M).mount(Admin).mount(ChildAdmin).mount(SC);
 
 const bearer = (role: string) => ({ authorization: `Bearer ${role}` });
 
@@ -94,7 +120,13 @@ describe('F-01 · @Guards', () => {
   it('guard que lança unauthorized() responde 401', async () => {
     const res = await app.inject('/admin/me');
     assert.equal(res.status, 401);
-    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Unauthorized', status: 401, detail: 'login required', code: 'UNAUTHORIZED' });
+    assert.deepEqual(res.json(), {
+      type: 'about:blank',
+      title: 'Unauthorized',
+      status: 401,
+      detail: 'login required',
+      code: 'UNAUTHORIZED',
+    });
   });
 
   it('guards passam e o ctx.state chega tipado ao handler', async () => {

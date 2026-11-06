@@ -98,8 +98,7 @@ export function createGroup(ref: RouterRef, options: MountOptions = {}, scope: R
   const meta = readOwnMetadata(Class);
   if (!meta?.isRouter) {
     throw new Error(
-      `[sashiko] Class ${Class.name} is not decorated with @Router('/prefix'). ` +
-      `Add it to register the class with app.mount().`,
+      `[sashiko] Class ${Class.name} is not decorated with @Router('/prefix'). ` + `Add it to register the class with app.mount().`,
     );
   }
   if (options.only && options.except) {
@@ -162,7 +161,13 @@ function buildRoute(
     handler: (ctx: Context) => fn.call(instance, ctx),
     schemas: methodMeta.schemas,
     // Ordem: grupos → mount → classe → método → rota manual (F-01, F-28, F-30)
-    middlewares: [...scope.middlewares, ...(options.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares, ...(manual.middlewares ?? [])],
+    middlewares: [
+      ...scope.middlewares,
+      ...(options.middlewares ?? []),
+      ...meta.middlewares,
+      ...methodMeta.middlewares,
+      ...(manual.middlewares ?? []),
+    ],
     guards: [...scope.guards, ...(options.guards ?? []), ...meta.guards, ...methodMeta.guards, ...(manual.guards ?? [])],
   };
 }
@@ -184,8 +189,8 @@ function resolveMethod(
   const label = typeof fn === 'function' && fn.name ? `"${fn.name}"` : 'the selected value';
   const available = allowed.map(String).join(', ') || '(none)';
   const decorated = typeof fn === 'function' && [...group.meta.methods.keys()].some((n) => target[n] === fn);
-  const isMethod = typeof fn === 'function'
-    && Object.values(Object.getOwnPropertyDescriptors(Object.getPrototypeOf(target))).some((d) => d.value === fn);
+  const isMethod =
+    typeof fn === 'function' && Object.values(Object.getOwnPropertyDescriptors(Object.getPrototypeOf(target))).some((d) => d.value === fn);
   const reason = decorated
     ? `${label} has no HTTP verb decorator, so it is not an automatic route; map it manually with .get()/.post()…`
     : isMethod

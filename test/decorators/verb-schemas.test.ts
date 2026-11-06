@@ -5,26 +5,37 @@ import { type Context, createApp, Get, Post, Router, type RouteSchemas, Schema }
 
 const Item = Type.Object({ id: Type.String() });
 const byId = { params: Type.Object({ id: Type.String({ pattern: '^[0-9]+$' }) }), response: { 200: Item } } satisfies RouteSchemas;
-const create = { body: Type.Object({ name: Type.String({ minLength: 1 }) }, { additionalProperties: false }), response: { 201: Item } } satisfies RouteSchemas;
+const create = {
+  body: Type.Object({ name: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
+  response: { 201: Item },
+} satisfies RouteSchemas;
 
 @Router('/v')
 class VerbSchemas {
   // Forma enxuta: schemas no próprio verbo
   @Get('/:id', byId)
-  getById(ctx: Context<typeof byId>) { return { id: ctx.params.id, secret: 'x' }; }
+  getById(ctx: Context<typeof byId>) {
+    return { id: ctx.params.id, secret: 'x' };
+  }
 
   @Post('/', create)
-  create(ctx: Context<typeof create>) { return { id: ctx.body.name }; }
+  create(ctx: Context<typeof create>) {
+    return { id: ctx.body.name };
+  }
 
   // Forma verbosa continua funcionando
   @Get('/verbose/:id')
   @Schema(byId)
-  verbose(ctx: Context<typeof byId>) { return { id: ctx.params.id }; }
+  verbose(ctx: Context<typeof byId>) {
+    return { id: ctx.params.id };
+  }
 
   // As duas juntas, com partes diferentes, se combinam
   @Get('/mixed/:id', { params: byId.params })
   @Schema({ response: byId.response })
-  mixed(ctx: Context<typeof byId>) { return { id: ctx.params.id, secret: 'x' }; }
+  mixed(ctx: Context<typeof byId>) {
+    return { id: ctx.params.id, secret: 'x' };
+  }
 }
 
 describe('@Get(path, schemas) e @Schema convivendo', () => {

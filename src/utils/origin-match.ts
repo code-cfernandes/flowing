@@ -41,9 +41,7 @@ export function normalizeOrigin(value: string): string | undefined {
 function parseWildcardOrigin(rule: string): WildcardOrigin {
   const match = /^([a-z][a-z0-9+.-]*:)\/\/\*\.([^/:]+)(?::(\d+))?\/?$/i.exec(rule);
   if (!match) {
-    throw new Error(
-      `[sashiko] invalid origin rule "${rule}": "*" is only allowed as the first label, e.g. "https://*.exemplo.dev".`,
-    );
+    throw new Error(`[sashiko] invalid origin rule "${rule}": "*" is only allowed as the first label, e.g. "https://*.exemplo.dev".`);
   }
   const [, protocol, domain, port = ''] = match;
   // Normaliza o domínio (maiúsculas, IDN → punycode) e a porta padrão do esquema.
@@ -74,9 +72,7 @@ export function compileOriginMatcher(rules: readonly MatchRule[]): (origin: stri
     }
     const normalized = normalizeOrigin(rule);
     if (!normalized) {
-      throw new Error(
-        `[sashiko] invalid origin rule "${rule}": use the full origin with scheme, e.g. "https://app.exemplo.com".`,
-      );
+      throw new Error(`[sashiko] invalid origin rule "${rule}": use the full origin with scheme, e.g. "https://app.exemplo.com".`);
     }
     exact.add(normalized);
   }
@@ -88,8 +84,8 @@ export function compileOriginMatcher(rules: readonly MatchRule[]): (origin: stri
     if (normalized !== 'null' && wildcards.length > 0) {
       const url = new URL(normalized);
       const matched = wildcards.some(
-        (w) => w.protocol === url.protocol && w.port === url.port
-          && url.hostname.endsWith(w.suffix) && url.hostname.length > w.suffix.length,
+        (w) =>
+          w.protocol === url.protocol && w.port === url.port && url.hostname.endsWith(w.suffix) && url.hostname.length > w.suffix.length,
       );
       if (matched) return true;
     }

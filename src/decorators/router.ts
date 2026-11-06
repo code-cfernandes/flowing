@@ -11,7 +11,8 @@ import { metadataFor } from '../core/metadata.ts';
  * ```
  */
 export function Router(prefix = '') {
-  return function <T extends abstract new (...args: any[]) => object>(_value: T, context: ClassDecoratorContext<T>) {
+  // biome-ignore lint/suspicious/noExplicitAny: aceita classes com qualquer construtor (instâncias com dependências).
+  return <T extends abstract new (...args: any[]) => object>(_value: T, context: ClassDecoratorContext<T>) => {
     const meta = metadataFor(context, 'Router');
     meta.isRouter = true;
     meta.prefix = prefix;

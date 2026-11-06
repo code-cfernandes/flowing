@@ -3,10 +3,11 @@ import { getOrCreateMethod, mergeSchemas, metadataFor, type RouteSchemas } from 
 
 function methodDecorator(httpMethod: string, path: string, schemas?: RouteSchemas) {
   const label = httpMethod[0] + httpMethod.slice(1).toLowerCase();
-  return function <This, Args extends [any, ...unknown[]], Return>(
+  // biome-ignore lint/suspicious/noExplicitAny: o primeiro parâmetro precisa ser bivariante para aceitar Context<S> de qualquer S.
+  return <This, Args extends [any, ...unknown[]], Return>(
     _target: (this: This, ...args: Args) => Return,
     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
-  ) {
+  ) => {
     const meta = metadataFor(context, label);
     const m = getOrCreateMethod(meta, context.name);
     m.method = httpMethod;
@@ -29,7 +30,10 @@ type Verb = <const P extends string = '/', const S extends RouteSchemas = {}>(
   schemas?: S & CheckParams<P, S>,
 ) => ReturnType<typeof methodDecorator>;
 
-const verb = (httpMethod: string): Verb => (path, schemas) => methodDecorator(httpMethod, path ?? '/', schemas);
+const verb =
+  (httpMethod: string): Verb =>
+  (path, schemas) =>
+    methodDecorator(httpMethod, path ?? '/', schemas);
 
 /** Com schema de `params`, as chaves precisam ser exatamente as do path, ou o TypeScript acusa (F-29). */
 export const Get = verb('GET');

@@ -1,32 +1,65 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, createApp, Delete, Get, type Guard, type Middleware, Post, Router, unauthorized, Middlewares, Guards,
+  type Context,
+  createApp,
+  Delete,
+  Get,
+  type Guard,
+  type Middleware,
+  Post,
+  Router,
+  unauthorized,
+  Middlewares,
+  Guards,
 } from 'sashiko';
 
-const mark = (name: string): Middleware => async (ctx, next) => {
-  ((ctx.state.trail as string[] | undefined) ?? (ctx.state.trail = [])) && (ctx.state.trail as string[]).push(name);
-  await next();
-};
-const guardMark = (name: string): Guard => (ctx) => { (ctx.state.trail as string[]).push(name); return true; };
+const mark =
+  (name: string): Middleware =>
+  async (ctx, next) => {
+    ((ctx.state.trail as string[] | undefined) ?? (ctx.state.trail = [])) && (ctx.state.trail as string[]).push(name);
+    await next();
+  };
+const guardMark =
+  (name: string): Guard =>
+  (ctx) => {
+    (ctx.state.trail as string[]).push(name);
+    return true;
+  };
 
 @Middlewares(mark('class'))
 @Guards(guardMark('class-guard'))
 @Router('/items')
 class ItemRoutes {
-  @Get('/') list(ctx: Context) { return { trail: ctx.state.trail }; }
-  @Get('/:id') getById(ctx: Context) { return { id: ctx.params.id }; }
-  @Delete('/:id') remove() { return { removed: true }; }
+  @Get('/') list(ctx: Context) {
+    return { trail: ctx.state.trail };
+  }
+  @Get('/:id') getById(ctx: Context) {
+    return { id: ctx.params.id };
+  }
+  @Delete('/:id') remove() {
+    return { removed: true };
+  }
   // Método comum (sem decorator de rota): não pode ser usado em only/except
-  helper() { return 1; }
+  helper() {
+    return 1;
+  }
 }
 
-class Repo { find() { return 'from-repo'; } }
+class Repo {
+  find() {
+    return 'from-repo';
+  }
+}
 @Router('/repo')
 class WithDeps {
   constructor(private readonly repo: Repo) {}
-  @Get('/') get() { return { value: this.repo.find() }; }
-  @Post('/') create() { return { created: true }; }
+  @Get('/') get() {
+    return { value: this.repo.find() };
+  }
+  @Post('/') create() {
+    return { created: true };
+  }
 }
 
 describe('F-28 · @Router e app.mount()', () => {
@@ -67,9 +100,12 @@ describe('F-28 · @Router e app.mount()', () => {
   });
 
   it('guards do registro protegem todas as rotas da classe (ex.: autenticação)', async () => {
-    const requireToken: Guard = (ctx) => { if (!ctx.get('authorization')) throw unauthorized(); return true; };
+    const requireToken: Guard = (ctx) => {
+      if (!ctx.get('authorization')) throw unauthorized();
+      return true;
+    };
     const app = createApp({ logger: false })
-      .mount(ItemRoutes, { prefix: '/public' , only: (r) => [r.list] })
+      .mount(ItemRoutes, { prefix: '/public', only: (r) => [r.list] })
       .mount(ItemRoutes, { prefix: '/private', guards: [requireToken] });
     assert.equal((await app.inject('/public')).status, 200);
     assert.equal((await app.inject('/private/1')).status, 401);
@@ -97,14 +133,13 @@ describe('F-28 · @Router e app.mount()', () => {
   });
 
   it('mesma classe com o mesmo prefixo duas vezes gera erro claro', () => {
-    assert.throws(
-      () => createApp().mount(ItemRoutes).mount(ItemRoutes),
-      /GET \/items\/ is already registered\. Use a different "prefix"/,
-    );
+    assert.throws(() => createApp().mount(ItemRoutes).mount(ItemRoutes), /GET \/items\/ is already registered\. Use a different "prefix"/);
   });
 
   it('classe sem @Router é recusada', () => {
-    class Plain { @Get('/') a() {} }
+    class Plain {
+      @Get('/') a() {}
+    }
     assert.throws(() => createApp().mount(Plain), /Plain is not decorated with @Router/);
   });
 });

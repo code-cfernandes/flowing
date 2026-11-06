@@ -2,7 +2,15 @@ import type http from 'node:http';
 import type https from 'node:https';
 import type { TlsOptions } from '../server/tls.ts';
 import type { SashikoApp } from './app.ts';
-import { ROOT_SCOPE, type GroupOptions, type ManualRouteOptions, type MethodSelector, type MountOptions, type RouteGroup, type RouteScope } from './compiler.ts';
+import {
+  ROOT_SCOPE,
+  type GroupOptions,
+  type ManualRouteOptions,
+  type MethodSelector,
+  type MountOptions,
+  type RouteGroup,
+  type RouteScope,
+} from './compiler.ts';
 import type { InjectOptions, InjectResponse } from './inject.ts';
 import type { ListenOptions } from './app.ts';
 import type { Logger } from './logger.ts';
@@ -49,11 +57,21 @@ export class MountedGroup<T extends object> {
   }
 
   /** Mapeia `GET path` (relativo ao prefixo do grupo) para o método selecionado. */
-  get(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this { return this.#map('GET', path, select, opts); }
-  post(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this { return this.#map('POST', path, select, opts); }
-  put(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this { return this.#map('PUT', path, select, opts); }
-  patch(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this { return this.#map('PATCH', path, select, opts); }
-  delete(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this { return this.#map('DELETE', path, select, opts); }
+  get(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
+    return this.#map('GET', path, select, opts);
+  }
+  post(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
+    return this.#map('POST', path, select, opts);
+  }
+  put(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
+    return this.#map('PUT', path, select, opts);
+  }
+  patch(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
+    return this.#map('PATCH', path, select, opts);
+  }
+  delete(path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
+    return this.#map('DELETE', path, select, opts);
+  }
 
   // ---------- Encadeamento com o app ----------
   mount<U extends object>(ref: new () => U, options?: MountOptions<U>): MountedGroup<U>;
@@ -67,24 +85,50 @@ export class MountedGroup<T extends object> {
     this.app.groupIn(this.#scope, options, define);
     return this;
   }
-  use(mw: Middleware): SashikoApp { return this.app.use(mw); }
-  openapi(opts?: OpenAPIOptions): SashikoApp { return this.app.openapi(opts); }
-  health(opts?: HealthOptions): SashikoApp { return this.app.health(opts); }
-  openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> { return this.app.openapiDocument(opts); }
-  onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp { return this.app.onError(h); }
-  onSend(hook: OnSendHook): SashikoApp { return this.app.onSend(hook); }
-  onResponse(hook: OnResponseHook): SashikoApp { return this.app.onResponse(hook); }
-  onClose(hook: OnCloseHook): SashikoApp { return this.app.onClose(hook); }
+  use(mw: Middleware): SashikoApp {
+    return this.app.use(mw);
+  }
+  openapi(opts?: OpenAPIOptions): SashikoApp {
+    return this.app.openapi(opts);
+  }
+  health(opts?: HealthOptions): SashikoApp {
+    return this.app.health(opts);
+  }
+  openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> {
+    return this.app.openapiDocument(opts);
+  }
+  onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp {
+    return this.app.onError(h);
+  }
+  onSend(hook: OnSendHook): SashikoApp {
+    return this.app.onSend(hook);
+  }
+  onResponse(hook: OnResponseHook): SashikoApp {
+    return this.app.onResponse(hook);
+  }
+  onClose(hook: OnCloseHook): SashikoApp {
+    return this.app.onClose(hook);
+  }
   listen(options: ListenOptions & { tls: TlsOptions }): Promise<https.Server>;
   listen(options?: number | ListenOptions): Promise<http.Server>;
   listen(options?: number | ListenOptions): Promise<http.Server | https.Server> {
     return (this.app.listen as (o?: number | ListenOptions) => Promise<http.Server | https.Server>)(options);
   }
-  reloadTLS(tls: TlsOptions): void { this.app.reloadTLS(tls); }
-  close(graceMs?: number): Promise<void> { return this.app.close(graceMs); }
-  callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void { return this.app.callback(); }
-  inject(opts: InjectOptions | string): Promise<InjectResponse> { return this.app.inject(opts); }
-  get log(): Logger { return this.app.log; }
+  reloadTLS(tls: TlsOptions): void {
+    this.app.reloadTLS(tls);
+  }
+  close(graceMs?: number): Promise<void> {
+    return this.app.close(graceMs);
+  }
+  callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void {
+    return this.app.callback();
+  }
+  inject(opts: InjectOptions | string): Promise<InjectResponse> {
+    return this.app.inject(opts);
+  }
+  get log(): Logger {
+    return this.app.log;
+  }
 }
 
 /**

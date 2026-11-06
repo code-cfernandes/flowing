@@ -5,7 +5,10 @@ import { validate, type ValidationTarget } from '../schema/validation.ts';
 
 const VALIDATION_ORDER: readonly ValidationTarget[] = ['headers', 'params', 'query', 'body'];
 const TARGET_LABEL: Record<ValidationTarget, string> = {
-  headers: 'Invalid headers', params: 'Invalid params', query: 'Invalid query', body: 'Invalid body',
+  headers: 'Invalid headers',
+  params: 'Invalid params',
+  query: 'Invalid query',
+  body: 'Invalid body',
 };
 
 /** Valida cada parte da requisição que tiver schema; o primeiro erro vira 400 com detalhes (B-02/B-03). */
