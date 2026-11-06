@@ -29,7 +29,10 @@ export class PicoDecorRouter {
   }
 
   find(method: string, path: string): RouteMatch | null {
-    const found = this.inner.find(method as any, path);
+    // F-08: HEAD usa o handler do GET quando não houver rota HEAD própria.
+    // O Node já descarta o corpo de respostas a HEAD.
+    const found = this.inner.find(method as any, path)
+      ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
     if (!found) return null;
     const { handler } = found.store as unknown as Store;
     return {
@@ -52,6 +55,8 @@ export class PicoDecorRouter {
         methods.add(method);
       }
     }
+    if (methods.has('GET')) methods.add('HEAD');
+    if (methods.size > 0) methods.add('OPTIONS');
     return [...methods].sort();
   }
 }

@@ -8,19 +8,42 @@ import type { RouteSchemas } from './metadata.ts';
 import { PicoDecorRouter } from './router.ts';
 import { serialize } from '../schema/serialization.ts';
 import { validate, type ValidationTarget } from '../schema/validation.ts';
+import { buildSecurityHeaders, type SecurityHeadersOptions } from '../middlewares/security-headers.ts';
+
+export interface ServerTimeouts {
+  /** Tempo máximo para receber a requisição inteira. Padrão: 30s. */
+  requestTimeout?: number;
+  /** Tempo máximo para receber os headers (mitiga Slowloris). Padrão: 10s. */
+  headersTimeout?: number;
+  /** Tempo de conexão keep-alive ociosa. Padrão: 5s. */
+  keepAliveTimeout?: number;
+}
 
 export interface AppOptions {
+  /** Tamanho máximo do body JSON em bytes. Padrão: 1 MiB. */
   bodyLimit?: number;
+  /** Headers de segurança aplicados a toda resposta (S-04). Ligado por padrão; `false` desliga. */
+  securityHeaders?: SecurityHeadersOptions | false;
+  /** Timeouts do servidor HTTP (S-06). */
+  timeouts?: ServerTimeouts;
+  /**
+   * Modo estrito (S-07): exige schema de `body` em POST/PUT/PATCH e schema de `response`
+   * em toda rota, falhando no registro do controller. Padrão: `false`.
+   */
+  requireSchemas?: boolean;
 }
 
 export class PicoDecorApp {
   private middlewares: Middleware[] = [];
   private router = new PicoDecorRouter();
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
+  private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
+  private readonly opts: AppOptions;
 
   constructor(opts: AppOptions = {}) {
-    const limit = opts.bodyLimit ?? 1024 * 1024;
-    this.use(bodyParser(limit));
+    this.opts = opts;
+    if (opts.securityHeaders !== false) this.applySecurityHeaders = buildSecurityHeaders(opts.securityHeaders);
+    this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024));
   }
 
   use(mw: Middleware): this {
@@ -36,6 +59,7 @@ export class PicoDecorApp {
   controllers(classes: (new () => any)[]): this {
     for (const Class of classes) {
       for (const route of compileController(Class)) {
+        if (this.opts.requireSchemas) assertSchemas(Class.name, route);
         this.router.on(route.method, route.path, route.handler, route.schemas);
       }
     }
@@ -43,6 +67,8 @@ export class PicoDecorApp {
   }
 
   async handle(ctx: Context): Promise<void> {
+    // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
+    this.applySecurityHeaders?.(ctx.res);
     try {
       await compose(ctx, this.middlewares);
       if (ctx.res.writableEnded) return;
@@ -52,6 +78,8 @@ export class PicoDecorApp {
         const allowed = this.router.allowedMethods(ctx.path);
         if (allowed.length > 0) {
           ctx.res.setHeader('Allow', allowed.join(', '));
+          // F-08: OPTIONS automático para qualquer path com rotas.
+          if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
           return void ctx.status(405).json({ error: 'Method Not Allowed', allowed });
         }
         return void ctx.status(404).json({ error: 'Not Found' });
@@ -111,6 +139,10 @@ export class PicoDecorApp {
         fail(err);
       }
     });
+    const t = this.opts.timeouts ?? {};
+    server.requestTimeout = t.requestTimeout ?? 30_000;
+    server.headersTimeout = Math.min(t.headersTimeout ?? 10_000, server.requestTimeout || Infinity);
+    server.keepAliveTimeout = t.keepAliveTimeout ?? 5_000;
     server.listen(port, host);
     return server;
   }
@@ -134,6 +166,16 @@ function sendError(ctx: Context, err: unknown): void {
   const body: { error: string; details?: unknown } = { error: exposed ? httpErr!.message : GENERIC_500 };
   if (exposed && httpErr!.details !== undefined) body.details = httpErr!.details;
   ctx.status(status).json(body);
+}
+
+function assertSchemas(controller: string, route: { method: string; path: string; schemas: RouteSchemas }): void {
+  const where = `${controller}: ${route.method} ${route.path}`;
+  if (['POST', 'PUT', 'PATCH'].includes(route.method) && !route.schemas.body) {
+    throw new Error(`[picodecor] requireSchemas: ${where} has no body schema.`);
+  }
+  if (!route.schemas.response || Object.keys(route.schemas.response).length === 0) {
+    throw new Error(`[picodecor] requireSchemas: ${where} has no response schema.`);
+  }
 }
 
 const VALIDATION_ORDER: readonly ValidationTarget[] = ['headers', 'params', 'query', 'body'];
@@ -163,11 +205,20 @@ function bodyParser(limit: number): Middleware {
     const ct = ctx.req.headers['content-type'] ?? '';
     if (!ct.includes('application/json')) return next();
 
+    // B-12: rejeita cedo pelo Content-Length e fecha a conexão ao exceder,
+    // para o cliente não continuar enviando um corpo que será descartado.
+    const tooLarge = (): never => {
+      ctx.res.setHeader('Connection', 'close');
+      return ctx.throw(413, 'Payload too large');
+    };
+    const declared = Number(ctx.req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > limit) tooLarge();
+
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of ctx.req) {
       size += chunk.length;
-      if (size > limit) ctx.throw(413, 'Payload too large');
+      if (size > limit) tooLarge();
       chunks.push(chunk);
     }
     const raw = Buffer.concat(chunks).toString('utf8');

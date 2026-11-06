@@ -22,6 +22,11 @@ export class Context {
     this.query = Object.fromEntries(this.url.searchParams);
   }
 
+  /** IP do cliente conforme o socket. Sem `trustProxy`, `X-Forwarded-For` é ignorado (S-09). */
+  get ip(): string {
+    return this.req.socket.remoteAddress ?? '';
+  }
+
   status(code: number): this {
     this.res.statusCode = code;
     return this;

@@ -14,18 +14,31 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - Estrutura do framework: `src/core` (runtime), `src/decorators`, `src/schema` (validação e serialização),
   `src/shims` e ponto de entrada público `src/index.ts`.
 - Exemplo de CRUD em `examples/users`, importando o framework pelo alias `picodecor`.
+- Exemplo `examples/app-users` com CRUD completo, CORS, rate limit, headers de segurança, `requireSchemas`,
+  herança de controllers e o script `scenarios.sh`, que percorre todos os cenários.
 - `tsconfig.build.json` para gerar a biblioteca em `dist/`; `package.json` com `exports`, `types` e `files`.
 - Pasta `SPECS/` com uma spec por bug, risco de segurança, funcionalidade e risco de projeto.
 - Suíte de testes com `node:test` + `tsx` (`pnpm test`, `pnpm test:watch`). (F-19)
 - `HttpError` ganhou as opções `expose`, `cause` e `details`; novo helper `isHttpError()`. (S-05)
 - Respostas 400 de validação agora trazem `details: [{ path, message }]` com cada campo inválido. (B-02)
 - Validação do schema `headers` declarado em `@Schema`. (B-03)
+- Middleware `cors(options)` com lista, RegExp ou função de origem, preflight 204 e `Vary: Origin`;
+  `origin: '*'` com `credentials` é rejeitado. (S-01)
+- Headers de segurança ligados por padrão (`nosniff`, CSP, `Referrer-Policy`, `X-Frame-Options`,
+  `Cross-Origin-Resource-Policy`; HSTS opt-in), configuráveis por `AppOptions.securityHeaders`. (S-02, S-04)
+- Middleware `rateLimit()` com `MemoryRateLimitStore` e interface de store plugável; responde 429. (S-06)
+- `AppOptions.timeouts` (`requestTimeout`, `headersTimeout`, `keepAliveTimeout`) com defaults seguros. (S-06)
+- `AppOptions.requireSchemas` para exigir schemas de body e de resposta no registro das rotas. (S-07)
+- `HEAD` automático para rotas `GET` e `OPTIONS` automático (204 + `Allow`). (F-08)
+- `ctx.ip`.
 - Opção `--test-timeout` nos scripts de teste, para um request travado não segurar a suíte.
 
 ### Alterado
 - `Symbol.metadata` agora vem do shim `src/shims/symbol-metadata.ts` (antigo `core/polyfill.ts`).
 - A metadata de controllers foi movida para `src/core/metadata.ts`, para que o core não dependa de `decorators/`.
-- Os decorators `cors` e `timer` passaram a ser exportados.
+- **Incompatível:** o decorator `cors` foi removido em favor do middleware `cors()`. (B-04)
+- **Incompatível:** `timer` virou uma fábrica: use `@timer()` em vez de `@timer`. (B-04)
+- O header `Allow` em respostas 405 passa a incluir `HEAD` e `OPTIONS`.
 - `.gitignore` revisado (build, logs, `.env`, coverage, editores).
 
 ### Corrigido
@@ -35,6 +48,9 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
   e usam o próprio prefixo. Classes sem `@Controller` próprio são rejeitadas. (B-09)
 - O body não sofre mais coerção de tipos (`"30"` não vira `30`); params, query e headers
   continuam com coerção. A validação não remove mais campos do objeto em silêncio. (B-06)
+- `timer` mede corretamente handlers `async` e também quando o handler lança. (B-04)
+- Corpo acima do `bodyLimit` é rejeitado antes da leitura pelo `Content-Length`, e a conexão é
+  fechada. (B-12)
 - `ctx.throw()` agora lança `HttpError`: JSON malformado responde 400 e payload acima do limite
   responde 413, em vez de 500. (B-01)
 

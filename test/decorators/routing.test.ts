@@ -98,7 +98,7 @@ describe('roteamento e decorators', () => {
   it('método não suportado responde 405 com Allow', async () => {
     const res = await req('DELETE', '/items');
     assert.equal(res.status, 405);
-    assert.equal(res.headers.get('allow'), 'GET, POST');
+    assert.equal(res.headers.get('allow'), 'GET, HEAD, OPTIONS, POST');
   });
 
   it('classe sem @Controller gera erro claro', () => {
