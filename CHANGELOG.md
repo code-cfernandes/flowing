@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.7.0] - 2026-11-06
+
 ### Alterado
 - **Incompatível:** todos os erros (`HttpError`, validação, JSON inválido, body grande demais, 404, 405, 406,
   `Host` inválido, guards, CSRF e rate limit) saem no formato Problem Details (RFC 9457), com
