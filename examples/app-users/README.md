@@ -50,25 +50,17 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 
 ## Cenários cobertos pelo `scenarios.sh`
 
-| Spec | Cenário |
+| Área | Cenário |
 |---|---|
-| B-01 | JSON malformado → 400 |
-| B-02 | Erros de validação com `details` por campo |
-| F-01 / F-28 | Guard de `/admin` aplicado em `app.mount(…, { guards })`: sem chave → 401, inclusive nas rotas herdadas |
-| F-28 | `/public/users` é a `UserRoutes` com `prefix` e `only`; `POST /public/users` → 405 |
-| F-02 | Handlers com `Context<typeof schemas>`, sem casts |
-| F-06 | `X-Request-Id` em toda resposta; logs com `reqId` |
-| F-09 | `await app.listen()` e `app.close()` no shutdown |
-| B-06 | Body sem coerção de tipos; query com coerção |
-| B-05 | `POST /users` responde 201 sem `ctx.status()`, pelo único 2xx do schema |
-| B-09 | `/admin/health` herdado de `HealthRoutes` |
-| B-10 | Controllers recebem o `UserRepository` pelo construtor (`server.ts`) |
-| B-12 | Body acima de 64KB → 413 + `Connection: close` |
-| F-08 | HEAD sem corpo e OPTIONS com `Allow` |
-| S-01 | Preflight CORS de origem permitida e de origem desconhecida |
-| S-04 | Headers de segurança em toda resposta |
-| S-05 | `/admin/boom` responde só `Internal Server Error` |
-| S-06 | Rate limit (subir com `RATE_LIMIT=5`) |
-| S-07 | `requireSchemas: true` e campo extra no body → 400 |
+| CRUD | Criar (201 sem `ctx.status()`, pelo único 2xx do schema), listar com paginação, buscar, atualizar, saudar (async) e remover (204) |
+| Validação | Erros com `details` por campo; campo extra no body → 400; body sem coerção de tipos, query com coerção; id que não é UUID → 400 |
+| Erros | JSON malformado → 400; e-mail duplicado → 400; erro interno em `/admin/boom` responde só `Internal Server Error` |
+| Limites | Body acima de 64KB → 413 com `Connection: close`; rate limit → 429 (subir com `RATE_LIMIT=5`) |
+| Rotas automáticas | HEAD sem corpo; OPTIONS com `Allow`; método não suportado → 405 |
+| Composição | Guard de `/admin` aplicado em `app.mount(…, { guards })`: sem chave → 401, inclusive na rota herdada `/admin/health`; `/public/users` é a mesma `UserRoutes` com `prefix` e `only`, e `POST` nela → 405 |
+| Segurança | Headers de segurança em toda resposta; preflight CORS de origem permitida e de origem desconhecida |
+| Logs | `X-Request-Id` em toda resposta, reaproveitado quando enviado; logs com `reqId` no terminal do servidor |
+
+Outros recursos aparecem no código: `Context<typeof schemas>` sem casts, `UserRepository` injetado pelo construtor, `requireSchemas: true` e `await app.listen()` / `app.close()` no shutdown.
 
 > Rotas POST exigem schema de body por causa do `requireSchemas`, por isso o `/greet` espera `{}` no corpo.
