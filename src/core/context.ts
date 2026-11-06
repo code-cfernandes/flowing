@@ -27,6 +27,7 @@ export interface SendPayload {
  * Roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive em
  * erros e 404. É síncrono; pode alterar headers e devolver outro payload (F-04).
  */
+// biome-ignore lint/suspicious/noConfusingVoidType: hooks sem `return` precisam ser aceitos (inferem `void`).
 export type OnSendHook = (ctx: Context, payload: SendPayload) => SendPayload | void;
 
 /** Status aceitos por `ctx.status()`: os declarados no schema de resposta, ou qualquer um sem schema (F-32). */

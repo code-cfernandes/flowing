@@ -3,10 +3,11 @@ import { getOrCreateMethod, mergeSchemas, metadataFor, type RouteSchemas } from 
 
 function methodDecorator(httpMethod: string, path: string, schemas?: RouteSchemas) {
   const label = httpMethod[0] + httpMethod.slice(1).toLowerCase();
-  return function <This, Args extends [any, ...unknown[]], Return>(
+  // biome-ignore lint/suspicious/noExplicitAny: o primeiro parâmetro precisa ser bivariante para aceitar Context<S> de qualquer S.
+  return <This, Args extends [any, ...unknown[]], Return>(
     _target: (this: This, ...args: Args) => Return,
     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
-  ) {
+  ) => {
     const meta = metadataFor(context, label);
     const m = getOrCreateMethod(meta, context.name);
     m.method = httpMethod;

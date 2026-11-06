@@ -12,10 +12,10 @@ export interface TimerOptions {
 export function timer(opts: TimerOptions = {}) {
   const log = opts.log ?? ((msg: string) => console.debug(msg));
 
-  return function <This, Args extends unknown[], Return>(
+  return <This, Args extends unknown[], Return>(
     target: (this: This, ...args: Args) => Return,
     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
-  ) {
+  ) => {
     const name = String(context.name);
     const report = (start: number) => {
       const ms = performance.now() - start;

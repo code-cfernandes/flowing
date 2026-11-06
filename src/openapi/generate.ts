@@ -30,6 +30,7 @@ export function toOpenAPIPath(path: string): string {
     .replace(/::/g, '\u0000')
     .replace(/:([^/\-.(]+)(\((?:\\.|[^\\])*?\))?/g, '{$1}')
     .replace(/\*$/, '{*}')
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: desfaz o marcador acima.
     .replace(/\u0000/g, ':')
     .replace(/(.)\/$/, '$1');
 }

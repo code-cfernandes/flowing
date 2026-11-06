@@ -32,6 +32,7 @@ export interface CookieOptions {
 /** `token` da RFC 7230: o que um nome de cookie pode conter. */
 const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 /** Domain e Path: nada de `;`, controle (inclui CR/LF) nem DEL. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: recusar caracteres de controle é o objetivo (injeção de atributos).
 const ATTR_VALUE = /^[^\x00-\x1f\x7f;]*$/;
 
 /** Lê o header `Cookie` num objeto sem protótipo. */

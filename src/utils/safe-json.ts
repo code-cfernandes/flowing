@@ -34,6 +34,7 @@ function scrub(root: unknown, mode: ProtoPoisoning): void {
     const obj = node as Record<string, unknown>;
     if (Object.hasOwn(obj, '__proto__')) {
       if (mode === 'error') throw new ProtoPoisoningError('__proto__');
+      // biome-ignore lint/suspicious/noProto: é exatamente a chave própria que está sendo removida.
       delete obj['__proto__'];
     }
     if (Object.hasOwn(obj, 'constructor')) {

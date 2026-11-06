@@ -4,7 +4,9 @@ import addFormatsModule from 'ajv-formats';
 // Interop explícito: o TS em ESM + verbatimModuleSyntax resolve o default
 // como namespace; pegamos o `.default` real em runtime (que o Node injeta
 // via CJS interop) e caímos no próprio módulo se ele já for o valor.
+// biome-ignore lint/suspicious/noExplicitAny: interop CJS/ESM do ajv, resolvido em runtime.
 const Ajv = ((AjvModule as any).default ?? AjvModule) as typeof import('ajv').default;
+// biome-ignore lint/suspicious/noExplicitAny: interop CJS/ESM do ajv-formats, resolvido em runtime.
 const addFormats = ((addFormatsModule as any).default ?? addFormatsModule) as (
   ajv: InstanceType<typeof Ajv>,
   opts?: Record<string, unknown>,

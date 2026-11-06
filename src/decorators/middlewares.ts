@@ -9,7 +9,7 @@ type ClassOrMethodContext = ClassDecoratorContext | ClassMethodDecoratorContext;
  * cima; inserimos no início para que a ordem de execução siga a ordem de leitura (de cima para baixo).
  */
 function register(decorator: string, pick: 'middlewares' | 'guards', items: readonly unknown[]) {
-  return function (_value: unknown, context: ClassOrMethodContext): void {
+  return (_value: unknown, context: ClassOrMethodContext): void => {
     const meta = metadataFor(context, decorator);
     const target = context.kind === 'class' ? meta : getOrCreateMethod(meta, context.name);
     (target[pick] as unknown[]).unshift(...items);

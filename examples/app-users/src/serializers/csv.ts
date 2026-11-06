@@ -6,9 +6,9 @@ export const csvSerializer: Serializer = (data) => {
   const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [data as Record<string, unknown>];
   if (rows.length === 0) return '';
   const columns = Object.keys(rows[0]!);
-  const escape = (v: unknown) => {
+  const escapeCell = (v: unknown) => {
     const text = String(v ?? '');
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  return [columns.join(','), ...rows.map((r) => columns.map((c) => escape(r[c])).join(','))].join('\n') + '\n';
+  return [columns.join(','), ...rows.map((r) => columns.map((c) => escapeCell(r[c])).join(','))].join('\n') + '\n';
 };
