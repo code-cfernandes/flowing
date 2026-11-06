@@ -11,7 +11,7 @@ export {
   type ServerTimeouts,
 } from './app.ts';
 export type { InjectOptions, InjectResponse } from './inject.ts';
-export type { GroupOptions, ManualRouteOptions, MethodSelector, MethodsSelector, MountOptions, RouterRef } from './compiler.ts';
+export type { GroupOptions, HostOption, ManualRouteOptions, MethodSelector, MethodsSelector, MountOptions, RouterRef } from './compiler.ts';
 export { MountedGroup, RouteGroupScope } from './mounted-group.ts';
 export type { Middleware } from './compose.ts';
 export type { Guard } from './guard.ts';

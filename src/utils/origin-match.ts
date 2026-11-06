@@ -135,3 +135,37 @@ export function compileHostMatcher(rules: readonly MatchRule[]): (hostname: stri
     return patterns.some((re) => re.test(h));
   };
 }
+
+/** Regra de host de uma rota (virtual host), já no formato do roteador: string exata ou RegExp ancorada. */
+export interface RouteHostRule {
+  /** Como foi escrita, para mensagens e para o OpenAPI. */
+  label: string;
+  /** O que vai para a restrição `host` do find-my-way. */
+  value: string | RegExp;
+  /** Para a checagem contra `allowedHosts`: um hostname representativo, ou `undefined` (RegExp, não conferível). */
+  probe: string | undefined;
+  test(hostname: string): boolean;
+}
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Compila a regra de host de `mount(X, { host })`/`group({ host })` (F-35), com as mesmas regras do
+ * `allowedHosts`: string exata (sem porta), `*.dominio` para subdomínios de qualquer profundidade (nunca o
+ * domínio em si), RegExp com casamento da string inteira.
+ */
+export function compileRouteHost(rule: MatchRule): RouteHostRule {
+  if (rule instanceof RegExp) {
+    const re = toFullMatch(rule);
+    return { label: String(rule), value: re, probe: undefined, test: (h) => re.test(h) };
+  }
+  if (rule.startsWith('*.')) {
+    const base = normalizeHostRule(rule.slice(2)).hostname;
+    const re = new RegExp(`^.+\\.${escapeRegExp(base)}$`);
+    return { label: rule, value: re, probe: `sashiko-probe.${base}`, test: (h) => re.test(h) };
+  }
+  if (rule.includes('*')) throw new Error(`[sashiko] invalid host rule "${rule}": "*" is only allowed as "*.domain".`);
+  if (rule.includes(':')) throw new Error(`[sashiko] invalid host rule "${rule}": use the hostname without the port.`);
+  const { hostname } = normalizeHostRule(rule);
+  return { label: rule, value: hostname, probe: hostname, test: (h) => h === hostname };
+}

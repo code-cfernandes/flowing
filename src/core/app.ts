@@ -115,6 +115,11 @@ export interface AppOptions {
    */
   allowedHosts?: readonly (string | RegExp)[];
   /**
+   * Rotas com `host` (virtual hosts) fora do `allowedHosts` nunca são alcançadas (F-35). `'error'` (padrão)
+   * falha no registro; `'warn'` só registra um aviso no log; `'off'` não confere.
+   */
+  unreachableHosts?: 'error' | 'warn' | 'off';
+  /**
    * Personaliza o corpo de todos os erros do framework e dos `HttpError` (F-15). Padrão: Problem
    * Details (RFC 9457) em `application/problem+json`. O retorno é enviado como `application/json`.
    */
@@ -145,7 +150,9 @@ export class SashikoApp {
   private readonly routes: CompiledRoute[] = [];
   private draining = false;
   private healthConfig: HealthConfig | undefined;
-  private openapiConfig: { opts: OpenAPIOptions; path: string; docs: string | false; pipeline: Middleware[]; cache?: string } | undefined;
+  private openapiConfig:
+    | { opts: OpenAPIOptions; path: string; docs: string | false; pipeline: Middleware[]; cache: Map<string, string> }
+    | undefined;
   private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
@@ -277,7 +284,7 @@ export class SashikoApp {
     if (docs === path) throw new Error(`[sashiko] openapi(): "docs" and "path" cannot both be "${path}".`);
     const pipeline: Middleware[] = [...(opts.middlewares ?? [])];
     if (opts.guards?.length) pipeline.push(guardsMiddleware(opts.guards));
-    this.openapiConfig = { opts, path, docs, pipeline };
+    this.openapiConfig = { opts, path, docs, pipeline, cache: new Map() };
     return this;
   }
 
@@ -295,9 +302,18 @@ export class SashikoApp {
     return this;
   }
 
-  /** Documento OpenAPI 3.1 das rotas registradas até agora, para gravar em arquivo ou testar (F-16). */
+  /**
+   * Documento OpenAPI 3.1 das rotas registradas até agora, para gravar em arquivo ou testar (F-16).
+   * Com virtual hosts, é por host (F-35): `{ host: 'api.exemplo.com' }` traz as rotas desse host e as sem
+   * host; sem `host`, só as sem host. Domínios diferentes nunca se misturam num mesmo documento.
+   */
   openapiDocument(opts: OpenAPIOptions = this.openapiConfig?.opts ?? {}): Record<string, unknown> {
-    return generateOpenAPI(this.routes, opts, !this.opts.formatError);
+    return generateOpenAPI(this.routesFor(opts.host?.toLowerCase()), opts, !this.opts.formatError);
+  }
+
+  /** Rotas visíveis num host: as sem restrição e as cujo `host` casa. */
+  private routesFor(hostname: string | undefined): CompiledRoute[] {
+    return this.routes.filter((r) => r.hosts.length === 0 || (hostname !== undefined && r.hosts.some((h) => h.test(hostname))));
   }
 
   /** Se a requisição é para `/openapi.json` ou `/docs` (quando ligados), responde e devolve `true`. */
@@ -311,8 +327,16 @@ export class SashikoApp {
       ...cfg.pipeline,
       () => {
         if (isSpec) {
-          cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
-          ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
+          // Um documento por conjunto de rotas visíveis no host da requisição (F-35); a chave não usa o
+          // hostname em si, então hosts arbitrários não fazem o cache crescer.
+          const visible = this.routesFor(ctx.hostname.toLowerCase());
+          const key = visible.map((r) => this.routes.indexOf(r)).join(',');
+          let doc = cfg.cache.get(key);
+          if (doc === undefined) {
+            doc = JSON.stringify(generateOpenAPI(visible, cfg.opts, !this.opts.formatError));
+            cfg.cache.set(key, doc);
+          }
+          ctx[kRawSend](doc, 'application/json; charset=utf-8');
           return;
         }
         const nonce = randomBytes(16).toString('base64');
@@ -327,16 +351,36 @@ export class SashikoApp {
 
   private addRoute(owner: string, route: CompiledRoute): void {
     if (this.opts.requireSchemas) assertSchemas(owner, route);
-    try {
-      this.router.on(route.method, route.path, route);
-      this.routes.push(route);
-      if (this.openapiConfig) delete this.openapiConfig.cache;
-    } catch (err) {
-      throw new Error(
-        `[sashiko] app.mount(${owner}): ${route.method} ${route.path} is already registered. ` +
-          `Use a different "prefix" to mount the same class twice.`,
-        { cause: err },
-      );
+    this.checkReachableHosts(owner, route);
+    const hosts = route.hosts.length > 0 ? route.hosts : [undefined];
+    for (const host of hosts) {
+      try {
+        this.router.on(route.method, route.path, route, host?.value);
+      } catch (err) {
+        const where = host ? ` on host ${host.label}` : '';
+        throw new Error(
+          `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
+            `Use a different "prefix" or "host" to mount the same class twice.`,
+          { cause: err },
+        );
+      }
+    }
+    this.routes.push(route);
+    if (this.openapiConfig) this.openapiConfig.cache.clear();
+  }
+
+  /**
+   * Um host de rota fora do `allowedHosts` nunca seria alcançado: o app responde 400 antes do roteamento
+   * (F-35). Padrão: erro no registro; `unreachableHosts: 'warn' | 'off'` relaxa. Regras RegExp não são conferidas.
+   */
+  private checkReachableHosts(owner: string, route: CompiledRoute): void {
+    const mode = this.opts.unreachableHosts ?? 'error';
+    if (mode === 'off' || !this.allowedHosts) return;
+    for (const host of route.hosts) {
+      if (host.probe === undefined || this.allowedHosts(host.probe, host.probe)) continue;
+      const msg = `[sashiko] app.mount(${owner}): ${route.method} ${route.path} uses host ${host.label}, which is not in allowedHosts; the route is unreachable.`;
+      if (mode === 'error') throw new Error(`${msg} Add it to allowedHosts, or set unreachableHosts: 'warn'.`);
+      this.log.warn({ host: host.label, method: route.method, path: route.path }, msg);
     }
   }
 
@@ -349,9 +393,11 @@ export class SashikoApp {
       await compose(ctx, this.middlewares);
       if (ctx.sent || (await this.serveOpenAPI(ctx))) return;
 
-      const match = this.router.find(ctx.method, ctx.path);
+      // F-35: hosts não diferenciam maiúsculas; as regras já são compiladas em minúsculas.
+      const hostname = ctx.hostname.toLowerCase();
+      const match = this.router.find(ctx.method, ctx.path, hostname);
       if (!match) {
-        const allowed = this.router.allowedMethods(ctx.path);
+        const allowed = this.router.allowedMethods(ctx.path, hostname);
         if (allowed.length > 0) {
           ctx.res.setHeader('Allow', allowed.join(', '));
           // F-08: OPTIONS automático para qualquer path com rotas.

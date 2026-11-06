@@ -4,6 +4,7 @@ import type { Middleware } from './compose.ts';
 import { readOwnMetadata, type MethodMetadata, type RouterMetadata } from './metadata.ts';
 import type { RouteDefinition } from './route-table.ts';
 import { joinPaths, pathParams } from '../utils/path.ts';
+import { compileRouteHost, type MatchRule, type RouteHostRule } from '../utils/origin-match.ts';
 
 export interface CompiledRoute extends RouteDefinition {
   method: string;
@@ -11,6 +12,18 @@ export interface CompiledRoute extends RouteDefinition {
   /** Classe e método de origem, para mensagens e para o OpenAPI (F-16). */
   owner: string;
   handlerName: string;
+  /** Virtual hosts da rota (F-35); vazio = qualquer host. */
+  hosts: readonly RouteHostRule[];
+}
+
+/** Um host, ou uma lista: `'api.exemplo.com'`, `'*.exemplo.dev'`, `/^tenant-\d+\.exemplo\.com$/`. */
+export type HostOption = MatchRule | readonly MatchRule[];
+
+export function compileHostOption(host: HostOption | undefined): RouteHostRule[] {
+  if (host === undefined) return [];
+  const list = Array.isArray(host) ? host : [host as MatchRule];
+  if (list.length === 0) throw new Error('[sashiko] host: the list cannot be empty.');
+  return list.map(compileRouteHost);
 }
 
 /** Classe com construtor sem argumentos **ou** instância já construída (B-10). */
@@ -37,6 +50,8 @@ export interface MountOptions<T = object> {
   middlewares?: readonly Middleware[];
   /** Guards para todas as rotas do grupo; rodam antes dos `@Guards` da classe. */
   guards?: readonly Guard[];
+  /** Virtual host (F-35): as rotas só respondem nesses hosts. Sem `host`, valem para qualquer um. */
+  host?: HostOption;
 }
 
 /** Opções de uma rota mapeada manualmente: `.get(path, sel, { middlewares, guards })` (F-30). */
@@ -55,6 +70,8 @@ export interface GroupOptions {
   middlewares?: readonly Middleware[];
   /** Rodam antes dos guards do `mount()`. */
   guards?: readonly Guard[];
+  /** Virtual host (F-35) para todos os `mount()` do grupo, inclusive os aninhados. */
+  host?: HostOption;
 }
 
 /** Escopo acumulado dos grupos em volta de um `mount()`. */
@@ -62,9 +79,22 @@ export interface RouteScope {
   prefix: string;
   middlewares: readonly Middleware[];
   guards: readonly Guard[];
+  hosts: readonly RouteHostRule[];
 }
 
-export const ROOT_SCOPE: RouteScope = { prefix: '', middlewares: [], guards: [] };
+export const ROOT_SCOPE: RouteScope = { prefix: '', middlewares: [], guards: [], hosts: [] };
+
+/** Host herdado do grupo ou definido aqui; os dois ao mesmo tempo seria ambíguo (F-35). */
+function scopedHosts(where: string, inherited: readonly RouteHostRule[], own: HostOption | undefined): readonly RouteHostRule[] {
+  if (own === undefined) return inherited;
+  if (inherited.length > 0) {
+    throw new Error(
+      `[sashiko] ${where}: "host" is already set by an outer group (${inherited.map((h) => h.label).join(', ')}); ` +
+        'set it in only one place.',
+    );
+  }
+  return compileHostOption(own);
+}
 
 /** Prefixo de um grupo dentro de outro, sem barras duplicadas; vazio não altera nada. */
 export function joinPrefix(outer: string, inner: string): string {
@@ -76,6 +106,7 @@ export function joinPrefix(outer: string, inner: string): string {
 /** Escopo de um grupo aninhado em `parent`. */
 export function childScope(parent: RouteScope, opts: GroupOptions): RouteScope {
   return {
+    hosts: scopedHosts('app.group()', parent.hosts, opts.host),
     prefix: joinPrefix(parent.prefix, opts.prefix ?? ''),
     middlewares: [...parent.middlewares, ...(opts.middlewares ?? [])],
     guards: [...parent.guards, ...(opts.guards ?? [])],
@@ -90,6 +121,7 @@ export interface RouteGroup {
   prefix: string;
   options: MountOptions;
   scope: RouteScope;
+  hosts: readonly RouteHostRule[];
 }
 
 export function createGroup(ref: RouterRef, options: MountOptions = {}, scope: RouteScope = ROOT_SCOPE): RouteGroup {
@@ -106,7 +138,8 @@ export function createGroup(ref: RouterRef, options: MountOptions = {}, scope: R
   }
   // Instâncias permitem injetar dependências pelo construtor: app.mount(new UserRoutes(repo))
   const instance = isClass ? new Class() : ref;
-  return { name: Class.name, instance, meta, prefix: joinPrefix(scope.prefix, options.prefix ?? meta.prefix), options, scope };
+  const hosts = scopedHosts(`app.mount(${Class.name})`, scope.hosts, options.host);
+  return { name: Class.name, instance, meta, prefix: joinPrefix(scope.prefix, options.prefix ?? meta.prefix), options, scope, hosts };
 }
 
 /** Rotas declaradas na classe (`@Get`, `@Post`…), filtradas por `only`/`except` e `auto`. */
@@ -158,6 +191,7 @@ function buildRoute(
     path: fullPath,
     owner: group.name,
     handlerName: String(name),
+    hosts: group.hosts,
     handler: (ctx: Context) => fn.call(instance, ctx),
     schemas: methodMeta.schemas,
     // Ordem: grupos → mount → classe → método → rota manual (F-01, F-28, F-30)

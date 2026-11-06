@@ -9,6 +9,11 @@ export interface OpenAPIOptions {
   /** Padrão: `{ title: 'API', version: '0.0.0' }`. */
   info?: { title: string; version: string; description?: string; [key: string]: unknown };
   servers?: readonly { url: string; description?: string }[];
+  /**
+   * Só no `openapiDocument()`: documenta as rotas deste host (virtual hosts) mais as sem host (F-35).
+   * Sem `host`, entram só as rotas sem host. O `/openapi.json` servido usa o host da requisição.
+   */
+  host?: string;
   /** Onde servir o documento JSON. Padrão: `'/openapi.json'`. */
   path?: string;
   /** Swagger UI. Desligado por padrão: `true` serve em `'/docs'`, uma string escolhe o path. */

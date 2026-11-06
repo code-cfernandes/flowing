@@ -29,14 +29,18 @@ const PROBE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE
 export class RouteTable {
   private inner = Router({ ignoreTrailingSlash: true });
 
-  on(method: string, path: string, route: RouteDefinition): void {
-    this.inner.on(method as Method, path, NOOP, route);
+  /** Com `host`, a rota só casa naquele host (F-35); sem, vale para qualquer host e serve de fallback. */
+  on(method: string, path: string, route: RouteDefinition, host?: string | RegExp): void {
+    if (host === undefined) this.inner.on(method as Method, path, NOOP, route);
+    else this.inner.on(method as Method, path, { constraints: { host } }, NOOP, route);
   }
 
-  find(method: string, path: string): RouteMatch | null {
+  /** `hostname` é o validado pelo app (`ctx.hostname`), nunca o header cru. */
+  find(method: string, path: string, hostname = ''): RouteMatch | null {
+    const c = { host: hostname };
     // F-08: HEAD usa o handler do GET quando não houver rota HEAD própria.
     // O Node já descarta o corpo de respostas a HEAD.
-    const found = this.inner.find(method as Method, path) ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
+    const found = this.inner.find(method as Method, path, c) ?? (method === 'HEAD' ? this.inner.find('GET', path, c) : null);
     if (!found) return null;
     return { ...(found.store as RouteDefinition), params: found.params as Record<string, string> };
   }
@@ -47,10 +51,10 @@ export class RouteTable {
    * O custo é O(número de métodos registrados) por lookup, o que é trivial
    * (no máximo 7 find() O(log n) cada).
    */
-  allowedMethods(path: string): string[] {
+  allowedMethods(path: string, hostname = ''): string[] {
     const methods = new Set<string>();
     for (const method of PROBE_METHODS) {
-      if (this.inner.find(method, path)) {
+      if (this.inner.find(method, path, { host: hostname })) {
         methods.add(method);
       }
     }

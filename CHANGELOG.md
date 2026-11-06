@@ -9,6 +9,22 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.0] - 2026-11-06
+
+### Adicionado
+
+- Virtual hosts: `mount(X, { host })` e `group({ host }, …)`, com string exata, `*.dominio` (qualquer profundidade)
+  ou RegExp de casamento inteiro, ou uma lista. A prioridade é host exato → curinga/RegExp → rota sem host. O
+  roteamento usa o `ctx.hostname` validado (com `trustProxy`), e o 404 e o 405 são calculados por host.
+- `AppOptions.unreachableHosts` (`'error'` por padrão, `'warn'` ou `'off'`): uma rota com `host` fora do
+  `allowedHosts` falha no registro.
+- OpenAPI por host: o `/openapi.json` documenta as rotas do host da requisição mais as sem host, e
+  `openapiDocument({ host })` gera o documento de um host. Tipo `HostOption`.
+
+### Alterado
+
+- `openapiDocument()` sem `host` traz só as rotas sem restrição de host. Apps sem virtual hosts não mudam.
+
 ## [0.10.0] - 2026-11-06
 
 ### Adicionado

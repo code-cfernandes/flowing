@@ -142,6 +142,27 @@ app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g)
 - **O callback é síncrono.** Faça o trabalho assíncrono antes (`const db = await connect()`).
 - **Fora do escopo:** middlewares globais (`app.use()`) e hooks (`onError`, `onSend`…) continuam no app.
 
+### Virtual hosts
+
+Domínios diferentes no mesmo app, cada um com as suas rotas:
+
+```ts
+createApp({ allowedHosts: ['api.exemplo.com', 'admin.exemplo.com', '*.clientes.exemplo.com'] })
+  .group({ host: 'admin.exemplo.com', guards: [isAdmin] }, (g) => g.mount(AdminRoutes).mount(ReportsRoutes))
+  .mount(PublicApi, { host: 'api.exemplo.com' })
+  .mount(TenantRoutes, { host: '*.clientes.exemplo.com' }) // acme.clientes…, a.b.clientes…
+  .mount(HealthRoutes); // sem host: vale para todos
+```
+
+- **Regras:** as mesmas do `allowedHosts`. Uma string casa com o hostname exato, sem porta e sem diferenciar maiúsculas. `'*.dominio'` vale para subdomínios de qualquer profundidade, nunca para o domínio em si. Uma RegExp precisa casar o hostname inteiro. Também é possível passar uma lista: `host: ['api.exemplo.com', 'api.exemplo.dev']`.
+- **O host usado é o validado** (`ctx.hostname`). Com `trustProxy`, vem do `X-Forwarded-Host` confiável, nunca do header cru.
+- **Prioridade:** host exato → curinga ou RegExp → rota sem host, que serve de fallback para qualquer domínio.
+- **Isolamento:** as rotas de um host não respondem em outro. O 404 e o 405 (com o `Allow`) são calculados por host.
+- **Onde declarar:** no `mount()` ou no `group()`, e não no `@Router`, porque o domínio é uma decisão de deploy. Declarar `host` num grupo e de novo dentro dele gera erro.
+- **Alcançável:** se o app tem `allowedHosts`, um `host` de rota fora da lista falha no registro, porque essa rota nunca seria alcançada. `createApp({ unreachableHosts: 'warn' })` só avisa no log, e `'off'` não confere. Regras RegExp não são conferidas.
+- **OpenAPI por host:** o `/openapi.json` documenta as rotas do host da requisição mais as rotas sem host, sem misturar domínios. Para gerar o arquivo, use `app.openapiDocument({ host: 'api.exemplo.com' })`; sem `host`, saem só as rotas sem host.
+- **Com HTTPS:** o `tls.sni` escolhe o certificado no handshake, e o `host` escolhe as rotas na requisição. As duas configurações se complementam.
+
 **Pacotes reutilizáveis, sem sistema de plugins.** Uma função que recebe o app basta, sem API nova, registro de nomes nem ciclo de vida próprio:
 
 ```ts
@@ -624,7 +645,6 @@ await app.listen({
 ### Planos futuros
 
 - **HTTP/2** (com fallback para HTTP/1.1 via ALPN). Ainda não é suportado pelo `listen()`. O modo de compatibilidade do Node muda partes do ciclo de vida: o shutdown usa GOAWAY, e não `Connection: close`; não existem `requestTimeout` nem `headersTimeout`; os limites de streams precisam de padrão seguro. Por isso, entra numa versão própria. Até lá, o proxy à frente pode falar HTTP/2 com o cliente e HTTP/1.1 com o app.
-- **Virtual hosts:** `mount(X, { host })` e `group({ host })`, para servir domínios diferentes no mesmo app.
 - **mTLS:** certificado do cliente (`requestCert`) e `ctx.clientCertificate`.
 
 **Encerramento gracioso, sem código.** Com `listen()`, um SIGINT ou SIGTERM faz o app parar de aceitar conexões, esperar as requisições em andamento (com prazo) e sair com código 0:
