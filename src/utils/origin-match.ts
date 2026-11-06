@@ -136,18 +136,17 @@ export function compileHostMatcher(rules: readonly MatchRule[]): (hostname: stri
   };
 }
 
-/** Regra de host de uma rota (virtual host), já no formato do roteador: string exata ou RegExp ancorada. */
+/** Regra de host de uma rota (virtual host), já compilada. */
 export interface RouteHostRule {
-  /** Como foi escrita, para mensagens e para o OpenAPI. */
+  /** Como foi escrita, para mensagens. */
   label: string;
-  /** O que vai para a restrição `host` do find-my-way. */
-  value: string | RegExp;
-  /** Para a checagem contra `allowedHosts`: um hostname representativo, ou `undefined` (RegExp, não conferível). */
-  probe: string | undefined;
+  kind: 'exact' | 'wildcard' | 'regex';
+  /** Hostname (exato) ou domínio base (curinga); vazio em RegExp. */
+  base: string;
+  /** Chave da restrição no roteador: `api.exemplo.com`, `*.exemplo.dev` ou `re:/…/flags`. */
+  key: string;
   test(hostname: string): boolean;
 }
-
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Compila a regra de host de `mount(X, { host })`/`group({ host })` (F-35), com as mesmas regras do
@@ -157,15 +156,53 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function compileRouteHost(rule: MatchRule): RouteHostRule {
   if (rule instanceof RegExp) {
     const re = toFullMatch(rule);
-    return { label: String(rule), value: re, probe: undefined, test: (h) => re.test(h) };
+    return { label: String(rule), kind: 'regex', base: '', key: `re:${re.source}/${re.flags}`, test: (h) => re.test(h) };
   }
   if (rule.startsWith('*.')) {
     const base = normalizeHostRule(rule.slice(2)).hostname;
-    const re = new RegExp(`^.+\\.${escapeRegExp(base)}$`);
-    return { label: rule, value: re, probe: `sashiko-probe.${base}`, test: (h) => re.test(h) };
+    const suffix = `.${base}`;
+    return { label: rule, kind: 'wildcard', base, key: `*.${base}`, test: (h) => h.endsWith(suffix) && h.length > suffix.length };
   }
   if (rule.includes('*')) throw new Error(`[sashiko] invalid host rule "${rule}": "*" is only allowed as "*.domain".`);
   if (rule.includes(':')) throw new Error(`[sashiko] invalid host rule "${rule}": use the hostname without the port.`);
   const { hostname } = normalizeHostRule(rule);
-  return { label: rule, value: hostname, probe: hostname, test: (h) => h === hostname };
+  return { label: rule, kind: 'exact', base: hostname, key: hostname, test: (h) => h === hostname };
+}
+
+/**
+ * Prioridade entre regras que casam com o mesmo host (F-35), usada **igual** pelo roteador e pelo OpenAPI:
+ * exato → curinga mais específico (mais rótulos no domínio base) → RegExp, na ordem de registro.
+ * Menor vence. Rotas sem host ficam por último (são o fallback).
+ */
+export function hostRank(rule: RouteHostRule, seq: number): number {
+  if (rule.kind === 'exact') return 0;
+  if (rule.kind === 'wildcard') return 1_000_000 - rule.base.split('.').length * 1_000 + Math.min(seq, 999);
+  return 2_000_000 + seq;
+}
+export const NO_HOST_RANK = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Uma regra de rota pode ser alcançada com este `allowedHosts`? (F-35)
+ * `'yes'` quando há interseção comprovada, `'no'` quando comprovadamente não há, `'unknown'` com RegExp.
+ */
+export function hostReachability(rule: RouteHostRule, allowed: readonly MatchRule[]): 'yes' | 'no' | 'unknown' {
+  if (rule.kind === 'regex') return 'unknown';
+  let unknown = false;
+  for (const a of allowed) {
+    if (a instanceof RegExp) {
+      if (rule.kind === 'exact' && toFullMatch(a).test(rule.base)) return 'yes';
+      unknown = true;
+      continue;
+    }
+    if (a.startsWith('*.')) {
+      const c = normalizeHostRule(a.slice(2)).hostname;
+      if (rule.kind === 'exact' && rule.base.endsWith(`.${c}`)) return 'yes';
+      // Dois curingas se sobrepõem quando um domínio base está dentro do outro.
+      if (rule.kind === 'wildcard' && (c === rule.base || c.endsWith(`.${rule.base}`) || rule.base.endsWith(`.${c}`))) return 'yes';
+      continue;
+    }
+    const host = normalizeHostRule(a).hostname; // `api.exemplo.com:8443` → `api.exemplo.com`
+    if (rule.test(host)) return 'yes';
+  }
+  return unknown ? 'unknown' : 'no';
 }
