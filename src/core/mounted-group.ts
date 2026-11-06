@@ -10,6 +10,7 @@ import type { Middleware } from './compose.ts';
 import type { Context, OnSendHook } from './context.ts';
 import type { OnCloseHook, OnResponseHook } from './app.ts';
 import type { OpenAPIOptions } from '../openapi/generate.ts';
+import type { HealthOptions } from './health.ts';
 
 /**
  * Retorno de `app.mount()` (F-30): permite mapear manualmente métodos do grupo e continuar
@@ -68,6 +69,7 @@ export class MountedGroup<T extends object> {
   }
   use(mw: Middleware): SashikoApp { return this.app.use(mw); }
   openapi(opts?: OpenAPIOptions): SashikoApp { return this.app.openapi(opts); }
+  health(opts?: HealthOptions): SashikoApp { return this.app.health(opts); }
   openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> { return this.app.openapiDocument(opts); }
   onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp { return this.app.onError(h); }
   onSend(hook: OnSendHook): SashikoApp { return this.app.onSend(hook); }

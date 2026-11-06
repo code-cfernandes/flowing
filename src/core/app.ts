@@ -9,6 +9,7 @@ import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
 import { docsPage, generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
+import { compileHealth, type HealthConfig, type HealthOptions } from './health.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import type { ProtoPoisoning } from '../utils/safe-json.ts';
@@ -131,6 +132,8 @@ export class SashikoApp {
   private readonly onResponseHooks: OnResponseHook[] = [];
   private readonly onCloseHooks: OnCloseHook[] = [];
   private readonly routes: CompiledRoute[] = [];
+  private draining = false;
+  private healthConfig: HealthConfig | undefined;
   private openapiConfig: { opts: OpenAPIOptions; path: string; docs: string | false; pipeline: Middleware[]; cache?: string } | undefined;
   private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
@@ -264,6 +267,20 @@ export class SashikoApp {
     return this;
   }
 
+  /**
+   * Healthchecks para load balancers e orquestradores (Kubernetes, ECS…).
+   * - `GET /livez`: o processo está de pé (200 sempre).
+   * - `GET /readyz`: pronto para receber tráfego. Roda os `checks` (banco, fila…) e responde 503 se algum
+   *   falhar ou estourar o tempo, e também durante o encerramento.
+   *
+   * As rotas são servidas **antes** dos middlewares globais (sondas não têm credenciais nem devem
+   * consumir rate limit); use `guards`/`middlewares` aqui para restringir.
+   */
+  health(opts: HealthOptions = {}): this {
+    this.healthConfig = compileHealth(opts, this.log);
+    return this;
+  }
+
   /** Documento OpenAPI 3.1 das rotas registradas até agora, para gravar em arquivo ou testar (F-16). */
   openapiDocument(opts: OpenAPIOptions = this.openapiConfig?.opts ?? {}): Record<string, unknown> {
     return generateOpenAPI(this.routes, opts, !this.opts.formatError);
@@ -312,6 +329,8 @@ export class SashikoApp {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
     this.applySecurityHeaders?.(ctx.res);
     try {
+      // Healthchecks antes dos middlewares globais: sondas do load balancer não têm credenciais.
+      if (this.healthConfig && (await this.healthConfig.serve(ctx, this.draining || this.closing !== undefined))) return;
       await compose(ctx, this.middlewares);
       if (ctx.sent || (await this.serveOpenAPI(ctx))) return;
 
@@ -454,6 +473,7 @@ export class SashikoApp {
     });
     this.server = server;
     this.closeHooksPending = true;
+    this.draining = false;
     if (this.opts.shutdown !== false) shutdownCoordinator.register(this.shutdownTarget);
     return server;
   }
@@ -481,6 +501,11 @@ export class SashikoApp {
     shutdown: async (signal) => {
       const opts = this.opts.shutdown || {};
       try {
+        this.draining = true;
+        if (opts.drainDelayMs) {
+          this.log.info({ signal, drainDelayMs: opts.drainDelayMs }, 'draining before shutdown');
+          await new Promise((r) => setTimeout(r, opts.drainDelayMs));
+        }
         await this.close(opts.timeoutMs ?? 10_000);
         await opts.onShutdown?.(signal);
         return true;

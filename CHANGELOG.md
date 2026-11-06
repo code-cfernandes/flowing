@@ -15,6 +15,14 @@ e a _patch_ só com correções.
   segredos em tempo constante.
 - `consoleLogger({ redact })` mascara chaves sensíveis em qualquer nível. Por padrão: `authorization`,
   `cookie`, `password`, `token` e afins; `DEFAULT_REDACT_KEYS` e `redactValue()` são exportados.
+- `app.health({ checks, timeoutMs, live, ready, guards, middlewares })`: `/livez` e `/readyz`. Os checks rodam em
+  paralelo, com timeout. O `/readyz` responde 503 se algum check falhar e durante o encerramento, sem expor o
+  motivo, que vai para o log. As rotas são servidas antes dos middlewares globais.
+- `shutdown.drainDelayMs`: espera com o `/readyz` em 503 antes de fechar o servidor, para o load balancer tirar
+  a instância de rotação.
+- `consoleLogger({ format: 'json' })`: uma linha JSON por evento (`level`, `time`, `msg`), com erros
+  serializados e ciclos tratados.
+- README: seção "Deploy em produção", com exemplo e checklist.
 - `SECURITY.md`, com como reportar vulnerabilidades e a política de dependências, e Dependabot semanal para
   npm e GitHub Actions.
 

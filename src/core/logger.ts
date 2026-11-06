@@ -27,6 +27,29 @@ export interface ConsoleLoggerOptions {
    * `'apiKey'` também cobre `api_key` e `X-Api-Key`.
    */
   redact?: readonly string[] | false;
+  /**
+   * `'pretty'` (padrão): `[sashiko] mensagem { ...dados }`, para o terminal. `'json'`: uma linha JSON por
+   * evento (`{ level, time, msg, ...dados }`), para coletores de log (Datadog, Loki, CloudWatch…).
+   */
+  format?: 'pretty' | 'json';
+}
+
+/** `JSON.stringify` que não falha: erros viram `{ type, message, stack }` e ciclos viram `[Circular]`. */
+function toJsonLine(record: Record<string, unknown>): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(record, (_key, value: unknown) => {
+    if (value instanceof Error) {
+      const out: Record<string, unknown> = { type: value.name, message: value.message, stack: value.stack };
+      for (const [k, v] of Object.entries(value)) out[k] = v;
+      return out;
+    }
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) return '[Circular]';
+      seen.add(value);
+    }
+    return value;
+  });
 }
 
 /** Chaves mascaradas por padrão: credenciais, cookies e tokens. */
@@ -64,7 +87,12 @@ export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<
     if (LEVELS[level] < min) return;
     const [data, text] = typeof objOrMsg === 'string' ? [{}, objOrMsg] : [objOrMsg, msg ?? ''];
     const merged = { ...bindings, ...data };
-    console[level](`[sashiko] ${text}`, keys ? redactValue(merged, keys) : merged);
+    const safe = (keys ? redactValue(merged, keys) : merged) as Record<string, unknown>;
+    if (opts.format === 'json') {
+      console[level](toJsonLine({ level, time: new Date().toISOString(), msg: text, ...safe }));
+    } else {
+      console[level](`[sashiko] ${text}`, safe);
+    }
   };
   return {
     debug: emit('debug'),
