@@ -9,6 +9,20 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.12.2] - 2026-11-06
+
+### Corrigido
+- `ctx.sse()` aberto depois de uma desconexão já ocorrida (num `await` anterior) ficava aberto: o heartbeat
+  continuava e o `onClose` nunca era chamado. Agora o stream fecha na hora.
+- `inject()` de uma resposta bem-sucedida cancelava o `ctx.signal`. A troca para `writableEnded` anunciada na
+  0.12.1 não tinha entrado no código; agora entrou, nos dois pontos da detecção de desconexão.
+- `heartbeatMs` e `retry` acima de 2147483647 ms eram aceitos, e o Node os reduzia para 1 ms (heartbeat
+  contínuo). Agora são recusados.
+- `data` do SSE que não vira JSON (`Symbol`, função, `BigInt`, objeto circular) gerava um erro interno ou cru.
+  Agora gera uma mensagem clara, sem escrever um evento parcial.
+- Um segundo `ctx.sendFile()` depois de a resposta ter saído ainda alterava os headers. Agora é ignorado, como
+  `ctx.json()` e `ctx.send()`.
+
 ## [0.12.1] - 2026-11-06
 
 ### Corrigido

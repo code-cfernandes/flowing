@@ -244,3 +244,18 @@ describe('0.12.1 · Range conforme a RFC 9110', () => {
     assert.equal((await inGroup.inject('/g/s/app.js')).status, 200);
   });
 });
+
+describe('0.12.2 · sendFile depois do envio', () => {
+  it('um segundo sendFile é ignorado, sem alterar os headers da resposta em andamento', async () => {
+    @Router('/')
+    class Twice {
+      @Get('/t') async t(ctx: Context) {
+        await ctx.sendFile('app.js', { root });
+        await ctx.sendFile('data.bin', { root, download: true });
+      }
+    }
+    const res = await createApp({ logger: false }).mount(Twice).inject('/t');
+    assert.equal(res.body, 'console.log(1)');
+    assert.equal(res.headers['content-disposition'], undefined);
+  });
+});

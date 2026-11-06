@@ -193,6 +193,8 @@ export async function sendResolvedFile(
 
 /** `ctx.sendFile()`: confere o caminho e envia (F-13). */
 export async function sendFile(ctx: Context, path: string, opts: SendFileOptions = {}): Promise<void> {
+  // Como `ctx.json()`/`ctx.send()`: depois que a resposta saiu, um novo envio é ignorado (sem mexer nos headers).
+  if (ctx.sent) return;
   let full: string | undefined;
   if (opts.root !== undefined) {
     full = await insideRoot(resolveRoot(opts.root), path, 'deny');
