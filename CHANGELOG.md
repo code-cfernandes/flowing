@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.8.0] - 2026-11-06
+
 ### Adicionado
 - `app.group({ prefix, middlewares, guards }, (g) => g.mount(A).mount(B))`: prefixo, middlewares e guards
   comuns a vários `mount()`. Os prefixos se somam (e podem ter parâmetros), e a ordem é grupo → `mount()` →
