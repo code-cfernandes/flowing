@@ -119,7 +119,36 @@ Erros de registro aparecem na inicialização, com mensagem clara:
 - seletor em `only`/`except` que não aponta para um método de rota;
 - a mesma classe registrada duas vezes com o mesmo prefixo.
 
-> **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e esse nome fica reservado para um futuro sistema de plugins.
+> **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e o Sashiko não tem um sistema de plugins (veja abaixo).
+
+### Grupos: `app.group()`
+
+Para aplicar prefixo, middlewares e guards a **várias** classes de uma vez:
+
+```ts
+app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g) =>
+  g.mount(UserRoutes).mount(new OrderRoutes(db)),
+);
+// GET /v2/users, GET /v2/orders…
+```
+
+- **Prefixos se somam:** grupo, depois o prefixo do `mount()` ou do `@Router`, depois o path do método. O prefixo pode ter parâmetros (`'/orgs/:org'`), conferidos contra o schema de `params`.
+- **Ordem de execução:** grupos (de fora para dentro) → `mount()` → classe → método → rota manual. Vale para middlewares e para guards.
+- **Encadeamento:** dentro do callback, `g.mount(A).mount(B)` e `.get(...)` continuam no grupo. Grupos podem ser aninhados (`g.group(...)`).
+- **O callback é síncrono.** Faça o trabalho assíncrono antes (`const db = await connect()`).
+- **Fora do escopo:** middlewares globais (`app.use()`) e hooks (`onError`, `onSend`…) continuam no app.
+
+**Pacotes reutilizáveis, sem sistema de plugins.** Uma função que recebe o app basta, sem API nova, registro de nomes nem ciclo de vida próprio:
+
+```ts
+export function audit(app: SashikoApp, opts: { store: AuditStore }) {
+  return app
+    .group({ prefix: '/audit', guards: [isAdmin] }, (g) => g.mount(new AuditRoutes(opts.store)))
+    .onClose(() => opts.store.flush());
+}
+
+audit(app, { store });
+```
 
 ## Mapeamento manual
 

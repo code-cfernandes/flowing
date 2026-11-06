@@ -9,6 +9,12 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+### Adicionado
+- `app.group({ prefix, middlewares, guards }, (g) => g.mount(A).mount(B))`: prefixo, middlewares e guards
+  comuns a vários `mount()`. Os prefixos se somam (e podem ter parâmetros), e a ordem é grupo → `mount()` →
+  classe → método. Grupos podem ser aninhados, e o encadeamento (`.mount()`, `.get()`) continua no grupo.
+  Também disponível a partir do retorno de `mount()`. Tipos `GroupOptions` e `RouteGroupScope`.
+
 ## [0.7.0] - 2026-11-06
 
 ### Alterado
