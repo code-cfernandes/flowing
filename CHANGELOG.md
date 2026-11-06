@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.6.0] - 2026-11-06
+
 ### Adicionado
 - Cookies: `ctx.cookies`, `ctx.setCookie()` e `ctx.clearCookie()`, com `HttpOnly`, `Secure`, `SameSite=Lax` e
   `Path=/` por padrão. Nome, `path` e `domain` inválidos lançam erro (sem injeção de atributos), e as
