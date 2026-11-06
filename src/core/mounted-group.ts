@@ -81,6 +81,11 @@ export class MountedGroup<T extends object> {
     // Dentro de um `group()`, o próximo `mount()` continua no mesmo grupo.
     return this.app.mountIn(this.#scope, ref, options);
   }
+  /** Arquivos estáticos no mesmo escopo deste `mount()` (o grupo atual, ou o app). */
+  static(prefix: string, root: string, opts?: StaticOptions): this {
+    this.app.staticIn(this.#scope, prefix, root, opts ?? {});
+    return this;
+  }
   /** Grupo aninhado no grupo atual (ou no app, fora de um grupo). */
   group(options: GroupOptions, define: (group: RouteGroupScope) => unknown): this {
     this.app.groupIn(this.#scope, options, define);

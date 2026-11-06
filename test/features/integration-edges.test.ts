@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import type { TLSSocket } from 'node:tls';
-import { describe, it } from 'node:test';
-import { createApp, Get, Router } from 'sashiko';
+import { describe, it, mock } from 'node:test';
+import { type Context, createApp, Get, Router } from 'sashiko';
 
 @Router('/')
 class Ready {
@@ -168,5 +168,63 @@ describe('0.11.4 · health() e openapi() dentro de um group()', () => {
           .group({}, (g) => g.mount(Ready)),
       /served by app\.health\(\)/,
     );
+  });
+});
+
+describe('0.12.1 · costuras dos estáticos, do sendFile e do inject', () => {
+  const dir = new URL('../fixtures/tls/', import.meta.url).pathname;
+
+  it('static() funciona com requireSchemas: true', async () => {
+    const app = createApp({ logger: false, requireSchemas: true }).static('/s', dir);
+    assert.equal((await app.inject('/s/README.md')).status, 200);
+  });
+
+  it('ctx.sendFile() sem await/return: o app espera o envio, e o 404 vira resposta, não unhandledRejection', async () => {
+    const unhandled = mock.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      @Router('/')
+      class F {
+        @Get('/ok') ok(ctx: Context) {
+          ctx.sendFile('README.md', { root: dir });
+        }
+        @Get('/missing') missing(ctx: Context) {
+          ctx.sendFile('nao-existe.md', { root: dir });
+        }
+      }
+      const app = createApp({ logger: false }).mount(F);
+      const ok = await app.inject('/ok');
+      assert.equal(ok.status, 200);
+      assert.match(ok.body, /autoassinados/);
+      assert.equal((await app.inject('/missing')).status, 404);
+      await new Promise((r) => setTimeout(r, 20));
+      assert.equal(unhandled.mock.callCount(), 0);
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
+  it('inject() dispara onResponse e logRequests, como uma conexão real', async () => {
+    const seen: string[] = [];
+    const info = mock.fn();
+    const log = {
+      debug() {},
+      info,
+      warn() {},
+      error() {},
+      child() {
+        return log;
+      },
+    };
+    const app = createApp({ logger: log, logRequests: true })
+      .mount(Plain)
+      .onResponse((ctx, i) => {
+        seen.push(`${ctx.path}:${i.status}`);
+      });
+    await app.inject('/x');
+    await app.inject('/nada');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(seen, ['/x:200', '/nada:404']);
+    assert.equal(info.mock.calls.filter((c) => c.arguments[1] === 'request completed').length, 2);
   });
 });

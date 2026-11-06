@@ -19,7 +19,7 @@ import {
 import { RouteGroupScope } from './mounted-group.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context, kAbort, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
+import { Context, kAbort, kBindResponse, kPendingSend, kRawSend, type OnSendHook } from './context.ts';
 import { staticHandler, type StaticOptions } from '../server/static.ts';
 import { joinPaths } from '../utils/path.ts';
 import { docsPage, generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
@@ -506,7 +506,8 @@ export class SashikoApp {
     const mark = batch.length;
     try {
       for (const route of routes) {
-        if (this.opts.requireSchemas) assertSchemas(owner, route);
+        // Rotas internas (static) não têm schema por natureza: o requireSchemas vale para as da aplicação.
+        if (this.opts.requireSchemas && !route.internal) assertSchemas(owner, route);
         if (route.method === 'GET' || route.method === 'HEAD') {
           const reservedBy = this.reservedPaths().get(canonicalPath(route.path));
           if (reservedBy) {
@@ -635,6 +636,7 @@ export class SashikoApp {
         // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
         ctx[kBindResponse](route.schemas.response, this.serializers);
         const result = await route.handler(ctx);
+        if (ctx[kPendingSend]) await ctx[kPendingSend];
         if (!ctx.sent) sendResult(ctx, route.schemas.response, result, this.serializers);
       });
       await compose(ctx, pipeline);

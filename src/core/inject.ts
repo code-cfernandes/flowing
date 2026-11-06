@@ -78,6 +78,12 @@ export function inject(listener: Listener, opts: InjectOptions): Promise<InjectR
       collect(chunk, encoding);
       const out = end(chunk, encoding, cb);
       const body = Buffer.concat(chunks).toString('utf8');
+      // Sem socket, 'finish' e 'close' nunca seriam emitidos: emite os dois, como numa conexão real,
+      // para `onResponse`, `logRequests` e a limpeza das respostas em andamento rodarem também no inject.
+      setImmediate(() => {
+        res.emit('finish');
+        res.emit('close');
+      });
       resolve({
         status: res.statusCode,
         headers: res.getHeaders(),
