@@ -24,6 +24,8 @@ e a _patch_ só com correções.
 - `consoleLogger({ format: 'json' })`: uma linha JSON por evento (`level`, `time`, `msg`), com erros
   serializados e ciclos tratados.
 - README: seção "Deploy em produção", com exemplo e checklist.
+- Desenvolvimento: lint e formatação com Biome (`pnpm lint`, `pnpm format`, `pnpm check`), um job de lint no CI
+  e `pnpm check` no `prepublishOnly`. Não muda nada no pacote publicado.
 - `SECURITY.md`, com como reportar vulnerabilidades e a política de dependências, e Dependabot semanal para
   npm e GitHub Actions.
 

@@ -34,6 +34,22 @@ jobs:
       - run: pnpm test:coverage # falha abaixo dos limites mínimos (F-19)
       - run: pnpm build
 
+  lint:
+    # F-21: lint e formatação (Biome); `pnpm format` corrige a formatação localmente
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec biome ci .
+
   typescript-5:
     # R-03: garante compatibilidade com o TypeScript 5.x estável além do 7
     name: TypeScript 5.9

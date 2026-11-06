@@ -761,8 +761,11 @@ pnpm install
 pnpm test            # node:test + tsx
 pnpm test:coverage   # com limites mínimos de cobertura
 pnpm typecheck
+pnpm check           # lint + formatação (Biome); pnpm format corrige a formatação
 pnpm build           # dist/
 ```
+
+Para o `git blame` ignorar o commit de formatação: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 Mudanças notáveis estão no [CHANGELOG](CHANGELOG.md). Para reportar uma vulnerabilidade e conhecer a política de dependências, veja o [SECURITY.md](SECURITY.md).
 
