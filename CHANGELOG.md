@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.9.0] - 2026-11-06
+
 ### Adicionado
 - HTTPS no `app.listen({ tls: { key, cert } })` (ou `pfx` + `passphrase`), com os mesmos timeouts, o mesmo
   encerramento gracioso, o `close()` e o `onClose` do HTTP. TLS 1.2 é o mínimo (`minVersion: 'TLSv1.3'` é
