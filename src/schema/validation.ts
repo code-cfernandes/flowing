@@ -1,4 +1,4 @@
-import AjvModule from 'ajv';
+import AjvModule, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormatsModule from 'ajv-formats';
 
 // Interop explícito: o TS em ESM + verbatimModuleSyntax resolve o default
@@ -6,26 +6,59 @@ import addFormatsModule from 'ajv-formats';
 // via CJS interop) e caímos no próprio módulo se ele já for o valor.
 const Ajv = ((AjvModule as any).default ?? AjvModule) as typeof import('ajv').default;
 const addFormats = ((addFormatsModule as any).default ?? addFormatsModule) as (
-  ajv: any,
+  ajv: InstanceType<typeof Ajv>,
   opts?: Record<string, unknown>,
 ) => void;
 
-const ajv = new Ajv({ allErrors: true, coerceTypes: true, removeAdditional: true });
-addFormats(ajv);
+export type ValidationTarget = 'params' | 'query' | 'headers' | 'body';
 
-const cache = new WeakMap<object, ReturnType<typeof ajv.compile>>();
-
-export function validate(schema: object, data: unknown): boolean {
-  let validator = cache.get(schema);
-  if (!validator) {
-    validator = ajv.compile(schema);
-    cache.set(schema, validator);
-  }
-  return validator(data) as boolean;
+export interface ValidationIssue {
+  /** JSON Pointer do campo inválido (`/email`, `/items/0/id`). `/` = raiz. */
+  path: string;
+  message: string;
 }
 
-export function formatErrors(validator: any): string {
-  return (validator.errors ?? [])
-    .map((e: any) => `${e.instancePath || '/'} ${e.message}`)
-    .join('; ');
+function createAjv(coerceTypes: boolean) {
+  const ajv = new Ajv({ allErrors: true, coerceTypes, useDefaults: true, removeAdditional: false });
+  addFormats(ajv);
+  return ajv;
+}
+
+/**
+ * Duas instâncias (B-06):
+ * - `coercing`: params/query/headers chegam sempre como string, então convertemos
+ *   para o tipo declarado (`"5"` → `5`).
+ * - `strict`: o body já é JSON tipado; coerção mascararia erros do cliente
+ *   (`"30"` virar `30`, `""` virar `0`).
+ */
+const coercing = createAjv(true);
+const strict = createAjv(false);
+
+const caches = new Map([
+  [coercing, new WeakMap<object, ValidateFunction>()],
+  [strict, new WeakMap<object, ValidateFunction>()],
+]);
+
+function compile(schema: object, target: ValidationTarget): ValidateFunction {
+  const ajv = target === 'body' ? strict : coercing;
+  const cache = caches.get(ajv)!;
+  let fn = cache.get(schema);
+  if (!fn) {
+    fn = ajv.compile(schema);
+    cache.set(schema, fn);
+  }
+  return fn;
+}
+
+/** Valida `data` contra `schema`. Retorna `null` se válido, ou a lista de problemas (B-02). */
+export function validate(schema: object, data: unknown, target: ValidationTarget): ValidationIssue[] | null {
+  const fn = compile(schema, target);
+  return fn(data) ? null : formatErrors(fn.errors ?? []);
+}
+
+export function formatErrors(errors: ErrorObject[]): ValidationIssue[] {
+  return errors.map((e) => {
+    const missing = e.keyword === 'required' ? `/${(e.params as { missingProperty: string }).missingProperty}` : '';
+    return { path: `${e.instancePath}${missing}` || '/', message: e.message ?? 'invalid' };
+  });
 }

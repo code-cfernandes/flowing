@@ -2,11 +2,12 @@ import http from 'node:http';
 import { compileController } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
-import { HttpError, badRequest } from './errors.ts';
+import { HttpError } from './errors.ts';
 import '../shims/symbol-metadata.ts';
+import type { RouteSchemas } from './metadata.ts';
 import { PicoDecorRouter } from './router.ts';
 import { serialize } from '../schema/serialization.ts';
-import { validate } from '../schema/validation.ts';
+import { validate, type ValidationTarget } from '../schema/validation.ts';
 
 export interface AppOptions {
   bodyLimit?: number;
@@ -58,12 +59,7 @@ export class PicoDecorApp {
 
       ctx.params = match.params;
 
-      if (match.schemas.params && !validate(match.schemas.params, ctx.params))
-        throw badRequest('Invalid params');
-      if (match.schemas.query && !validate(match.schemas.query, ctx.query))
-        throw badRequest('Invalid query');
-      if (match.schemas.body && !validate(match.schemas.body, ctx.body))
-        throw badRequest('Invalid body');
+      validateRequest(ctx, match.schemas);
 
       const result = await match.handler(ctx);
       if (ctx.res.writableEnded) return;
@@ -80,16 +76,41 @@ export class PicoDecorApp {
         ctx.res.end();
       }
     } catch (err) {
-      for (const h of this.errorHandlers) {
-        await h(err, ctx);
-        if (ctx.res.writableEnded) return;
-      }
-      sendError(ctx, err);
+      await this.runErrorHandlers(err, ctx);
     }
   }
 
+  /**
+   * Executa os `onError` do usuário. Se um deles lançar, o erro é logado e seguimos
+   * para a resposta padrão com o erro **original** — nunca deixamos a Promise rejeitar (B-08).
+   */
+  private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
+    for (const h of this.errorHandlers) {
+      try {
+        await h(err, ctx);
+      } catch (handlerErr) {
+        console.error(`[picodecor] onError handler failed on ${ctx.method} ${ctx.path}`, handlerErr);
+        break;
+      }
+      if (ctx.res.writableEnded) return;
+    }
+    sendError(ctx, err);
+  }
+
   listen(port: number, host = '127.0.0.1'): http.Server {
-    const server = http.createServer((req, res) => void this.handle(new Context(req, res)));
+    const server = http.createServer((req, res) => {
+      // Última barreira (B-08): nada que aconteça numa requisição pode virar unhandledRejection.
+      const fail = (err: unknown) => {
+        console.error('[picodecor] unhandled error while handling request', err);
+        if (!res.headersSent) res.statusCode = 500;
+        if (!res.writableEnded) res.end();
+      };
+      try {
+        this.handle(new Context(req, res)).catch(fail);
+      } catch (err) {
+        fail(err);
+      }
+    });
     server.listen(port, host);
     return server;
   }
@@ -110,7 +131,26 @@ function sendError(ctx: Context, err: unknown): void {
   if (ctx.res.writableEnded) return;
   if (ctx.res.headersSent) return void ctx.res.end();
 
-  ctx.status(status).json({ error: exposed ? httpErr!.message : GENERIC_500 });
+  const body: { error: string; details?: unknown } = { error: exposed ? httpErr!.message : GENERIC_500 };
+  if (exposed && httpErr!.details !== undefined) body.details = httpErr!.details;
+  ctx.status(status).json(body);
+}
+
+const VALIDATION_ORDER: readonly ValidationTarget[] = ['headers', 'params', 'query', 'body'];
+const TARGET_LABEL: Record<ValidationTarget, string> = {
+  headers: 'Invalid headers', params: 'Invalid params', query: 'Invalid query', body: 'Invalid body',
+};
+
+/** Valida cada parte da requisição que tiver schema; o primeiro erro vira 400 com detalhes (B-02/B-03). */
+function validateRequest(ctx: Context, schemas: RouteSchemas): void {
+  for (const target of VALIDATION_ORDER) {
+    const schema = schemas[target];
+    if (!schema) continue;
+    // Headers: validamos uma cópia, para coerção/defaults não alterarem `req.headers`.
+    const data = target === 'headers' ? { ...ctx.req.headers } : ctx[target];
+    const issues = validate(schema, data, target);
+    if (issues) throw new HttpError(400, TARGET_LABEL[target], 'VALIDATION_ERROR', { details: issues });
+  }
 }
 
 export function createApp(opts?: AppOptions): PicoDecorApp {

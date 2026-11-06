@@ -1,27 +1,16 @@
-// examples/users/app.ts — exemplo de CRUD com PicoDecor
-import { Type, type Static } from '@sinclair/typebox';
-import { badRequest, Context, Controller, createApp, Get, notFound, Post, Schema } from 'picodecor';
-
-// ---------- Schemas ----------
-const UserSchema = Type.Object({
-  id: Type.String(),
-  name: Type.String(),
-  email: Type.String({ format: 'email' }),
-});
-type User = Static<typeof UserSchema>;
-
-const CreateUserSchema = Type.Object({
-  name: Type.String({ minLength: 1, maxLength: 100 }),
-  email: Type.String({ format: 'email' }),
-});
-type CreateUserInput = Static<typeof CreateUserSchema>;
+import { Type } from "@sinclair/typebox";
+import { Controller, Get, Post, Schema, badRequest, notFound } from "picodecor";
+import type { Context } from "vm";
+import { CreateUserSchema, UserSchema } from "../schema/UserSchema.ts";
+import type { CreateUserInput, User } from "../types/user.ts";
 
 // ---------- "Banco" em memória ----------
 const users = new Map<string, User>();
 
+
 // ---------- Controller ----------
 @Controller('/users')
-class UserController {
+export class UserController {
   @Get('/:id')
   @Schema({
     params: Type.Object({ id: Type.String() }),
@@ -71,18 +60,3 @@ class UserController {
     return { message: `Olá, ${user.name}!` };
   }
 }
-
-// ---------- App ----------
-const app = createApp({ bodyLimit: 64 * 1024 });
-app.controllers([UserController]);
-
-const server = app.listen(3000);
-
-// ---------- Graceful shutdown ----------
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    server.close(() => process.exit(0));
-  });
-}
-
-console.log('PicoDecor running at http://127.0.0.1:3000');

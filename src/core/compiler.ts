@@ -1,4 +1,4 @@
-import { CONTROLLER_METADATA, type ControllerMetadata } from './metadata.ts';
+import { readOwnMetadata, type RouteSchemas } from './metadata.ts';
 import type { Context } from './context.ts';
 import type { Handler } from './router.ts';
 
@@ -6,12 +6,12 @@ export interface CompiledRoute {
   method: string;
   path: string;
   handler: Handler;
-  schemas: import('./metadata.ts').RouteSchemas;
+  schemas: RouteSchemas;
 }
 
 export function compileController(Class: new () => any): CompiledRoute[] {
-  const meta = (Class as any)[Symbol.metadata]?.[CONTROLLER_METADATA] as ControllerMetadata | undefined;
-  if (!meta) {
+  const meta = readOwnMetadata(Class);
+  if (!meta?.isController) {
     throw new Error(
       `Class ${Class.name} is not decorated with @Controller('/prefix'). ` +
       `Add it to use with app.controllers([...]).`

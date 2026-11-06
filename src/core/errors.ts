@@ -5,12 +5,15 @@ export interface HttpErrorOptions {
    */
   expose?: boolean;
   cause?: unknown;
+  /** Dados extras enviados ao cliente junto da mensagem (ex.: erros de validação). */
+  details?: unknown;
 }
 
 export class HttpError extends Error {
   readonly status: number;
   readonly code: string | undefined;
   readonly expose: boolean;
+  readonly details: unknown;
 
   constructor(status: number, message: string, code?: string, options: HttpErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -18,6 +21,7 @@ export class HttpError extends Error {
     this.status = status;
     this.code = code;
     this.expose = options.expose ?? status < 500;
+    this.details = options.details;
   }
 }
 
