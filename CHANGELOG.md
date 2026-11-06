@@ -31,6 +31,10 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - `AppOptions.requireSchemas` para exigir schemas de body e de resposta no registro das rotas. (S-07)
 - `HEAD` automático para rotas `GET` e `OPTIONS` automático (204 + `Allow`). (F-08)
 - `ctx.ip`.
+- Mensagens de erro claras quando os decorators são usados com `experimentalDecorators` ou sem
+  `Symbol.metadata`.
+- Arquivo `LICENSE` (ISC); `package.json` com `engines.node >=20.11`, `sideEffects`, `keywords` e
+  `prepublishOnly`.
 - `AppOptions.queryMaxKeys` limita os pares lidos da query string (padrão 1000). (S-06)
 - `app.controllers()` aceita instâncias, para injetar dependências pelo construtor. (B-10)
 - Script `pnpm test:coverage` com limites mínimos de cobertura. (F-19)
@@ -43,6 +47,8 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - **Incompatível:** o decorator `cors` foi removido em favor do middleware `cors()`. (B-04)
 - **Incompatível:** `timer` virou uma fábrica: use `@timer()` em vez de `@timer`. (B-04)
 - O header `Allow` em respostas 405 passa a incluir `HEAD` e `OPTIONS`.
+- `strict: true` e checagens adicionais (`noImplicitReturns`, `noImplicitOverride`, `noUnused*`,
+  `noFallthroughCasesInSwitch`) no tsconfig; `any` removidos do código-fonte, exceto os inevitáveis.
 - `src/core/app.ts` foi dividido por responsabilidade: `body-parser.ts`, `request-validation.ts` e
   `response.ts`. Funções puras e genéricas foram para `src/utils/` (`query.ts`, `content-type.ts`,
   `path.ts`), que é interno e não é exportado pela API pública.

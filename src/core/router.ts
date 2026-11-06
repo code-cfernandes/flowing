@@ -15,8 +15,11 @@ interface Store {
   handler: Handler;
 }
 
-const NOOP = (() => {}) as any;
-const PROBE_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
+type Method = Router.HTTPMethod;
+
+// O find-my-way exige um handler próprio; usamos só o `store`, então ele nunca é chamado.
+const NOOP: Router.Handler<Router.HTTPVersion.V1> = () => {};
+const PROBE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
 export class PicoDecorRouter {
   private inner = Router({ ignoreTrailingSlash: true });
@@ -25,16 +28,16 @@ export class PicoDecorRouter {
   on(method: string, path: string, handler: Handler, schemas: RouteSchemas = {}): void {
     this.schemasByHandler.set(handler, schemas);
     const store: Store = { handler };
-    this.inner.on(method as any, path, NOOP, store as any);
+    this.inner.on(method as Method, path, NOOP, store);
   }
 
   find(method: string, path: string): RouteMatch | null {
     // F-08: HEAD usa o handler do GET quando não houver rota HEAD própria.
     // O Node já descarta o corpo de respostas a HEAD.
-    const found = this.inner.find(method as any, path)
+    const found = this.inner.find(method as Method, path)
       ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
     if (!found) return null;
-    const { handler } = found.store as unknown as Store;
+    const { handler } = found.store as Store;
     return {
       handler,
       params: found.params as Record<string, string>,
@@ -51,7 +54,7 @@ export class PicoDecorRouter {
   allowedMethods(path: string): string[] {
     const methods = new Set<string>();
     for (const method of PROBE_METHODS) {
-      if (this.inner.find(method as any, path)) {
+      if (this.inner.find(method, path)) {
         methods.add(method);
       }
     }

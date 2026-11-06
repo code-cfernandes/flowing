@@ -1,7 +1,21 @@
 {
   "name": "picodecor",
   "version": "0.0.1",
-  "description": "",
+  "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
+  "keywords": [
+    "http",
+    "framework",
+    "decorators",
+    "tc39",
+    "typescript",
+    "typebox",
+    "ajv",
+    "schema",
+    "api",
+    "rest"
+  ],
+  "author": "Caio Fernandes",
+  "license": "ISC",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,6 +28,15 @@
   "files": [
     "dist"
   ],
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/core/index.js",
+    "./dist/core/app.js",
+    "./dist/shims/*.js"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "dev": "tsx watch examples/app-users/server.ts",
     "example:users": "tsx examples/app-users/server.ts",
@@ -21,11 +44,10 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-timeout=10000 --test-reporter=spec 'test/**/*.test.ts'",
     "test:watch": "node --import tsx --test --test-timeout=10000 --watch 'test/**/*.test.ts'",
-    "test:coverage": "node --import tsx --test --test-timeout=10000 --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=95 --test-coverage-branches=85 --test-coverage-functions=90 'test/**/*.test.ts'"
+    "test:coverage": "node --import tsx --test --test-timeout=10000 --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=95 --test-coverage-branches=85 --test-coverage-functions=90 'test/**/*.test.ts'",
+    "prepublishOnly": "pnpm typecheck && pnpm test:coverage && pnpm build",
+    "clean": "rm -rf dist"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",

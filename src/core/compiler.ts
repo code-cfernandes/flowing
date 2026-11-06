@@ -30,7 +30,7 @@ export function compileController(ref: ControllerRef): CompiledRoute[] {
 
   for (const [name, methodMeta] of meta.methods) {
     if (!methodMeta.method || !methodMeta.path) continue;
-    const fn = (instance as any)[name];
+    const fn = (instance as Record<string | symbol, unknown>)[name];
     if (typeof fn !== 'function') continue;
 
     routes.push({

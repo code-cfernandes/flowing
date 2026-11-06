@@ -1,11 +1,12 @@
-import { getOrCreateMetadata, getOrCreateMethod } from '../core/metadata.ts';
+import { metadataFor, getOrCreateMethod } from '../core/metadata.ts';
 
 function methodDecorator(httpMethod: string, path: string) {
+  const label = httpMethod[0] + httpMethod.slice(1).toLowerCase();
   return function <This, Args extends [any, ...unknown[]], Return>(
     _target: (this: This, ...args: Args) => Return,
     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>
   ) {
-    const meta = getOrCreateMetadata(context.metadata);
+    const meta = metadataFor(context, label);
     const m = getOrCreateMethod(meta, context.name);
     m.method = httpMethod;
     m.path = path;

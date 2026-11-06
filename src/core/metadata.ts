@@ -55,6 +55,32 @@ export function readOwnMetadata(Class: object): ControllerMetadata | undefined {
   return meta[CONTROLLER_METADATA] as ControllerMetadata;
 }
 
+/**
+ * Ponto de entrada dos decorators: valida o ambiente e devolve a metadata própria da classe.
+ *
+ * - R-02: com `experimentalDecorators`, o TypeScript chama o decorator com
+ *   `(target, propertyKey, descriptor)` em vez de `(value, context)`.
+ * - R-01: sem `Symbol.metadata`, o `context.metadata` chega `undefined` e não há onde guardar as rotas.
+ *
+ * Nos dois casos, falhamos cedo com uma mensagem que diz como resolver.
+ */
+export function metadataFor(context: unknown, decorator: string): ControllerMetadata {
+  if (typeof context !== 'object' || context === null || !('kind' in context)) {
+    throw new Error(
+      `[picodecor] @${decorator} received legacy decorator arguments. PicoDecor uses standard (TC39) ` +
+      `decorators: remove "experimentalDecorators" (and "emitDecoratorMetadata") from your tsconfig.json.`,
+    );
+  }
+  const meta = (context as { metadata?: DecoratorMetadataObject | null }).metadata;
+  if (!meta) {
+    throw new Error(
+      `[picodecor] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
+      `Import 'picodecor' before declaring controllers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
+    );
+  }
+  return getOrCreateMetadata(meta);
+}
+
 export function getOrCreateMethod(meta: ControllerMetadata, name: string | symbol): MethodMetadata {
   let m = meta.methods.get(name);
   if (!m) {
