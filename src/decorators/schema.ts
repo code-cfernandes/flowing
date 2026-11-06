@@ -1,4 +1,4 @@
-import { getOrCreateMetadata, getOrCreateMethod, type RouteSchemas } from './metadata.ts';
+import { getOrCreateMetadata, getOrCreateMethod, type RouteSchemas } from '../core/metadata.ts';
 
 export function Schema(schemas: RouteSchemas) {
   return function <This, Args extends [any, ...unknown[]], Return>(

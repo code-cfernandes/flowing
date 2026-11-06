@@ -1,4 +1,4 @@
-// src/decorators/metadata.ts
+// src/core/metadata.ts
 export const CONTROLLER_METADATA = Symbol.for('pico:controller');
 
 export interface RouteSchemas {

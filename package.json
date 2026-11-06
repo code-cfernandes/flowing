@@ -1,12 +1,23 @@
 {
-  "name": "PicoDecor",
+  "name": "picodecor",
   "version": "0.0.1",
   "description": "",
-  "main": "./src/app.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "tsx watch src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.js",
+    "dev": "tsx watch examples/users/app.ts",
+    "example:users": "tsx examples/users/app.ts",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -19,7 +30,6 @@
       "onFail": "download"
     }
   },
-  "type": "module",
   "devDependencies": {
     "@sinclair/typebox": "^0.34.52",
     "@types/node": "^26.0.0",

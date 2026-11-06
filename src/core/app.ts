@@ -3,10 +3,10 @@ import { compileController } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
 import { HttpError, badRequest } from './errors.ts';
-import './polyfill.ts';
+import '../shims/symbol-metadata.ts';
 import { PicoDecorRouter } from './router.ts';
-import { serialize } from './serialization.ts';
-import { validate } from './validation.ts';
+import { serialize } from '../schema/serialization.ts';
+import { validate } from '../schema/validation.ts';
 
 export interface AppOptions {
   bodyLimit?: number;

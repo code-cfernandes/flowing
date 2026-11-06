@@ -1,4 +1,4 @@
-import { getOrCreateMetadata } from './metadata.ts';
+import { getOrCreateMetadata } from '../core/metadata.ts';
 
 export function Controller(prefix = '') {
   return function <T extends new (...args: any[]) => any>(_value: T, context: ClassDecoratorContext<T>) {

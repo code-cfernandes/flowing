@@ -1,4 +1,4 @@
-import { getOrCreateMetadata, getOrCreateMethod } from './metadata.ts';
+import { getOrCreateMetadata, getOrCreateMethod } from '../core/metadata.ts';
 
 function methodDecorator(httpMethod: string, path: string) {
   return function <This, Args extends [any, ...unknown[]], Return>(

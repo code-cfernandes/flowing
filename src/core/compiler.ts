@@ -1,4 +1,4 @@
-import { CONTROLLER_METADATA, type ControllerMetadata } from '../decorators/metadata.ts';
+import { CONTROLLER_METADATA, type ControllerMetadata } from './metadata.ts';
 import type { Context } from './context.ts';
 import type { Handler } from './router.ts';
 
@@ -6,7 +6,7 @@ export interface CompiledRoute {
   method: string;
   path: string;
   handler: Handler;
-  schemas: import('../decorators/metadata.ts').RouteSchemas;
+  schemas: import('./metadata.ts').RouteSchemas;
 }
 
 export function compileController(Class: new () => any): CompiledRoute[] {

@@ -1,2 +1,28 @@
+# Dependências
 node_modules/
+.pnpm-store/
+
+# Build
 dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Testes / cobertura
+coverage/
+
+# Editor / SO
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

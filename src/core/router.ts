@@ -1,6 +1,6 @@
-// src/picodecor/router.ts
+// src/core/router.ts
 import Router from 'find-my-way';
-import type { RouteSchemas } from '../decorators/metadata.ts';
+import type { RouteSchemas } from './metadata.ts';
 import type { Context } from './context.ts';
 
 export type Handler = (ctx: Context) => unknown | Promise<unknown>;

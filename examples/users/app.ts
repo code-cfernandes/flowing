@@ -1,7 +1,6 @@
-// examples/users/app.ts
+// examples/users/app.ts — exemplo de CRUD com PicoDecor
 import { Type, type Static } from '@sinclair/typebox';
-import { Controller, Get, Post, Schema } from './decorators/index.ts';
-import { badRequest, Context, createApp, notFound } from './picodecor/index.ts';
+import { badRequest, Context, Controller, createApp, Get, notFound, Post, Schema } from 'picodecor';
 
 // ---------- Schemas ----------
 const UserSchema = Type.Object({
