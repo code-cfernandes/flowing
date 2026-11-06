@@ -11,6 +11,7 @@ import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts'
 import { docsPage, generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
+import type { ProtoPoisoning } from '../utils/safe-json.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
 import { problem, sendError, sendProblem, sendResult, type Serializer } from './response.ts';
 import type { ErrorFormatter } from './errors.ts';
@@ -69,6 +70,11 @@ export interface AppOptions {
    * em toda rota, falhando no `app.mount()`. Padrão: `false`.
    */
   requireSchemas?: boolean;
+  /**
+   * Body JSON com `__proto__` ou `constructor.prototype` (S-08): `'error'` responde 400
+   * (`PROTO_POISONING`); `'remove'` descarta as chaves e segue. Padrão: `'error'`.
+   */
+  protoPoisoning?: ProtoPoisoning;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
   queryMaxKeys?: number;
   /** Logger compatível com pino. Padrão: `consoleLogger()`; `false` desliga (F-06). */
@@ -152,7 +158,7 @@ export class SashikoApp {
       exitOnShutdown: sd.exit ?? true,
     });
     if (opts.securityHeaders !== false) this.applySecurityHeaders = buildSecurityHeaders(opts.securityHeaders);
-    this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024));
+    this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024, opts.protoPoisoning));
   }
 
   use(mw: Middleware): this {

@@ -1,8 +1,9 @@
 import type { Middleware } from './compose.ts';
 import { isJsonContentType } from '../utils/content-type.ts';
+import { parseJson, ProtoPoisoningError, type ProtoPoisoning } from '../utils/safe-json.ts';
 
 /** Lê e parseia o body JSON, respeitando `limit` em bytes. Registrado pelo app como primeiro middleware. */
-export function bodyParser(limit: number): Middleware {
+export function bodyParser(limit: number, protoPoisoning: ProtoPoisoning = 'error'): Middleware {
   return async (ctx, next) => {
     if (ctx.method === 'GET' || ctx.method === 'HEAD') return next();
     if (!isJsonContentType(ctx.req.headers['content-type'])) return next();
@@ -25,8 +26,13 @@ export function bodyParser(limit: number): Middleware {
     }
     const raw = Buffer.concat(chunks).toString('utf8');
     if (raw) {
-      try { ctx.body = JSON.parse(raw); }
-      catch { ctx.throw(400, 'Invalid JSON', 'INVALID_JSON'); }
+      try {
+        ctx.body = parseJson(raw, protoPoisoning);
+      } catch (err) {
+        // S-08: `__proto__` e `constructor.prototype` no body são recusados (ou removidos, se configurado).
+        if (err instanceof ProtoPoisoningError) ctx.throw(400, err.message, 'PROTO_POISONING');
+        ctx.throw(400, 'Invalid JSON', 'INVALID_JSON');
+      }
     }
     await next();
   };

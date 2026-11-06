@@ -1,0 +1,29 @@
+# Política de atualização (S-12): PRs semanais, agrupados, revisados como qualquer outro PR.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Dependências de runtime vão para o pacote publicado: um PR por atualização, revisado à parte.
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
+    labels: [dependencies]
