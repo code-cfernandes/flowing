@@ -2,20 +2,26 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { compileHostMatcher, compileOriginMatcher, normalizeOrigin, toFullMatch } from '../../src/utils/origin-match.ts';
 
-const accepts = (m: (o: string) => boolean, list: string[]) => { for (const o of list) assert.equal(m(o), true, `deveria aceitar ${o}`); };
-const rejects = (m: (o: string) => boolean, list: string[]) => { for (const o of list) assert.equal(m(o), false, `deveria recusar ${o}`); };
+const accepts = (m: (o: string) => boolean, list: string[]) => {
+  for (const o of list) assert.equal(m(o), true, `deveria aceitar ${o}`);
+};
+const rejects = (m: (o: string) => boolean, list: string[]) => {
+  for (const o of list) assert.equal(m(o), false, `deveria recusar ${o}`);
+};
 
 describe('origin-match · origens (CORS)', () => {
   it('string: igualdade depois de normalizar esquema, host e porta padrão', () => {
     const m = compileOriginMatcher(['https://App.Exemplo.com:443/']);
     accepts(m, ['https://app.exemplo.com', 'https://APP.exemplo.com', 'https://app.exemplo.com:443']);
     rejects(m, [
-      'http://app.exemplo.com',             // esquema diferente
-      'https://app.exemplo.com:8443',       // porta diferente
-      'https://app.exemplo.com.atacante.com',// sufixo
-      'https://evilapp.exemplo.com',         // prefixo
-      'https://sub.app.exemplo.com',         // subdomínio não listado
-      'null', 'não é uma url', '',
+      'http://app.exemplo.com', // esquema diferente
+      'https://app.exemplo.com:8443', // porta diferente
+      'https://app.exemplo.com.atacante.com', // sufixo
+      'https://evilapp.exemplo.com', // prefixo
+      'https://sub.app.exemplo.com', // subdomínio não listado
+      'null',
+      'não é uma url',
+      '',
     ]);
   });
 
@@ -23,9 +29,9 @@ describe('origin-match · origens (CORS)', () => {
     const m = compileOriginMatcher(['https://*.exemplo.dev']);
     accepts(m, ['https://preview.exemplo.dev', 'https://a.b.exemplo.dev', 'https://X.EXEMPLO.dev']);
     rejects(m, [
-      'https://exemplo.dev',                 // o domínio em si
+      'https://exemplo.dev', // o domínio em si
       'https://exemplo.dev.atacante.com',
-      'https://atacanteexemplo.dev',         // sem o ponto separador
+      'https://atacanteexemplo.dev', // sem o ponto separador
       'http://preview.exemplo.dev',
       'https://preview.exemplo.dev:8443',
     ]);

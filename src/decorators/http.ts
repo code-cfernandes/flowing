@@ -30,7 +30,10 @@ type Verb = <const P extends string = '/', const S extends RouteSchemas = {}>(
   schemas?: S & CheckParams<P, S>,
 ) => ReturnType<typeof methodDecorator>;
 
-const verb = (httpMethod: string): Verb => (path, schemas) => methodDecorator(httpMethod, path ?? '/', schemas);
+const verb =
+  (httpMethod: string): Verb =>
+  (path, schemas) =>
+    methodDecorator(httpMethod, path ?? '/', schemas);
 
 /** Com schema de `params`, as chaves precisam ser exatamente as do path, ou o TypeScript acusa (F-29). */
 export const Get = verb('GET');

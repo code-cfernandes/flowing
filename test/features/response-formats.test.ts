@@ -9,9 +9,11 @@ const User = Type.Object({ id: Type.String(), name: Type.String() });
 const users = [{ id: '1', name: 'Ana', password: 'hash' }];
 
 // Serializador "de brinquedo" para o teste: sem dependências
-const toCsv = (rows: unknown) =>
-  (rows as Record<string, unknown>[]).map((r) => Object.values(r).join(',')).join('\n') + '\n';
-const toYamlish = (data: unknown) => Object.entries(data as object).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n';
+const toCsv = (rows: unknown) => (rows as Record<string, unknown>[]).map((r) => Object.values(r).join(',')).join('\n') + '\n';
+const toYamlish = (data: unknown) =>
+  Object.entries(data as object)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n') + '\n';
 
 const csv = { response: { 200: { contentType: 'text/csv', schema: Type.String() } } } satisfies RouteSchemas;
 const multi = { response: { 200: { contentType: ['application/json', 'text/csv'], schema: Type.Array(User) } } } satisfies RouteSchemas;
@@ -22,21 +24,44 @@ const jsonString = { response: { 200: Type.String() } } satisfies RouteSchemas;
 @Router('/f')
 class Formats {
   // Sem schema: o tipo vem do valor retornado
-  @Get('/text') text() { return 'olá'; }
-  @Get('/bytes') bytes() { return Buffer.from([1, 2, 3]); }
-  @Get('/stream') stream() { return Readable.from(['a', 'b', 'c']); }
-  @Get('/object') object() { return { ok: true }; }
-  @Get('/header') header(ctx: Context) { ctx.header('Content-Type', 'text/html; charset=utf-8'); return '<p>oi</p>'; }
+  @Get('/text') text() {
+    return 'olá';
+  }
+  @Get('/bytes') bytes() {
+    return Buffer.from([1, 2, 3]);
+  }
+  @Get('/stream') stream() {
+    return Readable.from(['a', 'b', 'c']);
+  }
+  @Get('/object') object() {
+    return { ok: true };
+  }
+  @Get('/header') header(ctx: Context) {
+    ctx.header('Content-Type', 'text/html; charset=utf-8');
+    return '<p>oi</p>';
+  }
 
   // Com contentType no schema
-  @Get('/csv', csv) exportCsv() { return 'id,name\n1,Ana\n'; }
-  @Get('/users', multi) list(): InferResponse<typeof multi> { return users; }
-  @Get('/yaml', yaml) one() { return users[0]!; }
-  @Get('/msgpack', noSerializer) msgpack() { return users[0]!; }
-  @Get('/bad-yaml', yaml) bad() { return { id: 1 }; }
+  @Get('/csv', csv) exportCsv() {
+    return 'id,name\n1,Ana\n';
+  }
+  @Get('/users', multi) list(): InferResponse<typeof multi> {
+    return users;
+  }
+  @Get('/yaml', yaml) one() {
+    return users[0]!;
+  }
+  @Get('/msgpack', noSerializer) msgpack() {
+    return users[0]!;
+  }
+  @Get('/bad-yaml', yaml) bad() {
+    return { id: 1 };
+  }
 
   // Schema JSON sem contentType: string continua sendo JSON
-  @Get('/json-string', jsonString) js() { return 'olá'; }
+  @Get('/json-string', jsonString) js() {
+    return 'olá';
+  }
 }
 
 const app = createApp({
@@ -104,7 +129,9 @@ describe('F-31 · contentType no schema de resposta', () => {
       assert.equal(res.status, 500);
       const data = errorLog.mock.calls[0]!.arguments[1] as { err: Error };
       assert.match(data.err.message, /response does not match its schema/);
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 
   it('tipo sem serializador registrado → 500 com instrução no log', async () => {
@@ -114,7 +141,9 @@ describe('F-31 · contentType no schema de resposta', () => {
       assert.equal(res.status, 500);
       const data = errorLog.mock.calls[0]!.arguments[1] as { err: Error };
       assert.match(data.err.message, /no serializer registered for "application\/x-msgpack"/);
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 });
 
@@ -143,7 +172,13 @@ describe('F-31 · negociação pelo Accept', () => {
   it('nenhum tipo aceitável → 406 com os tipos disponíveis', async () => {
     const res = await get('application/xml');
     assert.equal(res.status, 406);
-    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Not Acceptable', status: 406, code: 'NOT_ACCEPTABLE', details: { available: ['application/json', 'text/csv'] } });
+    assert.deepEqual(res.json(), {
+      type: 'about:blank',
+      title: 'Not Acceptable',
+      status: 406,
+      code: 'NOT_ACCEPTABLE',
+      details: { available: ['application/json', 'text/csv'] },
+    });
   });
 });
 
@@ -161,7 +196,12 @@ describe('F-31 · negotiate()', () => {
 
 describe('F-31 · preset de headers de segurança', () => {
   it("'web' libera recursos do próprio site; 'api' continua o padrão", async () => {
-    @Router('/p') class P { @Get('/') page() { return '<h1>oi</h1>'; } }
+    @Router('/p')
+    class P {
+      @Get('/') page() {
+        return '<h1>oi</h1>';
+      }
+    }
     const web = await createApp({ logger: false, securityHeaders: 'web' }).mount(P).inject('/p');
     assert.equal(web.headers['content-security-policy'], "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'");
     assert.equal(web.headers['x-frame-options'], 'SAMEORIGIN');

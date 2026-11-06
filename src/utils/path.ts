@@ -21,7 +21,10 @@ export function pathParams(path: string): string[] {
       continue;
     }
     if (ch !== ':') continue;
-    if (path[i + 1] === ':') { i++; continue; } // `::` é um ':' literal
+    if (path[i + 1] === ':') {
+      i++;
+      continue;
+    } // `::` é um ':' literal
     let j = i + 1;
     while (j < path.length && !NAME_END.has(path[j]!)) j++;
     const name = path.slice(i + 1, j);
@@ -31,7 +34,10 @@ export function pathParams(path: string): string[] {
     if (path[j] === '(') {
       let depth = 0;
       for (; j < path.length; j++) {
-        if (path[j] === '\\') { j++; continue; }
+        if (path[j] === '\\') {
+          j++;
+          continue;
+        }
         if (path[j] === '(') depth++;
         else if (path[j] === ')' && --depth === 0) break;
       }

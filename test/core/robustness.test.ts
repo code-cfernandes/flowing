@@ -15,13 +15,17 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
 
   @Router('/b08')
   class C {
-    @Get('/') boom() { throw new Error('original'); }
+    @Get('/') boom() {
+      throw new Error('original');
+    }
   }
 
   before(async () => {
     process.on('unhandledRejection', onRejection);
     const app = createApp()
-      .onError(() => { throw new Error('handler quebrado'); })
+      .onError(() => {
+        throw new Error('handler quebrado');
+      })
       .mount(C);
     srv = await startServer(app);
   });
@@ -47,17 +51,25 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
 describe('B-09 · herança de controllers', () => {
   @Router('/base')
   class Base {
-    @Get('/hello') hello() { return { from: 'base' }; }
+    @Get('/hello') hello() {
+      return { from: 'base' };
+    }
   }
 
   @Router('/child')
   class Child extends Base {
-    @Get('/extra') extra() { return { from: 'child' }; }
-    override hello() { return { from: 'child-override' }; }
+    @Get('/extra') extra() {
+      return { from: 'child' };
+    }
+    override hello() {
+      return { from: 'child-override' };
+    }
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().mount(Base).mount(Child)); });
+  before(async () => {
+    srv = await startServer(createApp().mount(Base).mount(Child));
+  });
   after(() => srv.close());
 
   const get = async (p: string) => {
@@ -81,25 +93,33 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   class V {
     @Post('/body')
     @Schema({ body: Type.Object({ name: Type.String({ minLength: 1 }), age: Type.Integer() }) })
-    body(ctx: Context) { return ctx.body; }
+    body(ctx: Context) {
+      return ctx.body;
+    }
 
     @Get('/query')
     @Schema({ query: Type.Object({ page: Type.Integer({ minimum: 1 }) }) })
-    query(ctx: Context) { return ctx.query; }
+    query(ctx: Context) {
+      return ctx.query;
+    }
 
     @Get('/headers')
     @Schema({ headers: Type.Object({ 'x-api-key': Type.String({ minLength: 8 }) }) })
-    headers(ctx: Context) { return { ok: true, host: typeof ctx.req.headers.host }; }
+    headers(ctx: Context) {
+      return { ok: true, host: typeof ctx.req.headers.host };
+    }
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().mount(V)); });
+  before(async () => {
+    srv = await startServer(createApp().mount(V));
+  });
   after(() => srv.close());
 
   it('B-02 · 400 traz a parte inválida e os detalhes de cada erro', async () => {
     const res = await postJson(srv.url + '/v/body', { name: '', age: 'x' });
     assert.equal(res.status, 400);
-    const json = await res.json() as { detail: string; details: { path: string; message: string }[] };
+    const json = (await res.json()) as { detail: string; details: { path: string; message: string }[] };
     assert.equal(json.detail, 'Invalid body');
     const paths = json.details.map((d) => d.path).sort();
     assert.deepEqual(paths, ['/age', '/name']);
@@ -124,7 +144,7 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   it('B-03 · header obrigatório ausente responde 400', async () => {
     const res = await fetch(srv.url + '/v/headers');
     assert.equal(res.status, 400);
-    assert.equal((await res.json() as { detail: string }).detail, 'Invalid headers');
+    assert.equal(((await res.json()) as { detail: string }).detail, 'Invalid headers');
   });
 
   it('B-03 · header válido passa e os demais headers ficam intactos', async () => {

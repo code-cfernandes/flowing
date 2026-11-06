@@ -11,7 +11,9 @@ class Users {
     query: Type.Object({ limit: Type.Optional(Type.Integer({ minimum: 1 })), tag: Type.String() }),
     response: { 200: { contentType: ['application/json', 'text/csv'], schema: Type.Array(User) } },
   })
-  list() { return []; }
+  list() {
+    return [];
+  }
 
   @Post('/', {
     params: Type.Object({ org: Type.String() }),
@@ -19,15 +21,21 @@ class Users {
     body: Type.Object({ name: Type.String() }),
     response: { 201: User },
   })
-  create() { return { id: '1', name: 'Ana' }; }
+  create() {
+    return { id: '1', name: 'Ana' };
+  }
 
   @Delete('/:id(^\\d+)', { params: Type.Object({ org: Type.String(), id: Type.String() }), response: { 204: Type.Null() } })
-  remove(ctx: Context) { ctx.status(204).res.end(); }
+  remove(ctx: Context) {
+    ctx.status(204).res.end();
+  }
 }
 
 @Router('/health')
 class Health {
-  @Get('/') check() { return { ok: true }; }
+  @Get('/') check() {
+    return { ok: true };
+  }
 }
 
 type Doc = { openapi: string; info: unknown; servers?: unknown; paths: Record<string, Record<string, any>>; components?: any };
@@ -47,9 +55,14 @@ describe('F-16 · documento OpenAPI 3.1', () => {
     const list = doc.paths['/orgs/{org}/users']!.get;
     assert.equal(list.operationId, 'Users.list');
     assert.deepEqual(list.tags, ['Users']);
-    assert.deepEqual(list.parameters.map((p: any) => [p.in, p.name, p.required]), [
-      ['path', 'org', true], ['query', 'limit', false], ['query', 'tag', true],
-    ]);
+    assert.deepEqual(
+      list.parameters.map((p: any) => [p.in, p.name, p.required]),
+      [
+        ['path', 'org', true],
+        ['query', 'limit', false],
+        ['query', 'tag', true],
+      ],
+    );
     assert.deepEqual(list.parameters[1].schema, { type: 'integer', minimum: 1 });
     const create = doc.paths['/orgs/{org}/users']!.post;
     assert.deepEqual(create.parameters.at(-1), { name: 'x-tenant', in: 'header', required: true, schema: { type: 'string' } });
@@ -69,13 +82,18 @@ describe('F-16 · documento OpenAPI 3.1', () => {
   it('erros como Problem Details; rota sem schema recebe 200 genérico', () => {
     assert.deepEqual(doc.paths['/health']!.get.responses, {
       200: { description: 'OK' },
-      default: { description: 'Error', content: { 'application/problem+json': { schema: { $ref: '#/components/schemas/ProblemDetails' } } } },
+      default: {
+        description: 'Error',
+        content: { 'application/problem+json': { schema: { $ref: '#/components/schemas/ProblemDetails' } } },
+      },
     });
     assert.deepEqual(doc.components.schemas.ProblemDetails.required, ['type', 'title', 'status']);
   });
 
   it('com formatError, não promete o formato Problem Details', () => {
-    const custom = createApp({ logger: false, formatError: (p) => p }).mount(Health).openapiDocument() as Doc;
+    const custom = createApp({ logger: false, formatError: (p) => p })
+      .mount(Health)
+      .openapiDocument() as Doc;
     assert.deepEqual(custom.paths['/health']!.get.responses.default, { description: 'Error' });
     assert.equal(custom.components, undefined);
     assert.deepEqual(custom.info, { title: 'API', version: '0.0.0' });
@@ -97,7 +115,9 @@ describe('F-16 · documento OpenAPI 3.1', () => {
 
 describe('F-16 · /openapi.json e /docs', () => {
   it('serve o documento, gerado depois de todos os mounts', async () => {
-    const app = createApp({ logger: false }).openapi({ info: { title: 'X', version: '1' } }).mount(Health);
+    const app = createApp({ logger: false })
+      .openapi({ info: { title: 'X', version: '1' } })
+      .mount(Health);
     app.mount(Users);
     const res = await app.inject('/openapi.json');
     assert.equal(res.status, 200);
@@ -114,7 +134,9 @@ describe('F-16 · /openapi.json e /docs', () => {
   });
 
   it('docs: true serve o Swagger UI em /docs, com SRI, nonce e CSP própria', async () => {
-    const app = createApp({ logger: false }).mount(Health).openapi({ path: '/spec.json', docs: true, info: { title: '<script>', version: '1' } });
+    const app = createApp({ logger: false })
+      .mount(Health)
+      .openapi({ path: '/spec.json', docs: true, info: { title: '<script>', version: '1' } });
     const res = await app.inject('/docs');
     assert.equal(res.status, 200);
     assert.equal(res.headers['content-type'], 'text/html; charset=utf-8');
@@ -140,7 +162,10 @@ describe('F-16 · /openapi.json e /docs', () => {
   });
 
   it('middlewares globais também protegem as rotas', async () => {
-    const auth: Middleware = (ctx, next) => { if (ctx.get('authorization') !== 'ok') throw unauthorized(); return next(); };
+    const auth: Middleware = (ctx, next) => {
+      if (ctx.get('authorization') !== 'ok') throw unauthorized();
+      return next();
+    };
     const app = createApp({ logger: false }).use(auth).openapi().mount(Health);
     assert.equal((await app.inject('/openapi.json')).status, 401);
     assert.equal((await app.inject({ url: '/openapi.json', headers: { authorization: 'ok' } })).status, 200);
@@ -148,8 +173,14 @@ describe('F-16 · /openapi.json e /docs', () => {
 
   it('middlewares e guards do openapi() valem só para o documento e a página, no path configurado', async () => {
     const order: string[] = [];
-    const mark: Middleware = (_ctx, next) => { order.push('mw'); return next(); };
-    const isAdmin = (ctx: Context) => { order.push('guard'); return ctx.get('x-role') === 'admin'; };
+    const mark: Middleware = (_ctx, next) => {
+      order.push('mw');
+      return next();
+    };
+    const isAdmin = (ctx: Context) => {
+      order.push('guard');
+      return ctx.get('x-role') === 'admin';
+    };
     const app = createApp({ logger: false })
       .mount(Health)
       .openapi({ path: '/spec.json', docs: '/ref', middlewares: [mark], guards: [isAdmin] });

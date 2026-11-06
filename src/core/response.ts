@@ -7,7 +7,6 @@ import { serialize } from '../schema/serialization.ts';
 import { stripToSchema } from '../schema/validation.ts';
 import { isJsonContentType, mediaType, negotiate, withCharset } from '../utils/content-type.ts';
 
-
 /** Converte dados num corpo de resposta para um content type (F-31). */
 export type Serializer = (data: unknown) => string | Uint8Array;
 
@@ -41,7 +40,9 @@ export function sendResult(
   mode: SendMode = 'auto',
 ): void {
   if (response && !ctx.statusExplicit) {
-    const success = Object.keys(response).map(Number).filter((st) => st >= 200 && st < 300);
+    const success = Object.keys(response)
+      .map(Number)
+      .filter((st) => st >= 200 && st < 300);
     if (success.length === 1 && response[200] === undefined) ctx.res.statusCode = success[0]!;
   }
 
@@ -54,9 +55,7 @@ export function sendResult(
   }
 
   const headerType = ctx.res.getHeader('Content-Type');
-  const explicit = mode === 'json' ? JSON_TYPE
-    : mode === 'text' ? 'text/plain'
-    : typeof headerType === 'string' ? headerType : undefined;
+  const explicit = mode === 'json' ? JSON_TYPE : mode === 'text' ? 'text/plain' : typeof headerType === 'string' ? headerType : undefined;
   let type: string;
   let schema: object | undefined;
   let jsonSchemaDeclared = false;
@@ -117,7 +116,7 @@ function write(
   if (!serializer) {
     throw new Error(
       `[sashiko] ${ctx.method} ${ctx.path}: no serializer registered for "${base}". ` +
-      `Add it to createApp({ serializers: { '${base}': (data) => ... } }).`,
+        `Add it to createApp({ serializers: { '${base}': (data) => ... } }).`,
     );
   }
   const data = schema ? ensureValid(ctx, schema, value) : value;
@@ -130,14 +129,18 @@ function ensureValid(ctx: Context, schema: object, value: unknown): unknown {
   if (!checked.ok) {
     throw new Error(
       `[sashiko] ${ctx.method} ${ctx.path}: response does not match its schema: ` +
-      checked.issues.map((i) => `${i.path} ${i.message}`).join('; '),
+        checked.issues.map((i) => `${i.path} ${i.message}`).join('; '),
     );
   }
   return checked.value;
 }
 
 /** Monta um Problem Details (RFC 9457). Sem `type`, usa `about:blank` e a frase do status como título. */
-export function problem(status: number, detail?: string, extra: { code?: string | undefined; details?: unknown; type?: string | undefined } = {}): ProblemDetails {
+export function problem(
+  status: number,
+  detail?: string,
+  extra: { code?: string | undefined; details?: unknown; type?: string | undefined } = {},
+): ProblemDetails {
   const out: ProblemDetails = { type: extra.type ?? 'about:blank', title: STATUS_CODES[status] ?? 'Error', status };
   if (detail !== undefined && detail !== out.title) out.detail = detail;
   if (extra.code !== undefined) out.code = extra.code;

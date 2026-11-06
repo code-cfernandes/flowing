@@ -9,7 +9,9 @@ const Item = Type.Object({ id: Type.String(), name: Type.String() });
 @Router('/items')
 class ItemController {
   @Get('/')
-  list() { return [{ id: '1', name: 'a' }]; }
+  list() {
+    return [{ id: '1', name: 'a' }];
+  }
 
   @Get('/:id')
   @Schema({ params: Type.Object({ id: Type.String({ pattern: '^[0-9]+$' }) }), response: { 200: Item } })
@@ -24,13 +26,21 @@ class ItemController {
     return { id: '2', ...(ctx.body as { name: string }) };
   }
 
-  @Put('/:id') put() { return { method: 'PUT' }; }
-  @Patch('/:id') patch() { return { method: 'PATCH' }; }
-  @Delete('/:id') remove(ctx: Context) { ctx.status(204); }
+  @Put('/:id') put() {
+    return { method: 'PUT' };
+  }
+  @Patch('/:id') patch() {
+    return { method: 'PATCH' };
+  }
+  @Delete('/:id') remove(ctx: Context) {
+    ctx.status(204);
+  }
 
   @Get('/search/q')
   @Schema({ query: Type.Object({ limit: Type.Integer({ minimum: 1 }) }) })
-  search(ctx: Context) { return { limit: ctx.query.limit }; }
+  search(ctx: Context) {
+    return { limit: ctx.query.limit };
+  }
 
   @Get('/async/ok')
   async slow() {
@@ -41,7 +51,9 @@ class ItemController {
 
 describe('roteamento e decorators', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().mount(ItemController)); });
+  before(async () => {
+    srv = await startServer(createApp().mount(ItemController));
+  });
   after(() => srv.close());
 
   const req = (method: string, path: string, body?: unknown) =>

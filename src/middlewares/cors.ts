@@ -1,12 +1,7 @@
 import type { Middleware } from '../core/compose.ts';
 import { compileOriginMatcher } from '../utils/origin-match.ts';
 
-export type CorsOrigin =
-  | '*'
-  | string
-  | RegExp
-  | readonly (string | RegExp)[]
-  | ((origin: string) => boolean | Promise<boolean>);
+export type CorsOrigin = '*' | string | RegExp | readonly (string | RegExp)[] | ((origin: string) => boolean | Promise<boolean>);
 
 export interface CorsOptions {
   /**
@@ -85,7 +80,11 @@ export function cors(opts: CorsOptions): Middleware {
 /** Sem lista explícita, aceita apenas os headers padrão entre os pedidos pelo navegador. */
 function filterHeaders(requested: string): string {
   const safe = new Set(DEFAULT_HEADERS.map((h) => h.toLowerCase()));
-  return requested.split(',').map((h) => h.trim()).filter((h) => safe.has(h.toLowerCase())).join(', ');
+  return requested
+    .split(',')
+    .map((h) => h.trim())
+    .filter((h) => safe.has(h.toLowerCase()))
+    .join(', ');
 }
 
 function buildMatcher(origin: CorsOrigin): (o: string) => boolean | Promise<boolean> {

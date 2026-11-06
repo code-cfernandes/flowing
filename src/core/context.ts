@@ -31,8 +31,7 @@ export interface SendPayload {
 export type OnSendHook = (ctx: Context, payload: SendPayload) => SendPayload | void;
 
 /** Status aceitos por `ctx.status()`: os declarados no schema de resposta, ou qualquer um sem schema (F-32). */
-export type DeclaredStatus<S extends RouteSchemas> =
-  S['response'] extends Record<number, unknown> ? keyof S['response'] & number : number;
+export type DeclaredStatus<S extends RouteSchemas> = S['response'] extends Record<number, unknown> ? keyof S['response'] & number : number;
 
 /** Corpo esperado para o status `St`: o do schema, ou qualquer valor sem schema (F-32). */
 export type BodyFor<S extends RouteSchemas, St extends number> =

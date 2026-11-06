@@ -1,6 +1,6 @@
-import { Get, Router, Schema, Type } from "sashiko";
-import { AdminHeaders, HealthSchema, StatsSchema } from "../schema/AdminSchema.ts";
-import type { UserRepository } from "../store/users.ts";
+import { Get, Router, Schema, Type } from 'sashiko';
+import { AdminHeaders, HealthSchema, StatsSchema } from '../schema/AdminSchema.ts';
+import type { UserRepository } from '../store/users.ts';
 
 // Classe base: as subclasses herdam GET /health com o próprio prefixo (B-09)
 @Router('/')

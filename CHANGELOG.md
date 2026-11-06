@@ -10,6 +10,7 @@ e a _patch_ só com correções.
 ## [Não lançado]
 
 ### Adicionado
+
 - Guards de autenticação `bearerAuth({ verify })` e `basicAuth({ verify })`. O usuário vai para `ctx.state.user`,
   e qualquer falha recebe o mesmo 401 com `WWW-Authenticate`, sem revelar o motivo. `safeEqual()` compara
   segredos em tempo constante.
@@ -27,6 +28,7 @@ e a _patch_ só com correções.
   npm e GitHub Actions.
 
 ### Alterado
+
 - **Incompatível:** um body JSON com `__proto__` ou `constructor.prototype`, em qualquer nível, recebe 400
   (`PROTO_POISONING`). **Migração:** se esses bodies precisarem passar, use `createApp({ protoPoisoning:
   'remove' })`, que descarta as chaves.
@@ -36,6 +38,7 @@ e a _patch_ só com correções.
 ## [0.9.0] - 2026-11-06
 
 ### Adicionado
+
 - HTTPS no `app.listen({ tls: { key, cert } })` (ou `pfx` + `passphrase`), com os mesmos timeouts, o mesmo
   encerramento gracioso, o `close()` e o `onClose` do HTTP. TLS 1.2 é o mínimo (`minVersion: 'TLSv1.3'` é
   opcional), e um certificado inválido falha no `listen()`.
@@ -47,6 +50,7 @@ e a _patch_ só com correções.
 ## [0.8.0] - 2026-11-06
 
 ### Adicionado
+
 - `app.group({ prefix, middlewares, guards }, (g) => g.mount(A).mount(B))`: prefixo, middlewares e guards
   comuns a vários `mount()`. Os prefixos se somam (e podem ter parâmetros), e a ordem é grupo → `mount()` →
   classe → método. Grupos podem ser aninhados, e o encadeamento (`.mount()`, `.get()`) continua no grupo.
@@ -55,6 +59,7 @@ e a _patch_ só com correções.
 ## [0.7.0] - 2026-11-06
 
 ### Alterado
+
 - **Incompatível:** todos os erros (`HttpError`, validação, JSON inválido, body grande demais, 404, 405, 406,
   `Host` inválido, guards, CSRF e rate limit) saem no formato Problem Details (RFC 9457), com
   `Content-Type: application/problem+json`: `{ type, title, status, detail?, code?, details? }`. A mensagem
@@ -63,6 +68,7 @@ e a _patch_ só com correções.
   antigo com `createApp({ formatError: (p) => ({ error: p.detail ?? p.title, details: p.details }) })`.
 
 ### Adicionado
+
 - `AppOptions.formatError`, para personalizar o corpo de todos os erros.
 - Opção `type` no `HttpError` (URI do tipo do problema) e os tipos `ProblemDetails` e `ErrorFormatter`.
 - Códigos `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `METHOD_NOT_ALLOWED` e `INVALID_HOST` nos erros do framework.
@@ -79,6 +85,7 @@ e a _patch_ só com correções.
 ## [0.6.0] - 2026-11-06
 
 ### Adicionado
+
 - Cookies: `ctx.cookies`, `ctx.setCookie()` e `ctx.clearCookie()`, com `HttpOnly`, `Secure`, `SameSite=Lax` e
   `Path=/` por padrão. Nome, `path` e `domain` inválidos lançam erro (sem injeção de atributos), e as
   regras de `SameSite=None`, `Partitioned` e dos prefixos `__Host-`/`__Secure-` são conferidas.
@@ -90,6 +97,7 @@ e a _patch_ só com correções.
 ## [0.5.0] - 2026-11-06
 
 ### Adicionado
+
 - `Type`, `Static` e `TSchema` do TypeBox re-exportados por `sashiko`, e `@sinclair/typebox` passou a ser
   dependência de runtime. Não é mais preciso instalá-lo à parte: `import { Type } from 'sashiko'`.
 - Curinga de subdomínio nas regras de origem e de host: `cors({ origin: 'https://*.exemplo.dev' })` e
@@ -97,6 +105,7 @@ e a _patch_ só com correções.
   `exemplo.dev.atacante.com`.
 
 ### Alterado
+
 - **Incompatível:** nas regras de `cors({ origin })` e `allowedHosts`, uma RegExp precisa casar a string
   **inteira**, como se tivesse `^…$`. Uma regex de sufixo como `/\.exemplo\.dev$/` deixa de aceitar
   `https://preview.exemplo.dev`. **Migração:** use o curinga (`'https://*.exemplo.dev'`) ou uma regex
@@ -108,15 +117,17 @@ e a _patch_ só com correções.
   barra final, IDN). `'https://App.exemplo.com:443/'` casa com `https://app.exemplo.com`.
 
 ### Segurança
+
 - RegExp com as flags `g` ou `y` em `cors()` e `allowedHosts` alternava entre aceitar e recusar a mesma
   origem em requisições seguidas, por causa do `lastIndex`. Agora essas flags (e a `m`) são descartadas,
   sem ampliar o que é aceito.
-- RegExp sem âncora em `cors()` e `allowedHosts` aceitava origens e hosts que apenas *continham* o padrão
+- RegExp sem âncora em `cors()` e `allowedHosts` aceitava origens e hosts que apenas _continham_ o padrão
   (`app.exemplo.com.atacante.com`). Agora a string inteira precisa casar.
 
 ## [0.4.0] - 2026-11-06
 
 ### Adicionado
+
 - Hooks de ciclo de vida:
   - `app.onSend()`: síncrono, antes de escrever respostas com corpo, inclusive erros e 404. Pode alterar
     headers ou o payload; se lançar, a resposta original é enviada.
@@ -127,17 +138,20 @@ e a _patch_ só com correções.
 - Exemplo: cache em memória em `/public/users` (`X-Cache: MISS/HIT`) e `onClose`.
 
 ### Corrigido
+
 - Respostas JSON escreviam fora do ponto único de escrita do pipeline.
 
 ## [0.3.1] - 2026-11-06
 
 ### Adicionado
+
 - `ctx.host`, `ctx.hostname` e `ctx.protocol`, com o host validado.
 - `createApp({ trustProxy })`: `true` ou o número de proxies à frente do app. Com isso, `ctx.ip`, `ctx.host`
   e `ctx.protocol` usam os headers `X-Forwarded-*`.
 - `createApp({ allowedHosts })`: lista de hosts aceitos (string ou RegExp); os demais recebem 400.
 
 ### Segurança
+
 - Um `Host` malformado respondia 500; agora responde 400 antes de qualquer middleware.
 - O path vinha do parsing da URL com o `Host` do cliente, e um request-target como `//evil.com/x` virava
   o path `/x` com host `evil.com`. Isso permitia contornar regras de proxy baseadas em path. Agora o path é
@@ -146,6 +160,7 @@ e a _patch_ só com correções.
 ## [0.3.0] - 2026-11-06
 
 ### Adicionado
+
 - Encerramento gracioso embutido: o `listen()` trata SIGINT e SIGTERM, espera as requisições em
   andamento (com prazo) e sai com código 0. Configurável em `createApp({ shutdown })` (`signals`,
   `timeoutMs`, `onShutdown`, `exit`); `shutdown: false` desliga. Um segundo sinal força a saída.
@@ -162,21 +177,25 @@ e a _patch_ só com correções.
 - `ctx.send(objeto)` envia objetos pelo pipeline, com negociação pelo `Accept`.
 
 ### Alterado
+
 - **Incompatível:** numa rota **sem** schema de resposta, retornar uma string agora responde
   `text/plain` com o texto cru, em vez de uma string JSON. Rotas com schema JSON não mudam.
 
 ### Segurança
+
 - `ctx.json()`, `ctx.send()` e `ctx.text()` no handler passam pelo mesmo pipeline do `return`: schema do
   status, remoção de campos não declarados e status padrão. Antes, o envio imperativo ignorava o schema
   de resposta e podia vazar campos como `password`.
 
 ### Corrigido
+
 - O `close()` não fica mais preso esperando conexões keep-alive que ficam ociosas depois de
   responder durante o encerramento.
 
 ## [0.2.0] - 2026-11-06
 
 ### Adicionado
+
 - Mapeamento manual depois do `mount`: `.get()`, `.post()`, `.put()`, `.patch()` e `.delete()`
   expõem um método da classe em outro path ou verbo, escolhido por um seletor checado pelo TypeScript
   (`(r) => r.getUser`). O path é relativo ao prefixo do grupo, e a rota aceita `{ middlewares, guards }`.
@@ -186,6 +205,7 @@ e a _patch_ só com correções.
   (`mount`, `use`, `onError`, `listen`, `close`, `callback`, `inject`, `log`).
 
 ### Alterado
+
 - **Incompatível:** `@Use` passou a se chamar `@Middlewares`, e `@UseGuards` passou a se chamar `@Guards`.
   Agora os nomes são os mesmos das opções `middlewares` e `guards`.
 - **Incompatível:** `only` e `except` recebem um seletor em vez de nomes em texto:
@@ -200,6 +220,7 @@ Primeira versão pública.
 ### Adicionado
 
 **Rotas e composição**
+
 - `@Router(prefix)` marca uma classe como grupo de rotas; `@Get`, `@Post`, `@Put`, `@Patch` e `@Delete`
   definem verbo e path.
 - `app.mount(classeOuInstância, options)` é o ponto único de registro:
@@ -212,6 +233,7 @@ Primeira versão pública.
   métodos não suportados.
 
 **Schemas, validação e tipos**
+
 - Schemas TypeBox (JSON Schema) para `params`, `query`, `headers`, `body` e `response`, no próprio verbo
   (`@Get('/:id', schemas)`) ou com `@Schema(schemas)`.
 - Validação com Ajv:
@@ -227,21 +249,25 @@ Primeira versão pública.
   são descartadas.
 
 **Contexto e respostas**
+
 - `ctx.status()`, `ctx.header()`, `ctx.get()`, `ctx.json()`, `ctx.text()`, `ctx.send()` (string,
   Buffer ou stream), `ctx.redirect()` e `ctx.throw()`.
 - `ctx.state`, extensível por declaration merging (`interface ContextState`), além de `ctx.id`,
   `ctx.log` e `ctx.ip`.
 
 **Middlewares e guards**
+
 - `app.use()`, `@Use()` e `@UseGuards()`, por classe ou por método.
 - Ordem de execução: globais → `mount` → classe → método. Os guards rodam antes da validação.
 
 **Erros**
+
 - `HttpError` com `expose`, `cause` e `details`, e os helpers `notFound`, `badRequest`, `unauthorized`,
   `forbidden`, `internal` e `isHttpError`.
 - `app.onError()` para integrar com APMs. Uma falha dentro dele não derruba o processo.
 
 **Segurança**
+
 - Ligado por padrão:
   - headers `nosniff`, CSP restritiva, `Referrer-Policy`, `X-Frame-Options` e
     `Cross-Origin-Resource-Policy`, configuráveis em `securityHeaders` (HSTS é opt-in);
@@ -253,22 +279,26 @@ Primeira versão pública.
 - Middleware `rateLimit()`: responde 429 com `Retry-After` e aceita outro store (`RateLimitStore`).
 
 **Logs**
+
 - Logger compatível com pino (`logger`, `consoleLogger()`, `logger: false`), `app.log` e
   `logRequests`.
 - Request id em `ctx.id` e no header `X-Request-Id`. Um id recebido só é reaproveitado se for
   seguro, contra log injection.
 
 **Ciclo de vida e testes**
+
 - `await app.listen({ port, host })` e `app.close()` com encerramento gracioso.
 - `app.callback()` para servidores próprios (HTTPS, http2 em modo compat).
 - `app.inject()` executa requisições em memória, sem rede.
 
 **Ferramentas**
+
 - Mensagens de erro claras quando os decorators são usados com `experimentalDecorators` ou sem
   `Symbol.metadata`.
 - Exemplo completo em `examples/app-users`, com o script `scenarios.sh`.
 
 ### Requisitos
+
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 

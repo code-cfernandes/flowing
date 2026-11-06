@@ -14,7 +14,12 @@ export function negotiate(accept: string | undefined, available: readonly string
     .split(',')
     .map((part, index) => {
       const [range = '', ...params] = part.trim().toLowerCase().split(';');
-      const q = Number(params.map((p) => p.trim()).find((p) => p.startsWith('q='))?.slice(2) ?? '1');
+      const q = Number(
+        params
+          .map((p) => p.trim())
+          .find((p) => p.startsWith('q='))
+          ?.slice(2) ?? '1',
+      );
       return { range: range.trim(), q: Number.isFinite(q) ? q : 1, index };
     })
     .filter((r) => r.range && r.q > 0)

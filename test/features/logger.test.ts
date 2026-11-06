@@ -10,15 +10,23 @@ function memoryLogger(bindings: Record<string, unknown> = {}, lines: Record<stri
   };
   return {
     lines,
-    debug: emit('debug'), info: emit('info'), warn: emit('warn'), error: emit('error'),
+    debug: emit('debug'),
+    info: emit('info'),
+    warn: emit('warn'),
+    error: emit('error'),
     child: (extra) => memoryLogger({ ...bindings, ...extra }, lines),
   };
 }
 
 @Router('/log')
 class L {
-  @Get('/') hello(ctx: Context) { ctx.log.info({ custom: true }, 'inside handler'); return { id: ctx.id }; }
-  @Get('/boom') boom() { throw new Error('kaboom'); }
+  @Get('/') hello(ctx: Context) {
+    ctx.log.info({ custom: true }, 'inside handler');
+    return { id: ctx.id };
+  }
+  @Get('/boom') boom() {
+    throw new Error('kaboom');
+  }
 }
 
 describe('F-06 · request id', () => {
@@ -96,7 +104,9 @@ describe('F-06 · logger plugável', () => {
     try {
       await createApp({ logger: false }).mount(L).inject('/log/boom');
       assert.equal(errorLog.mock.callCount(), 0);
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 
   it('consoleLogger respeita o nível mínimo e mescla os bindings do child', () => {
@@ -108,6 +118,9 @@ describe('F-06 · logger plugável', () => {
       log.info({ a: 1 }, 'visível');
       assert.equal(debug.mock.callCount(), 0);
       assert.deepEqual(info.mock.calls[0]!.arguments, ['[sashiko] visível', { svc: 'api', a: 1 }]);
-    } finally { info.mock.restore(); debug.mock.restore(); }
+    } finally {
+      info.mock.restore();
+      debug.mock.restore();
+    }
   });
 });

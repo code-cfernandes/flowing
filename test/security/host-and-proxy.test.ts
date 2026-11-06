@@ -27,18 +27,28 @@ function raw(port: number, request: string): Promise<{ status: number; body: str
   });
 }
 const req = (path: string, headers: Record<string, string>) =>
-  `GET ${path} HTTP/1.1\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nConnection: close\r\n\r\n`;
+  `GET ${path} HTTP/1.1\r\n${Object.entries(headers)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\r\n')}\r\nConnection: close\r\n\r\n`;
 
 describe('S-09 · Host e request-target (rede real)', () => {
   let port = 0;
   const app = createApp({ logger: false, shutdown: false }).mount(Echo);
-  before(async () => { port = ((await app.listen(0)).address() as AddressInfo).port; });
+  before(async () => {
+    port = ((await app.listen(0)).address() as AddressInfo).port;
+  });
   after(() => app.close());
 
   it('Host malformado responde 400, e não 500', async () => {
     const res = await raw(port, req('/a', { Host: 'a b' }));
     assert.equal(res.status, 400);
-    assert.deepEqual(JSON.parse(res.body), { type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Invalid Host header', code: 'INVALID_HOST' });
+    assert.deepEqual(JSON.parse(res.body), {
+      type: 'about:blank',
+      title: 'Bad Request',
+      status: 400,
+      detail: 'Invalid Host header',
+      code: 'INVALID_HOST',
+    });
   });
 
   it('path "//evil.com/x" continua sendo esse path; o host não muda', async () => {
@@ -74,7 +84,10 @@ describe('S-09 · trustProxy', () => {
   it('true: confia em toda a cadeia (primeiro valor)', async () => {
     const app = createApp({ logger: false, trustProxy: true }).mount(Echo);
     const body = (await app.inject({ url: '/x', headers })).json() as Record<string, string>;
-    assert.deepEqual([body['ip'], body['host'], body['protocol'], body['href']], ['203.0.113.7', 'public.exemplo.com', 'https', 'https://public.exemplo.com/x']);
+    assert.deepEqual(
+      [body['ip'], body['host'], body['protocol'], body['href']],
+      ['203.0.113.7', 'public.exemplo.com', 'https', 'https://public.exemplo.com/x'],
+    );
   });
 
   it('número: confia só nos N proxies mais próximos', async () => {
@@ -131,8 +144,10 @@ describe('S-09 · allowedHosts', () => {
 
 describe('S-09 · utilitários', () => {
   it('isValidHost', () => {
-    for (const ok of ['localhost', 'api.exemplo.com', 'a-b.c:8080', '127.0.0.1:3000', '[::1]', '[2001:db8::1]:443']) assert.equal(isValidHost(ok), true, ok);
-    for (const no of [undefined, '', 'a b', 'evil.com/x', 'a@b', '-a.com', 'a.com:', 'a.com:123456', 'exemplo.com\r\nX: y']) assert.equal(isValidHost(no), false, String(no));
+    for (const ok of ['localhost', 'api.exemplo.com', 'a-b.c:8080', '127.0.0.1:3000', '[::1]', '[2001:db8::1]:443'])
+      assert.equal(isValidHost(ok), true, ok);
+    for (const no of [undefined, '', 'a b', 'evil.com/x', 'a@b', '-a.com', 'a.com:', 'a.com:123456', 'exemplo.com\r\nX: y'])
+      assert.equal(isValidHost(no), false, String(no));
   });
 
   it('parseRequestTarget', () => {

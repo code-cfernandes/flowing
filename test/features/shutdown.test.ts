@@ -7,7 +7,11 @@ import { createApp, Get, Router } from 'sashiko';
 let markStarted: () => void = () => {};
 @Router('/s')
 class Slow {
-  @Get('/') async slow() { markStarted(); await new Promise((r) => setTimeout(r, 120)); return { done: true }; }
+  @Get('/') async slow() {
+    markStarted();
+    await new Promise((r) => setTimeout(r, 120));
+    return { done: true };
+  }
 }
 
 const count = (signal: NodeJS.Signals) => process.listenerCount(signal);
@@ -50,13 +54,23 @@ describe('F-07 · graceful shutdown', () => {
     const calls: string[] = [];
     const app = createApp({
       logger: false,
-      shutdown: { exit: false, onShutdown: (signal) => { calls.push(`onShutdown:${signal}`); } },
+      shutdown: {
+        exit: false,
+        onShutdown: (signal) => {
+          calls.push(`onShutdown:${signal}`);
+        },
+      },
     }).mount(Slow);
     const server = await app.listen(0);
     const { port } = server.address() as AddressInfo;
 
-    const started = new Promise<void>((resolve) => { markStarted = resolve; });
-    const pending = fetch(`http://127.0.0.1:${port}/s`).then(async (r) => { calls.push('response'); return r.json(); });
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const pending = fetch(`http://127.0.0.1:${port}/s`).then(async (r) => {
+      calls.push('response');
+      return r.json();
+    });
     await started;
     process.emit('SIGTERM');
     assert.deepEqual(await pending, { done: true }, 'requisição em andamento termina');
@@ -85,7 +99,14 @@ describe('F-07 · graceful shutdown', () => {
       await tick(50);
       assert.deepEqual(exit.mock.calls.at(-1)?.arguments, [0]);
 
-      const bad = createApp({ logger: false, shutdown: { onShutdown: () => { throw new Error('db'); } } });
+      const bad = createApp({
+        logger: false,
+        shutdown: {
+          onShutdown: () => {
+            throw new Error('db');
+          },
+        },
+      });
       await bad.listen(0);
       process.emit('SIGTERM');
       await tick(50);
@@ -98,7 +119,14 @@ describe('F-07 · graceful shutdown', () => {
   it('segundo sinal durante o encerramento força a saída com 1', async () => {
     const exit = mock.method(process, 'exit', (() => undefined) as never);
     try {
-      const app = createApp({ logger: false, shutdown: { onShutdown: async () => { await tick(100); } } });
+      const app = createApp({
+        logger: false,
+        shutdown: {
+          onShutdown: async () => {
+            await tick(100);
+          },
+        },
+      });
       await app.listen(0);
       process.emit('SIGINT');
       await tick(10);

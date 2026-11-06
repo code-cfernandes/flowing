@@ -1,4 +1,4 @@
-import { type Guard, unauthorized } from "sashiko";
+import { type Guard, unauthorized } from 'sashiko';
 
 const API_KEY = process.env.ADMIN_API_KEY ?? 'dev-admin-key';
 

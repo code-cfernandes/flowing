@@ -26,13 +26,15 @@ const plain = (schema: object): Json => JSON.parse(JSON.stringify(schema)) as Js
 
 /** `/:org/users/:id(^\\d+)` → `/{org}/users/{id}`; `::` → `:`; `*` → `{*}`; sem barra final (o roteador a ignora). */
 export function toOpenAPIPath(path: string): string {
-  return path
-    .replace(/::/g, '\u0000')
-    .replace(/:([^/\-.(]+)(\((?:\\.|[^\\])*?\))?/g, '{$1}')
-    .replace(/\*$/, '{*}')
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: desfaz o marcador acima.
-    .replace(/\u0000/g, ':')
-    .replace(/(.)\/$/, '$1');
+  return (
+    path
+      .replace(/::/g, '\u0000')
+      .replace(/:([^/\-.(]+)(\((?:\\.|[^\\])*?\))?/g, '{$1}')
+      .replace(/\*$/, '{*}')
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: desfaz o marcador acima.
+      .replace(/\u0000/g, ':')
+      .replace(/(.)\/$/, '$1')
+  );
 }
 
 /** Problem Details (RFC 9457), o corpo padrão de todos os erros (F-15). */
@@ -72,11 +74,7 @@ function responseContent(entry: ResponseEntry): Json | undefined {
 
 function operation(route: CompiledRoute, problemErrors: boolean): Json {
   const { schemas } = route;
-  const params = [
-    ...parameters('path', schemas.params),
-    ...parameters('query', schemas.query),
-    ...parameters('header', schemas.headers),
-  ];
+  const params = [...parameters('path', schemas.params), ...parameters('query', schemas.query), ...parameters('header', schemas.headers)];
   const responses: Json = {};
   for (const [status, entry] of Object.entries(schemas.response ?? {})) {
     const content = Number(status) === 204 ? undefined : responseContent(entry);
@@ -91,9 +89,7 @@ function operation(route: CompiledRoute, problemErrors: boolean): Json {
     operationId: `${route.owner}.${route.handlerName}`,
     tags: [route.owner],
     ...(params.length ? { parameters: params } : {}),
-    ...(schemas.body
-      ? { requestBody: { required: true, content: { 'application/json': { schema: plain(schemas.body) } } } }
-      : {}),
+    ...(schemas.body ? { requestBody: { required: true, content: { 'application/json': { schema: plain(schemas.body) } } } } : {}),
     responses,
   };
 }

@@ -18,7 +18,13 @@ class Echo {
   }
 }
 
-interface Result { status: number; body: string; cn: string; fingerprint: string; protocol: string | null }
+interface Result {
+  status: number;
+  body: string;
+  cn: string;
+  fingerprint: string;
+  protocol: string | null;
+}
 
 /** Requisição HTTPS em conexão nova (sem keep-alive), com o SNI informado. */
 function get(port: number, servername = 'localhost', extra: https.RequestOptions = {}): Promise<Result> {
@@ -30,9 +36,15 @@ function get(port: number, servername = 'localhost', extra: https.RequestOptions
         const peer = socket.getPeerCertificate();
         let body = '';
         res.on('data', (c) => (body += c));
-        res.on('end', () => resolve({
-          status: res.statusCode!, body, cn: String(peer.subject?.CN), fingerprint: peer.fingerprint256, protocol: socket.getProtocol(),
-        }));
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode!,
+            body,
+            cn: String(peer.subject?.CN),
+            fingerprint: peer.fingerprint256,
+            protocol: socket.getProtocol(),
+          }),
+        );
       },
     );
     req.on('error', reject);

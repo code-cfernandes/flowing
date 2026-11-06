@@ -7,9 +7,16 @@ import { type Context, Router, createApp, Get, Post, Schema } from 'sashiko';
 
 @Router('/l')
 class L {
-  @Get('/') hello(ctx: Context) { return { ip: ctx.ip, q: ctx.query }; }
-  @Post('/') @Schema({ body: Type.Object({ n: Type.Integer() }) }) echo(ctx: Context) { return ctx.body; }
-  @Get('/slow') async slow() { await new Promise((r) => setTimeout(r, 150)); return { done: true }; }
+  @Get('/') hello(ctx: Context) {
+    return { ip: ctx.ip, q: ctx.query };
+  }
+  @Post('/') @Schema({ body: Type.Object({ n: Type.Integer() }) }) echo(ctx: Context) {
+    return ctx.body;
+  }
+  @Get('/slow') async slow() {
+    await new Promise((r) => setTimeout(r, 150));
+    return { done: true };
+  }
 }
 
 describe('F-09 · listen / close / callback', () => {

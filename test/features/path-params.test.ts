@@ -4,7 +4,7 @@ import { type Context, createApp, Get, type ParamsOf, type PathParams, Post, Rou
 import { pathParams } from '../../src/utils/path.ts';
 
 // ---------- Asserções de tipo: falham no `pnpm typecheck` ----------
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 const assertType = <T extends true>(_?: T) => {};
 
 assertType<Equal<PathParams<'/:orgId/users/:id'>, 'orgId' | 'id'>>();
@@ -20,7 +20,9 @@ const byId = { params: Type.Object({ id: Type.String() }) };
 
 @Router('/t')
 class Typed {
-  @Get('/:id', byId) ok(ctx: Context<typeof byId>) { return ctx.params.id; }
+  @Get('/:id', byId) ok(ctx: Context<typeof byId>) {
+    return ctx.params.id;
+  }
 
   // @ts-expect-error: o path diz userId, o schema diz id
   @Get('/:userId', byId) wrongName() {}
@@ -66,7 +68,9 @@ describe('F-29 · checagem no registro', () => {
     @Router('/orgs/:org')
     class Ok {
       @Get('/users/:id', { params: Type.Object({ org: Type.String(), id: Type.String() }) })
-      get(ctx: Context) { return ctx.params; }
+      get(ctx: Context) {
+        return ctx.params;
+      }
     }
     const res = await createApp({ logger: false }).mount(Ok).inject('/orgs/acme/users/7');
     assert.deepEqual(res.json(), { org: 'acme', id: '7' });
@@ -96,7 +100,13 @@ describe('F-29 · checagem no registro', () => {
     class R {
       @Schema({ params: ById }) get() {}
     }
-    assert.throws(() => createApp().mount(R, { auto: false }).get('/legacy/:uid', (r) => r.get), /"uid"/);
+    assert.throws(
+      () =>
+        createApp()
+          .mount(R, { auto: false })
+          .get('/legacy/:uid', (r) => r.get),
+      /"uid"/,
+    );
   });
 
   it('path malformado falha no mount', () => {

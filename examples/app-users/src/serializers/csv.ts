@@ -1,4 +1,4 @@
-import type { Serializer } from "sashiko";
+import type { Serializer } from 'sashiko';
 
 // Serializador CSV mínimo (F-31): o Sashiko só traz JSON e texto; outros formatos são plugáveis.
 // Em produção, prefira uma biblioteca (csv-stringify, papaparse…), como faria com YAML ou msgpack.

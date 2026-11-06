@@ -7,8 +7,12 @@ class P {
   @Get('/typed') typed() {
     throw new HttpError(409, 'Saldo insuficiente', 'NO_FUNDS', { type: 'https://exemplo.dev/problems/no-funds', details: { balance: 3 } });
   }
-  @Get('/boom') boom() { throw new Error('segredo interno'); }
-  @Post('/only-post') onlyPost() { return { ok: true }; }
+  @Get('/boom') boom() {
+    throw new Error('segredo interno');
+  }
+  @Post('/only-post') onlyPost() {
+    return { ok: true };
+  }
 }
 
 describe('F-15 · Problem Details (RFC 9457)', () => {
@@ -19,8 +23,12 @@ describe('F-15 · Problem Details (RFC 9457)', () => {
     assert.equal(res.status, 409);
     assert.equal(res.headers['content-type'], 'application/problem+json; charset=utf-8');
     assert.deepEqual(res.json(), {
-      type: 'https://exemplo.dev/problems/no-funds', title: 'Conflict', status: 409,
-      detail: 'Saldo insuficiente', code: 'NO_FUNDS', details: { balance: 3 },
+      type: 'https://exemplo.dev/problems/no-funds',
+      title: 'Conflict',
+      status: 409,
+      detail: 'Saldo insuficiente',
+      code: 'NO_FUNDS',
+      details: { balance: 3 },
     });
   });
 
@@ -35,7 +43,11 @@ describe('F-15 · Problem Details (RFC 9457)', () => {
     assert.equal(res.status, 405);
     assert.equal(res.headers.allow, 'OPTIONS, POST');
     assert.deepEqual(res.json(), {
-      type: 'about:blank', title: 'Method Not Allowed', status: 405, code: 'METHOD_NOT_ALLOWED', details: { allowed: ['OPTIONS', 'POST'] },
+      type: 'about:blank',
+      title: 'Method Not Allowed',
+      status: 405,
+      code: 'METHOD_NOT_ALLOWED',
+      details: { allowed: ['OPTIONS', 'POST'] },
     });
   });
 });
@@ -63,12 +75,18 @@ describe('F-15 · formatError', () => {
   it('se o formatError lançar, loga e envia o problema padrão', async () => {
     const errorLog = mock.method(console, 'error', () => {});
     try {
-      const app = createApp({ formatError: () => { throw new Error('bug no formatter'); } }).mount(P);
+      const app = createApp({
+        formatError: () => {
+          throw new Error('bug no formatter');
+        },
+      }).mount(P);
       const res = await app.inject('/p/typed');
       assert.equal(res.status, 409);
       assert.equal(res.headers['content-type'], 'application/problem+json; charset=utf-8');
       assert.equal(res.json<{ code: string }>().code, 'NO_FUNDS');
       assert.ok(errorLog.mock.calls.some((c) => String(c.arguments[0]).includes('formatError failed')));
-    } finally { errorLog.mock.restore(); }
+    } finally {
+      errorLog.mock.restore();
+    }
   });
 });
