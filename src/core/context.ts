@@ -62,13 +62,29 @@ const sseField = (name: string, value: string) => {
   return `${name}: ${value}\n`;
 };
 
-/** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige. */
+/** Maior intervalo dos timers do Node; acima disso, ele usa 1 ms (heartbeat contínuo). */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige, e dentro do limite dos timers. */
 const nonNegativeInt = (name: string, value: number): number => {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`[sashiko] ctx.sse(): "${name}" must be a non-negative integer (got ${value}).`);
+  if (!Number.isInteger(value) || value < 0 || value > MAX_TIMER_MS) {
+    throw new Error(`[sashiko] ctx.sse(): "${name}" must be an integer between 0 and ${MAX_TIMER_MS} (got ${value}).`);
   }
   return value;
 };
+
+/** `data` do evento: strings como estão; o resto em JSON. Valor que não vira JSON gera erro claro, sem escrever nada. */
+function sseData(data: unknown): string {
+  if (typeof data === 'string') return data;
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(data);
+  } catch (err) {
+    throw new Error(`[sashiko] ctx.sse(): "data" is not JSON-serializable (${(err as Error).message}).`, { cause: err });
+  }
+  if (text === undefined) throw new Error(`[sashiko] ctx.sse(): "data" of type ${typeof data} is not JSON-serializable.`);
+  return text;
+}
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
 export interface SendPayload {
@@ -176,7 +192,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     if (!this.abortController) {
       const controller = new AbortController();
       this.abortController = controller;
-      if (this.res.writableFinished) return controller.signal;
+      if (this.res.writableEnded) return controller.signal;
       // O cliente pode ter desconectado antes do primeiro acesso ao signal (num `await` anterior):
       // o evento 'close' já passou, então o estado precisa ser conferido agora.
       if (this.res.destroyed || this.req.destroyed || this.req.socket?.destroyed) {
@@ -184,7 +200,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
         return controller.signal;
       }
       this.res.once('close', () => {
-        if (!this.res.writableFinished) controller.abort(new Error('client disconnected'));
+        // `writableEnded`: a resposta foi encerrada pelo app. `writableFinished` dependeria de o socket ter
+        // recebido tudo, e no inject (sem socket) uma resposta bem-sucedida pareceria uma desconexão.
+        if (!this.res.writableEnded) controller.abort(new Error('client disconnected'));
       });
     }
     return this.abortController.signal;
@@ -246,7 +264,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     heartbeat.unref();
     if (!heartbeatMs) clearInterval(heartbeat);
     res.once('close', finish);
-    this.signal.addEventListener('abort', () => stream.close(), { once: true });
+    const signal = this.signal;
+    signal.addEventListener('abort', () => stream.close(), { once: true });
     if (opts.retry !== undefined) write(`retry: ${opts.retry}\n\n`);
 
     const stream: SseStream = {
@@ -257,7 +276,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
         if (e.id !== undefined) out += sseField('id', e.id);
         if (e.retry !== undefined) out += `retry: ${nonNegativeInt('retry', e.retry)}\n`;
         if (e.data === undefined) throw new Error('[sashiko] ctx.sse(): "data" is required; use "" for an empty event.');
-        const text = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
+        const text = sseData(e.data);
         for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
         write(`${out}\n`);
       },
@@ -275,6 +294,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       },
       lastEventId: this.get('last-event-id'),
     };
+    // O cliente pode ter desconectado antes do `ctx.sse()` (num `await` anterior): o 'close' e o 'abort' já
+    // passaram, e os listeners acima nunca rodariam. Encerra já, limpando o heartbeat e chamando `onClose`.
+    if (signal.aborted) stream.close();
     return stream;
   }
 

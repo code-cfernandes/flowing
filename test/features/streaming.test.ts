@@ -226,7 +226,7 @@ describe('0.12.1 · bordas do streaming', () => {
             ctx.sse(opts);
             outcomes.push('aceito');
           } catch (e) {
-            outcomes.push((e as Error).message.includes('non-negative integer') ? 'ok' : 'outro');
+            outcomes.push(/between 0 and /.test((e as Error).message) ? 'ok' : 'outro');
           }
         }
         const stream = ctx.sse({ heartbeatMs: 0 });
@@ -245,5 +245,97 @@ describe('0.12.1 · bordas do streaming', () => {
     const res = await createApp({ logger: false }).mount(Bad).inject('/s');
     assert.deepEqual(outcomes, ['ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
     assert.equal(res.body, 'data: \n\n', 'só o evento válido foi escrito');
+  });
+});
+
+describe('0.12.2 · SSE e signal', () => {
+  it('ctx.sse() depois de uma desconexão já ocorrida fecha na hora e chama onClose', async () => {
+    let closed: boolean | undefined;
+    let onCloseCalled = false;
+    @Router('/')
+    class Late {
+      @Get('/late') async late(ctx: Context) {
+        await tick(60);
+        const stream = ctx.sse({ heartbeatMs: 10 });
+        stream.onClose(() => {
+          onCloseCalled = true;
+        });
+        closed = stream.closed;
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false }).mount(Late);
+    const server = await app.listen(0);
+    try {
+      const c = open(`http://127.0.0.1:${(server.address() as AddressInfo).port}/late`);
+      await tick(15);
+      c.abort();
+      await tick(120);
+      assert.equal(closed, true);
+      assert.equal(onCloseCalled, true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('inject() de uma resposta bem-sucedida não cancela o ctx.signal', async () => {
+    let signal: AbortSignal | undefined;
+    @Router('/')
+    class Ok {
+      @Get('/ok') ok(ctx: Context) {
+        signal = ctx.signal;
+        return { ok: true };
+      }
+    }
+    await createApp({ logger: false }).mount(Ok).inject('/ok');
+    await tick(20);
+    assert.equal(signal?.aborted, false);
+  });
+
+  it('heartbeatMs e retry acima do limite dos timers são recusados', async () => {
+    const outcomes: string[] = [];
+    @Router('/')
+    class Big {
+      @Get('/b') b(ctx: Context) {
+        for (const opts of [{ heartbeatMs: 3_000_000_000 }, { retry: 2_147_483_648 }]) {
+          try {
+            ctx.sse(opts);
+            outcomes.push('aceito');
+          } catch (e) {
+            outcomes.push(/between 0 and 2147483647/.test((e as Error).message) ? 'ok' : 'outro');
+          }
+        }
+        ctx.sse({ heartbeatMs: 2_147_483_647 }).close();
+      }
+    }
+    await createApp({ logger: false }).mount(Big).inject('/b');
+    assert.deepEqual(outcomes, ['ok', 'ok']);
+  });
+
+  it('data que não vira JSON gera erro claro e não escreve evento parcial', async () => {
+    const messages: string[] = [];
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    @Router('/')
+    class D {
+      @Get('/d') d(ctx: Context) {
+        const stream = ctx.sse({ heartbeatMs: 0 });
+        for (const data of [Symbol('x'), () => 1, 10n, cyclic]) {
+          try {
+            stream.send({ event: 'e', data });
+          } catch (e) {
+            messages.push((e as Error).message);
+          }
+        }
+        stream.send({ data: { ok: true } });
+        stream.close();
+      }
+    }
+    const res = await createApp({ logger: false }).mount(D).inject('/d');
+    assert.equal(messages.length, 4);
+    assert.ok(
+      messages.every((m) => m.includes('"data"') && m.includes('JSON-serializable')),
+      messages.join(' | '),
+    );
+    assert.equal(res.body, 'data: {"ok":true}\n\n', 'nenhum evento parcial');
   });
 });
