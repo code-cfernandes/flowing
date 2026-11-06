@@ -8,7 +8,7 @@ import {
 import type { UserRepository } from "../store/users.ts";
 import type { User } from "../types/user.ts";
 
-// Schemas de cada rota num objeto: o mesmo valor alimenta o @Schema e o Context<typeof ...> (F-02)
+// Schemas de cada rota num objeto: o mesmo valor vai no verbo (@Get(path, schemas)) e no Context<typeof ...> (F-02)
 const list = { query: ListUsersQuery, response: { 200: Type.Array(UserSchema) } } satisfies RouteSchemas;
 const byId = { params: UserIdParams, response: { 200: UserSchema } } satisfies RouteSchemas;
 const create = { body: CreateUserSchema, response: { 201: UserSchema } } satisfies RouteSchemas;
@@ -18,7 +18,7 @@ const greet = { params: UserIdParams, body: Type.Object({}), response: { 200: Gr
 
 @Router('/users')
 export class UserRoutes {
-  // Dependência injetada pelo construtor: app.route(new UserRoutes(repo)) (B-10)
+  // Dependência injetada pelo construtor: app.mount(new UserRoutes(repo)) (B-10)
   constructor(private readonly users: UserRepository) {}
 
   private findOr404(id: string): User {
@@ -33,22 +33,19 @@ export class UserRoutes {
   }
 
   // GET /users?limit=10&offset=0 — query com coerção e defaults; ?tag=a&tag=b viraria array (B-07)
-  @Get('/')
-  @Schema(list)
+  @Get('/', list)
   listUsers(ctx: Context<typeof list>) {
     const { limit, offset } = ctx.query; // number, já coagidos e com default (F-02)
     return this.users.list(offset, limit);
   }
 
   // GET /users/:id — também responde HEAD automaticamente (F-08)
-  @Get('/:id')
-  @Schema(byId)
+  @Get('/:id', byId)
   getUser(ctx: Context<typeof byId>) {
     return this.findOr404(ctx.params.id);
   }
 
-  @Post('/')
-  @Schema(create)
+  @Post('/', create)
   createUser(ctx: Context<typeof create>) {
     this.assertEmailFree(ctx.body.email);
     const user: User = { id: crypto.randomUUID(), ...ctx.body };
@@ -58,8 +55,7 @@ export class UserRoutes {
     return user;
   }
 
-  @Patch('/:id')
-  @Schema(update)
+  @Patch('/:id', update)
   updateUser(ctx: Context<typeof update>) {
     const user = this.findOr404(ctx.params.id);
     if (ctx.body.email) this.assertEmailFree(ctx.body.email, user.id);
@@ -68,14 +64,14 @@ export class UserRoutes {
     return updated;
   }
 
-  @Delete('/:id')
-  @Schema(remove)
+  @Delete('/:id', remove)
   deleteUser(ctx: Context<typeof remove>) {
     this.findOr404(ctx.params.id);
     this.users.delete(ctx.params.id);
     ctx.status(204);
   }
 
+  // Forma verbosa, com @Schema separado: equivale ao segundo argumento do verbo.
   // @timer() mede inclusive o tempo aguardado em handlers async (B-04)
   @Post('/:id/greet')
   @Schema(greet)

@@ -6,7 +6,7 @@ PicoDecor combina a flexibilidade do **Fastify** e do **Express** (middlewares s
 
 ```ts
 import { Type } from '@sinclair/typebox';
-import { type Context, createApp, Post, Router, type RouteSchemas, Schema } from 'picodecor';
+import { type Context, createApp, Post, Router, type RouteSchemas } from 'picodecor';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const create = {
@@ -16,14 +16,13 @@ const create = {
 
 @Router('/users')
 class UserRoutes {
-  @Post('/')
-  @Schema(create)
+  @Post('/', create)
   create(ctx: Context<typeof create>) {
     return { id: crypto.randomUUID(), name: ctx.body.name }; // ctx.body tipado; responde 201
   }
 }
 
-const app = createApp().route(UserRoutes);
+const app = createApp().mount(UserRoutes);
 await app.listen({ port: 3000 });
 ```
 
@@ -31,7 +30,7 @@ await app.listen({ port: 3000 });
 
 - [Requisitos e instalação](#requisitos-e-instalação)
 - [Rotas](#rotas)
-- [Registro e composição: `app.route()`](#registro-e-composição-approute)
+- [Registro e composição: `app.mount()`](#registro-e-composição-appmount)
 - [Schemas: validação, serialização e tipos](#schemas-validação-serialização-e-tipos)
 - [Respostas e o `ctx`](#respostas-e-o-ctx)
 - [Middlewares e guards](#middlewares-e-guards)
@@ -86,19 +85,20 @@ class UserRoutes {
 - **405 e 404:** um método não suportado num path existente recebe 405 com `Allow`; um path inexistente recebe 404.
 - **Herança:** uma subclasse (com seu próprio `@Router`) herda as rotas, os middlewares e os guards do pai, com o próprio prefixo, e pode sobrescrever handlers. A classe base não é alterada.
 
-## Registro e composição: `app.route()`
+## Registro e composição: `app.mount()`
 
-`app.route()` é a única porta de entrada. Ele aceita a classe (com construtor sem argumentos) ou uma **instância**, que é como as dependências chegam, sem container de DI. No **ponto de composição** (`server.ts`) você decide como expor cada classe, sem mexer nela:
+`app.mount()` é a única porta de entrada. Ele aceita a classe (com construtor sem argumentos) ou uma **instância**, que é como as dependências chegam, sem container de DI. No **ponto de composição** (`server.ts`) você decide como expor cada classe, sem mexer nela:
 
 ```ts
 const repo = new UserRepository(db);
+const userRoutes = new UserRoutes(repo);
 
 app
-  .route(HealthRoutes)
-  .route(new UserRoutes(repo))                                            // como declarado
-  .route(new UserRoutes(repo), { prefix: '/v2/users' })                   // a mesma classe em outro prefixo
-  .route(new UserRoutes(repo), { prefix: '/public/users', only: ['list', 'get'] })  // exposição parcial
-  .route(new AdminRoutes(repo), { middlewares: [authenticate], guards: [isAdmin] }); // regras para o grupo
+  .mount(HealthRoutes)
+  .mount(userRoutes)                                                     // como declarado
+  .mount(userRoutes, { prefix: '/v2/users' })                            // a mesma instância em outro prefixo
+  .mount(userRoutes, { prefix: '/public/users', only: ['list', 'get'] }) // exposição parcial
+  .mount(new AdminRoutes(repo), { middlewares: [authenticate], guards: [isAdmin] }); // regras para o grupo
 ```
 
 | Opção | Efeito |
@@ -113,9 +113,22 @@ Erros de registro aparecem na inicialização, com mensagem clara:
 - nome em `only`/`except` que não é método de rota;
 - a mesma classe registrada duas vezes com o mesmo prefixo.
 
+> **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e esse nome fica reservado para um futuro sistema de plugins.
+
 ## Schemas: validação, serialização e tipos
 
-`@Schema` aceita `params`, `query`, `headers`, `body` e `response`, escritos em [TypeBox](https://github.com/sinclairzx81/typebox) (JSON Schema).
+Os schemas da rota (`params`, `query`, `headers`, `body` e `response`) são escritos em [TypeBox](https://github.com/sinclairzx81/typebox) (JSON Schema) e podem ser declarados de duas formas equivalentes:
+
+```ts
+@Get('/:id', byId)                  // enxuta: no próprio verbo
+getUser(ctx: Context<typeof byId>) {}
+
+@Get('/:id')                        // verbosa: em um decorator separado
+@Schema(byId)
+getUser(ctx: Context<typeof byId>) {}
+```
+
+As duas formas podem conviver no mesmo método quando declaram partes diferentes (por exemplo, `params` no verbo e `response` no `@Schema`). Declarar a mesma parte nos dois lugares gera erro.
 
 ```ts
 const list = {
@@ -126,8 +139,7 @@ const list = {
   response: { 200: Type.Array(User) },
 } satisfies RouteSchemas;
 
-@Get('/')
-@Schema(list)
+@Get('/', list)
 list(ctx: Context<typeof list>) {
   ctx.query.limit; // number (já convertido de "20" e com default)
   ctx.query.tag;   // string[] | undefined (?tag=a&tag=b ou ?tag=a)
@@ -185,7 +197,7 @@ app.use(async (ctx, next) => {
 });
 ```
 
-Por classe ou por método, use `@Use` e `@UseGuards`; para um grupo inteiro, use as opções `middlewares` e `guards` do `app.route()`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
+Por classe ou por método, use `@Use` e `@UseGuards`; para um grupo inteiro, use as opções `middlewares` e `guards` do `app.mount()`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
 
 ```ts
 declare module 'picodecor' {
@@ -210,9 +222,11 @@ class AdminRoutes {
 **Ordem de execução:**
 
 ```
-globais → app.route(…, { middlewares }) → @Use (classe → método)
-       → app.route(…, { guards }) → @UseGuards (classe → método) → validação → handler
+globais → app.mount(…, { middlewares }) → @Use (classe → método)
+       → app.mount(…, { guards }) → @UseGuards (classe → método) → validação → handler
 ```
+
+**Ordem dos decorators no código.** `@Router`, `@Get`/`@Post`/…, `@Schema`, `@Use` e `@UseGuards` só registram metadata, então a posição entre eles não muda o comportamento; a única regra é que vários `@Use` (ou `@UseGuards`) executam na ordem em que aparecem, de cima para baixo. Já decorators que **envolvem** o método, como `@timer()`, medem tudo o que estiver abaixo deles.
 
 Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e não um 400 que revelaria o formato esperado. Vários `@Use` na mesma posição executam de cima para baixo.
 
@@ -278,7 +292,7 @@ createApp({ logger: pino(), logRequests: true });
 ## Ciclo de vida e testes
 
 ```ts
-const app = createApp().route(UserRoutes);
+const app = createApp().mount(UserRoutes);
 
 const server = await app.listen({ port: 3000, host: '0.0.0.0' }); // resolve quando está ouvindo
 
@@ -312,7 +326,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `route()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`.
+Métodos do app: `use()`, `mount()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
@@ -331,7 +345,7 @@ O body só é lido como JSON quando o `Content-Type` é `application/json` ou `a
 
 ## Exemplo completo
 
-[`examples/app-users`](examples/app-users) traz CRUD, composição com `app.route()`, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
+[`examples/app-users`](examples/app-users) traz CRUD, composição com `app.mount()`, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
 
 ```bash
 pnpm dev

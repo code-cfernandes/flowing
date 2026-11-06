@@ -59,7 +59,7 @@ class Users {
 }
 
 describe('F-02 · Context<S> tipado pelo schema', () => {
-  const app = createApp({ logger: false }).route(Users);
+  const app = createApp({ logger: false }).mount(Users);
 
   it('handler tipado recebe body, params e query já validados e com defaults', async () => {
     const res = await app.inject({ method: 'POST', url: '/orgs/acme/users', body: { name: 'Ana', tags: [] } });

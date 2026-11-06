@@ -29,16 +29,16 @@ class WithDeps {
   @Post('/') create() { return { created: true }; }
 }
 
-describe('F-28 · @Router e app.route()', () => {
+describe('F-28 · @Router e app.mount()', () => {
   it('registra a classe com o prefixo do @Router', async () => {
-    const app = createApp({ logger: false }).route(ItemRoutes);
+    const app = createApp({ logger: false }).mount(ItemRoutes);
     assert.deepEqual((await app.inject('/items/7')).json(), { id: '7' });
   });
 
   it('prefix substitui o prefixo do @Router; a mesma classe pode ser montada duas vezes', async () => {
     const app = createApp({ logger: false })
-      .route(ItemRoutes, { prefix: '/v1/items' })
-      .route(ItemRoutes, { prefix: '/v2/items', only: ['getById'] });
+      .mount(ItemRoutes, { prefix: '/v1/items' })
+      .mount(ItemRoutes, { prefix: '/v2/items', only: ['getById'] });
     assert.deepEqual((await app.inject('/v1/items/1')).json(), { id: '1' });
     assert.deepEqual((await app.inject('/v2/items/2')).json(), { id: '2' });
     assert.equal((await app.inject('/v2/items')).status, 404, 'list não foi exposto em v2 (nenhuma rota nesse path)');
@@ -46,13 +46,13 @@ describe('F-28 · @Router e app.route()', () => {
   });
 
   it('only expõe apenas os métodos listados', async () => {
-    const app = createApp({ logger: false }).route(ItemRoutes, { only: ['list', 'getById'] });
+    const app = createApp({ logger: false }).mount(ItemRoutes, { only: ['list', 'getById'] });
     assert.equal((await app.inject('/items/1')).status, 200);
     assert.equal((await app.inject({ method: 'DELETE', url: '/items/1' })).status, 405);
   });
 
   it('except remove os métodos listados', async () => {
-    const app = createApp({ logger: false }).route(ItemRoutes, { except: ['remove'] });
+    const app = createApp({ logger: false }).mount(ItemRoutes, { except: ['remove'] });
     assert.equal((await app.inject({ method: 'DELETE', url: '/items/1' })).status, 405);
     assert.equal((await app.inject('/items')).status, 200);
   });
@@ -60,7 +60,7 @@ describe('F-28 · @Router e app.route()', () => {
   it('middlewares e guards do registro rodam antes dos da classe', async () => {
     const app = createApp({ logger: false })
       .use(mark('global'))
-      .route(ItemRoutes, { middlewares: [mark('route-1'), mark('route-2')], guards: [guardMark('route-guard')] });
+      .mount(ItemRoutes, { middlewares: [mark('route-1'), mark('route-2')], guards: [guardMark('route-guard')] });
     assert.deepEqual((await app.inject('/items')).json(), {
       trail: ['global', 'route-1', 'route-2', 'class', 'route-guard', 'class-guard'],
     });
@@ -69,56 +69,56 @@ describe('F-28 · @Router e app.route()', () => {
   it('guards do registro protegem todas as rotas da classe (ex.: autenticação)', async () => {
     const requireToken: Guard = (ctx) => { if (!ctx.get('authorization')) throw unauthorized(); return true; };
     const app = createApp({ logger: false })
-      .route(ItemRoutes, { prefix: '/public' , only: ['list'] })
-      .route(ItemRoutes, { prefix: '/private', guards: [requireToken] });
+      .mount(ItemRoutes, { prefix: '/public' , only: ['list'] })
+      .mount(ItemRoutes, { prefix: '/private', guards: [requireToken] });
     assert.equal((await app.inject('/public')).status, 200);
     assert.equal((await app.inject('/private/1')).status, 401);
     assert.equal((await app.inject({ url: '/private/1', headers: { authorization: 'x' } })).status, 200);
   });
 
   it('aceita instâncias com dependências e opções', async () => {
-    const app = createApp({ logger: false }).route(new WithDeps(new Repo()), { only: ['get'] });
+    const app = createApp({ logger: false }).mount(new WithDeps(new Repo()), { only: ['get'] });
     assert.deepEqual((await app.inject('/repo')).json(), { value: 'from-repo' });
     assert.equal((await app.inject({ method: 'POST', url: '/repo' })).status, 405);
   });
 
   it('only e except juntos geram erro', () => {
     assert.throws(
-      () => createApp().route(ItemRoutes, { only: ['list'], except: ['remove'] }),
+      () => createApp().mount(ItemRoutes, { only: ['list'], except: ['remove'] }),
       /use either "only" or "except"/,
     );
   });
 
   it('nome que não é método de rota gera erro com a lista disponível', () => {
     assert.throws(
-      () => createApp().route(ItemRoutes, { only: ['helper'] }),
+      () => createApp().mount(ItemRoutes, { only: ['helper'] }),
       /"helper" is not a route method\. Available: list, getById, remove/,
     );
   });
 
   it('mesma classe com o mesmo prefixo duas vezes gera erro claro', () => {
     assert.throws(
-      () => createApp().route(ItemRoutes).route(ItemRoutes),
+      () => createApp().mount(ItemRoutes).mount(ItemRoutes),
       /GET \/items\/ is already registered\. Use a different "prefix"/,
     );
   });
 
   it('classe sem @Router é recusada', () => {
     class Plain { @Get('/') a() {} }
-    assert.throws(() => createApp().route(Plain), /Plain is not decorated with @Router/);
+    assert.throws(() => createApp().mount(Plain), /Plain is not decorated with @Router/);
   });
 });
 
 // ---------- Checagens de tipo (falham no `pnpm typecheck`) ----------
 function _types() {
   const app = createApp();
-  app.route(ItemRoutes, { only: ['list', 'getById'] });
+  app.mount(ItemRoutes, { only: ['list', 'getById'] });
   // @ts-expect-error: nome inexistente na classe
-  app.route(ItemRoutes, { only: ['lista'] });
+  app.mount(ItemRoutes, { only: ['lista'] });
   // @ts-expect-error: classe com dependências no construtor precisa ser passada como instância
-  app.route(WithDeps);
-  app.route(new WithDeps(new Repo()), { except: ['create'] });
+  app.mount(WithDeps);
+  app.mount(new WithDeps(new Repo()), { except: ['create'] });
   // @ts-expect-error: nome inexistente na instância
-  app.route(new WithDeps(new Repo()), { except: ['nope'] });
+  app.mount(new WithDeps(new Repo()), { except: ['nope'] });
 }
 void _types;

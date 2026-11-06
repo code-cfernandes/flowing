@@ -54,7 +54,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 |---|---|
 | B-01 | JSON malformado → 400 |
 | B-02 | Erros de validação com `details` por campo |
-| F-01 / F-28 | Guard de `/admin` aplicado em `app.route(…, { guards })`: sem chave → 401, inclusive nas rotas herdadas |
+| F-01 / F-28 | Guard de `/admin` aplicado em `app.mount(…, { guards })`: sem chave → 401, inclusive nas rotas herdadas |
 | F-28 | `/public/users` é a `UserRoutes` com `prefix` e `only`; `POST /public/users` → 405 |
 | F-02 | Handlers com `Context<typeof schemas>`, sem casts |
 | F-06 | `X-Request-Id` em toda resposta; logs com `reqId` |

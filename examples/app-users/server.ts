@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173').sp
 
 // Dependências compartilhadas, montadas uma vez (injeção manual; um container fica para F-03)
 const users = new UserRepository();
+const userRoutes = new UserRoutes(users);
 
 const app = createApp({
   bodyLimit: 64 * 1024,
@@ -32,13 +33,13 @@ app
     // Ponto para enviar a um APM; se este handler falhar, o app não cai (B-08)
     if (process.env.DEBUG_ERRORS) ctx.log.warn({ err }, 'onError hook');
   })
-  // app.route() é a única porta de entrada (F-28):
+  // app.mount() é a única porta de entrada (F-28):
   // - classe sem dependências vai direto; com dependências, passe a instância (B-10)
   // - prefix, only/except, middlewares e guards são decididos aqui, sem tocar nas classes
-  .route(HealthRoutes)
-  .route(new AdminRoutes(users), { guards: [apiKeyGuard] })          // toda a área /admin exige a API key
-  .route(new UserRoutes(users))
-  .route(new UserRoutes(users), { prefix: '/public/users', only: ['listUsers', 'getUser'] }); // vitrine só leitura
+  .mount(HealthRoutes)
+  .mount(new AdminRoutes(users), { guards: [apiKeyGuard] })          // toda a área /admin exige a API key
+  .mount(userRoutes)
+  .mount(userRoutes, { prefix: '/public/users', only: ['listUsers', 'getUser'] }); // vitrine só leitura, mesma instância
 
 await app.listen({ port: PORT });
 

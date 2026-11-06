@@ -64,7 +64,7 @@ class SC { @Use(shortCircuit) @Get('/') never() { throw new Error('não deveria 
 
 const app = createApp()
   .use(mark('global'))
-  .route(M).route(Admin).route(ChildAdmin).route(SC);
+  .mount(M).mount(Admin).mount(ChildAdmin).mount(SC);
 
 const bearer = (role: string) => ({ authorization: `Bearer ${role}` });
 

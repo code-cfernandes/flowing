@@ -25,7 +25,7 @@ class H {
   @Get('/twice') twice(ctx: Context) { ctx.text('primeiro'); ctx.text('segundo'); return { ignored: true }; }
 }
 
-const app = createApp().route(H);
+const app = createApp().mount(H);
 
 describe('F-10 · helpers do ctx', () => {
   it('text() com status', async () => {
@@ -74,7 +74,7 @@ describe('F-10 · helpers do ctx', () => {
   });
 
   it('stream assíncrono chega completo (o framework não corta a resposta)', async () => {
-    const srv = await startServer(createApp().route(H));
+    const srv = await startServer(createApp().mount(H));
     try {
       const res = await fetch(srv.url + '/h/stream');
       assert.equal(await res.text(), 'um,dois,três');
@@ -83,7 +83,7 @@ describe('F-10 · helpers do ctx', () => {
 
   it('erro no meio do stream encerra a conexão e loga, sem derrubar o processo', async () => {
     const errorLog = mock.method(console, 'error', () => {});
-    const srv = await startServer(createApp().route(H));
+    const srv = await startServer(createApp().mount(H));
     try {
       await assert.rejects(async () => { const res = await fetch(srv.url + '/h/stream-error'); await res.text(); });
       assert.ok(errorLog.mock.calls.some((c) => (c.arguments[1] as { err?: Error }).err?.message === 'disk failure'));

@@ -11,9 +11,11 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 ## [Não lançado]
 
 ### Adicionado
-- `@Router(prefix)` e `app.route(classeOuInstância, { prefix, only, except, middlewares, guards })`:
+- `@Router(prefix)` e `app.mount(classeOuInstância, { prefix, only, except, middlewares, guards })`:
   registro único com controle no ponto de composição. Montar a mesma classe em vários prefixos,
   expor parcialmente e aplicar autenticação/cache a um grupo; `only`/`except` checados pelo TypeScript. (F-28)
+- Os decorators de verbo aceitam os schemas da rota como segundo argumento: `@Get('/:id', schemas)`.
+  O `@Schema` continua disponível; as duas formas se combinam, e declarar a mesma parte nas duas gera erro. (F-28)
 - `app.listen()` assíncrono (aceita `{ port, host }`), `app.close()` com encerramento gracioso,
   `app.callback()` para servidores próprios e `app.inject()` para requisições em memória, sem rede. (F-09)
 - Helpers `ctx.header()`, `ctx.get()`, `ctx.text()`, `ctx.send()` (string, Buffer ou stream) e
@@ -60,8 +62,8 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 ### Alterado
 - `Symbol.metadata` agora vem do shim `src/shims/symbol-metadata.ts` (antigo `core/polyfill.ts`).
 - A metadata de controllers foi movida para `src/core/metadata.ts`, para que o core não dependa de `decorators/`.
-- **Incompatível:** `@Controller` virou `@Router`, e `app.controllers([A, B])` virou `app.route(A).route(B)`.
-  Tipos renomeados: `ControllerRef` → `RouterRef`, `ControllerMetadata` → `RouterMetadata`,
+- **Incompatível:** `@Controller` virou `@Router`, e `app.controllers([A, B])` virou `app.mount(A).mount(B)`.
+  Tipos renomeados: `ControllerRef` → `RouterRef`, `RouteOptions` → `MountOptions`, `ControllerMetadata` → `RouterMetadata`,
   `CONTROLLER_METADATA` → `ROUTER_METADATA`. (F-28)
 - **Incompatível:** `app.listen()` agora retorna `Promise<http.Server>` e recebe `number | { port, host }`;
   use `await app.listen(...)` e `app.close()` no lugar de `server.close()`. (F-09)

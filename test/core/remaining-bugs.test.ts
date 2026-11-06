@@ -27,7 +27,7 @@ describe('B-05 · status x schema de resposta', () => {
 
   let srv: TestServer;
   const errorLog = mock.method(console, 'error', () => {});
-  before(async () => { srv = await startServer(createApp().route(C)); });
+  before(async () => { srv = await startServer(createApp().mount(C)); });
   after(async () => { errorLog.mock.restore(); await srv.close(); });
 
   it('usa o único 2xx declarado como status padrão e filtra os campos', async () => {
@@ -69,7 +69,7 @@ describe('B-07 · query com chaves repetidas', () => {
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().route(C)); });
+  before(async () => { srv = await startServer(createApp().mount(C)); });
   after(() => srv.close());
 
   it('chave repetida vira array; chave única continua string', async () => {
@@ -99,7 +99,7 @@ describe('B-10 · controllers com dependências', () => {
   }
 
   it('aceita uma instância já construída', async () => {
-    const srv = await startServer(createApp().route(new WithDeps(new Repo())));
+    const srv = await startServer(createApp().mount(new WithDeps(new Repo())));
     try {
       assert.deepEqual(await (await fetch(srv.url + '/b10')).json(), { id: 'from-repo' });
     } finally { await srv.close(); }
@@ -107,7 +107,7 @@ describe('B-10 · controllers com dependências', () => {
 
   it('instância de classe sem @Controller gera erro claro', () => {
     class Plain {}
-    assert.throws(() => createApp().route(new Plain()), /Plain is not decorated with @Router/);
+    assert.throws(() => createApp().mount(new Plain()), /Plain is not decorated with @Router/);
   });
 });
 
@@ -116,7 +116,7 @@ describe('B-11 · detecção de JSON pelo media type', () => {
   class C { @Post('/') echo(ctx: Context) { return { body: ctx.body ?? null }; } }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().route(C)); });
+  before(async () => { srv = await startServer(createApp().mount(C)); });
   after(() => srv.close());
 
   const send = async (ct: string) => {
@@ -144,7 +144,7 @@ describe('S-06 · queryMaxKeys', () => {
   class C { @Get('/') raw(ctx: Context) { return ctx.query; } }
 
   it('limita os pares lidos da query conforme AppOptions', async () => {
-    const srv = await startServer(createApp({ queryMaxKeys: 2 }).route(C));
+    const srv = await startServer(createApp({ queryMaxKeys: 2 }).mount(C));
     try {
       const res = await fetch(srv.url + '/qk?a=1&b=2&c=3');
       assert.deepEqual(await res.json(), { a: '1', b: '2' });

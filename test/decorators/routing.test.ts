@@ -41,7 +41,7 @@ class ItemController {
 
 describe('roteamento e decorators', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().route(ItemController)); });
+  before(async () => { srv = await startServer(createApp().mount(ItemController)); });
   after(() => srv.close());
 
   const req = (method: string, path: string, body?: unknown) =>
@@ -103,6 +103,6 @@ describe('roteamento e decorators', () => {
 
   it('classe sem @Controller gera erro claro', () => {
     class Plain {}
-    assert.throws(() => createApp().route(Plain), /not decorated with @Router/);
+    assert.throws(() => createApp().mount(Plain), /not decorated with @Router/);
   });
 });

@@ -22,7 +22,7 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
     process.on('unhandledRejection', onRejection);
     const app = createApp()
       .onError(() => { throw new Error('handler quebrado'); })
-      .route(C);
+      .mount(C);
     srv = await startServer(app);
   });
   after(async () => {
@@ -57,7 +57,7 @@ describe('B-09 · herança de controllers', () => {
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().route(Base).route(Child)); });
+  before(async () => { srv = await startServer(createApp().mount(Base).mount(Child)); });
   after(() => srv.close());
 
   const get = async (p: string) => {
@@ -93,7 +93,7 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().route(V)); });
+  before(async () => { srv = await startServer(createApp().mount(V)); });
   after(() => srv.close());
 
   it('B-02 · 400 traz a parte inválida e os detalhes de cada erro', async () => {

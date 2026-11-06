@@ -16,8 +16,8 @@ export type RouterRef = (new () => object) | object;
 /** Nomes dos métodos de uma instância (para `only`/`except`). */
 export type MethodNames<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T] & string;
 
-/** Opções de `app.route()`, aplicadas no ponto de composição (F-28). */
-export interface RouteOptions<T = object> {
+/** Opções de `app.mount()`, aplicadas no ponto de composição (F-28). */
+export interface MountOptions<T = object> {
   /** Substitui o prefixo definido no `@Router`. */
   prefix?: string;
   /** Registra só estes métodos de rota. Não pode ser usado junto com `except`. */
@@ -30,21 +30,21 @@ export interface RouteOptions<T = object> {
   guards?: readonly Guard[];
 }
 
-export function compileRoutes(ref: RouterRef, opts: RouteOptions = {}): CompiledRoute[] {
+export function compileRoutes(ref: RouterRef, opts: MountOptions = {}): CompiledRoute[] {
   const isClass = typeof ref === 'function';
   const Class = (isClass ? ref : ref.constructor) as new () => object;
   const meta = readOwnMetadata(Class);
   if (!meta?.isRouter) {
     throw new Error(
       `[picodecor] Class ${Class.name} is not decorated with @Router('/prefix'). ` +
-      `Add it to register the class with app.route().`,
+      `Add it to register the class with app.mount().`,
     );
   }
 
   const routeNames = [...meta.methods].filter(([, m]) => m.method && m.path).map(([name]) => String(name));
   const selected = selectRoutes(Class.name, routeNames, opts);
 
-  // Instâncias permitem injetar dependências pelo construtor: app.route(new UserRoutes(repo))
+  // Instâncias permitem injetar dependências pelo construtor: app.mount(new UserRoutes(repo))
   const instance = isClass ? new Class() : ref;
   const prefix = opts.prefix ?? meta.prefix;
   const routes: CompiledRoute[] = [];
@@ -59,7 +59,7 @@ export function compileRoutes(ref: RouterRef, opts: RouteOptions = {}): Compiled
       path: joinPaths(prefix, methodMeta.path),
       handler: (ctx: Context) => fn.call(instance, ctx),
       schemas: methodMeta.schemas,
-      // Ordem: composição (app.route) → classe → método (F-01, F-28)
+      // Ordem: composição (app.mount) → classe → método (F-01, F-28)
       middlewares: [...(opts.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares],
       guards: [...(opts.guards ?? []), ...meta.guards, ...methodMeta.guards],
     });
@@ -68,15 +68,15 @@ export function compileRoutes(ref: RouterRef, opts: RouteOptions = {}): Compiled
   return routes;
 }
 
-function selectRoutes(className: string, names: string[], opts: RouteOptions): Set<string> {
+function selectRoutes(className: string, names: string[], opts: MountOptions): Set<string> {
   if (opts.only && opts.except) {
-    throw new Error(`[picodecor] app.route(${className}): use either "only" or "except", not both.`);
+    throw new Error(`[picodecor] app.mount(${className}): use either "only" or "except", not both.`);
   }
   const listed = opts.only ?? opts.except ?? [];
   const unknown = listed.filter((n) => !names.includes(n));
   if (unknown.length > 0) {
     throw new Error(
-      `[picodecor] app.route(${className}): ${unknown.map((n) => `"${n}"`).join(', ')} ` +
+      `[picodecor] app.mount(${className}): ${unknown.map((n) => `"${n}"`).join(', ')} ` +
       `is not a route method. Available: ${names.join(', ') || '(none)'}.`,
     );
   }

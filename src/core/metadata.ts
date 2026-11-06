@@ -97,6 +97,24 @@ export function metadataFor(context: unknown, decorator: string): RouterMetadata
   return getOrCreateMetadata(meta);
 }
 
+/**
+ * Junta schemas vindos de `@Get(path, schemas)` e de `@Schema(...)` no mesmo método.
+ * Partes diferentes se combinam; a mesma parte declarada duas vezes é erro, para não haver
+ * dúvida sobre qual vale.
+ */
+export function mergeSchemas(method: MethodMetadata, schemas: RouteSchemas, where: string): void {
+  for (const key of Object.keys(schemas) as (keyof RouteSchemas)[]) {
+    if (schemas[key] === undefined) continue;
+    if (method.schemas[key] !== undefined) {
+      throw new Error(
+        `[picodecor] ${where}: schema "${key}" is declared twice for ${String(method.handlerName)}. ` +
+        `Declare each part either in the HTTP decorator or in @Schema, not both.`,
+      );
+    }
+  }
+  method.schemas = { ...method.schemas, ...schemas };
+}
+
 export function getOrCreateMethod(meta: RouterMetadata, name: string | symbol): MethodMetadata {
   let m = meta.methods.get(name);
   if (!m) {

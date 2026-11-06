@@ -2,7 +2,7 @@ import '../shims/symbol-metadata.ts';
 
 export { createApp, PicoDecorApp, type AppOptions, type ListenOptions, type RequestIdOptions, type ServerTimeouts } from './app.ts';
 export type { InjectOptions, InjectResponse } from './inject.ts';
-export type { MethodNames, RouteOptions, RouterRef } from './compiler.ts';
+export type { MethodNames, MountOptions, RouterRef } from './compiler.ts';
 export type { Middleware } from './compose.ts';
 export type { Guard } from './guard.ts';
 export type { InferBody, InferHeaders, InferParams, InferQuery, InferResponse, InferSchema } from './infer.ts';

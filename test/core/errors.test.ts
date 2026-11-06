@@ -48,7 +48,7 @@ describe('tratamento de erros', () => {
   const errorLog = mock.method(console, 'error', () => {});
 
   before(async () => {
-    const app = createApp({ bodyLimit: 1024 }).route(ErrorsController);
+    const app = createApp({ bodyLimit: 1024 }).mount(ErrorsController);
     srv = await startServer(app);
   });
   after(async () => {

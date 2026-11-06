@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { compileRoutes, type RouteOptions, type RouterRef } from './compiler.ts';
+import { compileRoutes, type MountOptions, type RouterRef } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
 import '../shims/symbol-metadata.ts';
@@ -39,7 +39,7 @@ export interface AppOptions {
   timeouts?: ServerTimeouts;
   /**
    * Modo estrito (S-07): exige schema de `body` em POST/PUT/PATCH e schema de `response`
-   * em toda rota, falhando no `app.route()`. Padrão: `false`.
+   * em toda rota, falhando no `app.mount()`. Padrão: `false`.
    */
   requireSchemas?: boolean;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
@@ -99,13 +99,13 @@ export class PicoDecorApp {
    *
    * ```ts
    * app
-   *   .route(HealthRoutes)
-   *   .route(new UserRoutes(repo), { prefix: '/v2/users', middlewares: [auth], except: ['remove'] });
+   *   .mount(HealthRoutes)
+   *   .mount(new UserRoutes(repo), { prefix: '/v2/users', middlewares: [auth], except: ['remove'] });
    * ```
    */
-  route<T extends object>(ref: new () => T, options?: RouteOptions<T>): this;
-  route<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: RouteOptions<T>): this;
-  route(ref: RouterRef, options: RouteOptions = {}): this {
+  mount<T extends object>(ref: new () => T, options?: MountOptions<T>): this;
+  mount<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: MountOptions<T>): this;
+  mount(ref: RouterRef, options: MountOptions = {}): this {
     const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
     for (const route of compileRoutes(ref, options)) {
       if (this.opts.requireSchemas) assertSchemas(name, route);
@@ -113,7 +113,7 @@ export class PicoDecorApp {
         this.router.on(route.method, route.path, route);
       } catch (err) {
         throw new Error(
-          `[picodecor] app.route(${name}): ${route.method} ${route.path} is already registered. ` +
+          `[picodecor] app.mount(${name}): ${route.method} ${route.path} is already registered. ` +
           `Use a different "prefix" to mount the same class twice.`,
           { cause: err },
         );
