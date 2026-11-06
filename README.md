@@ -37,6 +37,7 @@ await app.listen({ port: 3000 });
 - [Schemas: validação, serialização e tipos](#schemas-validação-serialização-e-tipos)
 - [Respostas e o `ctx`](#respostas-e-o-ctx)
 - [Middlewares e guards](#middlewares-e-guards)
+- [Hooks de ciclo de vida](#hooks-de-ciclo-de-vida)
 - [Erros](#erros)
 - [Segurança](#segurança)
 - [Logs e request id](#logs-e-request-id)
@@ -274,7 +275,7 @@ Os schemas de resposta valem para o que o **handler** envia. Middlewares e guard
 | `ctx.redirect(url, status?)` | 302 por padrão; aceita 301, 303, 307, 308 |
 | `ctx.throw(status, message)` | Lança um `HttpError` |
 
-Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
+Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.sentBody`, `ctx.sentType`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
 
 > ⚠️ `ctx.send` não faz escape de HTML; escape o conteúdo dinâmico antes. `ctx.redirect` com uma URL vinda do usuário abre um *open redirect*; valide o destino.
 
@@ -323,6 +324,42 @@ globais → mount.middlewares → @Middlewares (classe → método) → rota man
 **Ordem dos decorators no código.** `@Router`, `@Get`/`@Post`/…, `@Schema`, `@Middlewares` e `@Guards` só registram metadata, então a posição entre eles não muda o comportamento; a única regra é que vários `@Middlewares` (ou `@Guards`) executam na ordem em que aparecem, de cima para baixo. Já decorators que **envolvem** o método, como `@timer()`, medem tudo o que estiver abaixo deles.
 
 Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e não um 400 que revelaria o formato esperado.
+
+## Hooks de ciclo de vida
+
+Para o que acontece **antes** do handler (autenticação, rate limit, preparar o `ctx.state`), use middlewares. Os hooks cobrem o resto:
+
+```ts
+app
+  .onSend((ctx, payload) => { ctx.header('ETag', etag(payload.body)); })   // antes de escrever (síncrono)
+  .onResponse((ctx, { status, ms }) => metrics.observe(ctx.path, status, ms)) // depois do envio
+  .onClose(async () => { await db.close(); });                              // em qualquer close()
+```
+
+- **`onSend`:** roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive erros e 404. É **síncrono**, como a escrita do pipeline. Pode alterar headers ou devolver `{ body, contentType }` novos. Se lançar, o erro é logado e a resposta original é enviada.
+- **`onResponse`:** roda depois do envio, com o status e a duração. Pode ser assíncrono, porque não atrasa o cliente, e erros são só logados.
+- **`onClose`:** roda em qualquer `close()` (sinal, teste, código), depois que o servidor fecha e antes do `shutdown.onShutdown`. Todos os hooks rodam mesmo se algum falhar, e o `close()` rejeita ao final.
+
+**Cache com middleware.** Depois do `await next()`, `ctx.sentBody` e `ctx.sentType` contêm o corpo exatamente como foi enviado, já filtrado pelo schema:
+
+```ts
+const cache = (ttlMs: number): Middleware => async (ctx, next) => {
+  const hit = store.get(ctx.url.href);
+  if (hit) return void ctx.header('X-Cache', 'HIT').send(hit.body, hit.type);
+  ctx.header('X-Cache', 'MISS');   // headers antes do next(): depois dele a resposta já foi enviada
+  await next();
+  if (ctx.res.statusCode === 200 && ctx.sentBody) store.set(ctx.url.href, { body: ctx.sentBody, type: ctx.sentType! });
+};
+app.mount(products, { middlewares: [cache(60_000)] });
+```
+
+| Fastify | Sashiko |
+|---|---|
+| `onRequest`, `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |
+| `onError` | `app.onError` |
+| `onSend` | `app.onSend` (síncrono) |
+| `onResponse` | `app.onResponse` |
+| `onClose` | `app.onClose` |
 
 ## Erros
 
@@ -438,7 +475,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `mount()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
+Métodos do app: `use()`, `mount()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 

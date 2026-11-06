@@ -4,7 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context, kBindResponse, kRawSend } from './context.ts';
+import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
@@ -16,6 +16,11 @@ import { guardsMiddleware } from './guard.ts';
 import { shutdownCoordinator, type ShutdownOptions, type ShutdownTarget } from './shutdown.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
 import { buildSecurityHeaders, type SecurityHeadersOptions, type SecurityPreset } from '../middlewares/security-headers.ts';
+
+/** Depois do envio da resposta (F-04). */
+export type OnResponseHook = (ctx: Context, info: { status: number; ms: number }) => void | Promise<void>;
+/** No `close()` do app (F-04). */
+export type OnCloseHook = () => void | Promise<void>;
 
 export interface ListenOptions {
   /** Padrão: 3000. Use 0 para uma porta livre aleatória. */
@@ -104,6 +109,10 @@ export class SashikoApp {
   private middlewares: Middleware[] = [];
   private router = new RouteTable();
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
+  private readonly onSendHooks: OnSendHook[] = [];
+  private readonly onResponseHooks: OnResponseHook[] = [];
+  private readonly onCloseHooks: OnCloseHook[] = [];
+  private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
   private readonly serializers: ReadonlyMap<string, Serializer>;
@@ -135,6 +144,34 @@ export class SashikoApp {
 
   onError(h: (err: unknown, ctx: Context) => void | Promise<void>): this {
     this.errorHandlers.push(h);
+    return this;
+  }
+
+  /**
+   * Roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive em erros
+   * e 404. É síncrono: pode alterar headers (ETag, assinatura) ou devolver `{ body, contentType }`
+   * novos. Se lançar, o erro é logado e a resposta original é enviada (F-04).
+   */
+  onSend(hook: OnSendHook): this {
+    this.onSendHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Roda depois que a resposta foi enviada (evento `finish`), com o status e a duração: métricas,
+   * auditoria. Pode ser assíncrono; erros são só logados (F-04).
+   */
+  onResponse(hook: OnResponseHook): this {
+    this.onResponseHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Roda no `close()`, depois que o servidor fecha, qualquer que seja a origem (sinal, teste, código),
+   * e antes do `shutdown.onShutdown`. Erros são logados e fazem o `close()` rejeitar ao final (F-04).
+   */
+  onClose(hook: OnCloseHook): this {
+    this.onCloseHooks.push(hook);
     return this;
   }
 
@@ -262,7 +299,9 @@ export class SashikoApp {
         if (!res.writableEnded) res.end();
       };
       try {
-        const ctx = new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log, trustProxy: this.opts.trustProxy });
+        const ctx = new Context(req, res, {
+          queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log, trustProxy: this.opts.trustProxy, onSend: this.onSendHooks,
+        });
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         if (!ctx.host || (this.opts.allowedHosts && !hostAllowed(ctx.hostname, ctx.host, this.opts.allowedHosts))) {
           this.applySecurityHeaders?.(res);
@@ -270,10 +309,17 @@ export class SashikoApp {
           ctx[kRawSend](JSON.stringify({ error: 'Invalid Host header' }), 'application/json; charset=utf-8');
           return;
         }
-        if (this.opts.logRequests) {
+        if (this.opts.logRequests || this.onResponseHooks.length > 0) {
           res.once('finish', () => {
             const ms = Math.round((performance.now() - started) * 100) / 100;
-            ctx.log.info({ method: ctx.method, path: ctx.path, status: res.statusCode, ms }, 'request completed');
+            if (this.opts.logRequests) {
+              ctx.log.info({ method: ctx.method, path: ctx.path, status: res.statusCode, ms }, 'request completed');
+            }
+            for (const hook of this.onResponseHooks) {
+              Promise.resolve()
+                .then(() => hook(ctx, { status: res.statusCode, ms }))
+                .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
+            }
           });
         }
         this.handle(ctx).catch(fail);
@@ -302,6 +348,7 @@ export class SashikoApp {
       });
     });
     this.server = server;
+    this.closeHooksPending = true;
     if (this.opts.shutdown !== false) shutdownCoordinator.register(this.shutdownTarget);
     return server;
   }
@@ -330,7 +377,7 @@ export class SashikoApp {
    */
   async close(graceMs = 10_000): Promise<void> {
     const server = this.server;
-    if (!server) return;
+    if (!server) return this.runCloseHooks();
     this.server = undefined;
     this.closing = server;
     // Respostas que ainda não enviaram headers avisam o cliente para não reusar a conexão.
@@ -347,6 +394,23 @@ export class SashikoApp {
       this.closing = undefined;
       shutdownCoordinator.unregister(this.shutdownTarget);
     }
+    await this.runCloseHooks();
+  }
+
+  /** `onClose` uma vez por ciclo (até o próximo `listen`); todos rodam mesmo se algum falhar (F-04). */
+  private async runCloseHooks(): Promise<void> {
+    if (!this.closeHooksPending) return;
+    this.closeHooksPending = false;
+    const errors: unknown[] = [];
+    for (const hook of this.onCloseHooks) {
+      try {
+        await hook();
+      } catch (err) {
+        errors.push(err);
+        this.log.error({ err }, 'onClose hook failed');
+      }
+    }
+    if (errors.length > 0) throw new AggregateError(errors, `[sashiko] ${errors.length} onClose hook(s) failed`);
   }
 
   /** Executa uma requisição em memória, sem rede. Ideal para testes (F-09). */

@@ -16,6 +16,18 @@ export const kBindResponse = Symbol('sashiko.bindResponse');
 
 type RawBody = string | Uint8Array | Readable;
 
+/** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
+export interface SendPayload {
+  body: string | Uint8Array;
+  contentType: string;
+}
+
+/**
+ * Roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive em
+ * erros e 404. É síncrono; pode alterar headers e devolver outro payload (F-04).
+ */
+export type OnSendHook = (ctx: Context, payload: SendPayload) => SendPayload | void;
+
 /** Status aceitos por `ctx.status()`: os declarados no schema de resposta, ou qualquer um sem schema (F-32). */
 export type DeclaredStatus<S extends RouteSchemas> =
   S['response'] extends Record<number, unknown> ? keyof S['response'] & number : number;
@@ -58,6 +70,8 @@ export interface ContextOptions {
   logger?: Logger | undefined;
   /** Confiança nos headers `X-Forwarded-*` (S-09). Padrão: `false`. */
   trustProxy?: boolean | number | undefined;
+  /** Hooks `onSend` do app (F-04). */
+  onSend?: readonly OnSendHook[] | undefined;
 }
 
 /**
@@ -92,6 +106,15 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
   statusExplicit = false;
 
   private streaming = false;
+  private readonly onSendHooks: readonly OnSendHook[];
+
+  /**
+   * Corpo exatamente como foi escrito (F-04), depois do envio. Fica `undefined` em streams e em
+   * respostas sem corpo. Útil para cache: `await next(); store.set(key, ctx.sentBody)`.
+   */
+  sentBody: Buffer | undefined;
+  /** `Content-Type` da resposta enviada, junto com `sentBody`. */
+  sentType: string | undefined;
   private bound: { response: RouteSchemas['response']; serializers: ReadonlyMap<string, Serializer> } | undefined;
 
   constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}) {
@@ -99,6 +122,7 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
     this.res = res;
     this.method = req.method ?? 'GET';
     this.trustProxy = opts.trustProxy ?? false;
+    this.onSendHooks = opts.onSend ?? [];
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
     const target = parseRequestTarget(req.url);
     this.path = target.pathname;
@@ -222,8 +246,24 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
       });
       return this;
     }
-    this.res.end(body);
+    const payload = this.runOnSend({ body, contentType: String(this.res.getHeader('Content-Type')) });
+    this.res.setHeader('Content-Type', payload.contentType);
+    this.sentBody = Buffer.from(payload.body);
+    this.sentType = payload.contentType;
+    this.res.end(this.sentBody);
     return this;
+  }
+
+  /** Aplica os `onSend`; se algum lançar, loga e envia o payload original (F-04). */
+  private runOnSend(original: SendPayload): SendPayload {
+    let payload = original;
+    try {
+      for (const hook of this.onSendHooks) payload = hook(this as unknown as Context, payload) ?? payload;
+      return payload;
+    } catch (err) {
+      this.log.error({ err, method: this.method, path: this.path }, 'onSend hook failed; sending original response');
+      return original;
+    }
   }
 
   /**

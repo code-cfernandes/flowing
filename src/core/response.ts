@@ -109,8 +109,8 @@ function write(
   }
 
   if (json) {
-    ctx.res.setHeader('Content-Type', header);
-    return void ctx.res.end(schema ? serialize(schema, value) : JSON.stringify(value));
+    // Pelo ponto único de escrita (F-04): onSend e sentBody valem também para JSON.
+    return void ctx[kRawSend](schema ? serialize(schema, value) : JSON.stringify(value), header);
   }
 
   const serializer = serializers.get(base);

@@ -30,6 +30,7 @@ src/routes/admin.ts        /health (base) e /admin (herda /health)
 src/guards/api-key.ts      guard que exige o header x-api-key (aplicado no server.ts)
 src/schema/                schemas TypeBox
 src/serializers/csv.ts     serializador CSV plugável (registrado no server.ts)
+src/middlewares/cache.ts   cache em memória usando ctx.sentBody (aplicado em /public/users)
 src/types/                 tipos derivados dos schemas
 src/store/                 UserRepository em memória, injetado nas classes de rotas
 ```
@@ -46,7 +47,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | POST | `/users/:id/greet` | Handler async medido com `@timer()` |
 | GET | `/health`, `/admin/health` | Herança entre classes de rotas |
 | GET | `/admin/stats` | Guard `apiKeyGuard` aplicado no `server.ts` (401) e header documentado por schema |
-| GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`) |
+| GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`), com cache (`X-Cache: MISS/HIT`) |
 | GET | `/users/export.csv` | Mapeamento manual de um método sem verbo, com guard só nessa rota; `return` de string com `contentType: 'text/csv'` |
 | GET | `/users/by-id/:id` | Mapeamento manual: alias de `GET /users/:id` |
 | GET | `/admin/boom` | Erro interno sem vazar detalhes ao cliente |
