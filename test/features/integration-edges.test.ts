@@ -1,0 +1,115 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import https from 'node:https';
+import type { AddressInfo } from 'node:net';
+import type { TLSSocket } from 'node:tls';
+import { describe, it } from 'node:test';
+import { createApp, Get, Router } from 'sashiko';
+
+@Router('/')
+class Ready {
+  @Get('/readyz') r() {
+    return 'mine';
+  }
+}
+@Router('/')
+class Spec {
+  @Get('/openapi.json/') s() {
+    return 'mine';
+  }
+}
+@Router('/')
+class Plain {
+  @Get('/x') x() {
+    return 'x';
+  }
+}
+
+describe('0.11.3 · rotas do framework não encobrem rotas do usuário', () => {
+  it('health() depois de uma rota com o mesmo path: erro com a rota na mensagem', () => {
+    assert.throws(() => createApp().mount(Ready).health(), /app\.health\(\): path "\/readyz" would shadow Ready\.r/);
+  });
+
+  it('rota registrada depois do health() ou do openapi(): erro, inclusive com barra final', () => {
+    assert.throws(() => createApp().health().mount(Ready), /GET \/readyz is served by app\.health\(\)/);
+    assert.throws(() => createApp().openapi().mount(Spec), /served by app\.openapi\(\)/);
+    assert.doesNotThrow(() => createApp().openapi({ docs: true }).health().mount(Plain), 'paths distintos passam');
+  });
+
+  it('health() e openapi() com o mesmo path: erro; com paths próprios, os dois convivem com a rota', () => {
+    assert.throws(() => createApp().openapi({ path: '/readyz' }).health(), /already used by app\.openapi\(\)/);
+    assert.throws(() => createApp().health({ live: '/spec' }).openapi({ path: '/spec/' }), /already used by app\.health\(\)/);
+    assert.doesNotThrow(() => createApp().mount(Ready).health({ ready: '/ready' }).openapi({ path: '/spec.json' }));
+  });
+
+  it('chamar health() de novo substitui a configuração anterior sem conflitar com ela', () => {
+    assert.doesNotThrow(() => createApp().health().health({ checks: {} }));
+  });
+});
+
+describe('0.11.3 · healthchecks e allowedHosts', () => {
+  const app = createApp({ logger: false, allowedHosts: ['api.exemplo.com'] })
+    .mount(Plain)
+    .health();
+
+  it('sondas com o IP do pod no Host recebem resposta; o resto continua 400', async () => {
+    assert.equal((await app.inject({ url: '/readyz', headers: { host: '10.1.2.3:3000' } })).status, 200);
+    assert.equal((await app.inject({ url: '/livez', headers: { host: '10.1.2.3:3000' } })).status, 200);
+    assert.equal((await app.inject({ url: '/x', headers: { host: '10.1.2.3:3000' } })).status, 400);
+    assert.equal((await app.inject({ method: 'POST', url: '/readyz', headers: { host: '10.1.2.3' } })).status, 400, 'só GET/HEAD');
+  });
+
+  it('Host malformado continua 400, e anyHost: false volta ao comportamento estrito', async () => {
+    assert.equal((await app.inject({ url: '/readyz', headers: { host: 'a b' } })).status, 400);
+    const strict = createApp({ logger: false, allowedHosts: ['api.exemplo.com'] }).health({ anyHost: false });
+    assert.equal((await strict.inject({ url: '/readyz', headers: { host: '10.1.2.3' } })).status, 400);
+    assert.equal((await strict.inject({ url: '/readyz', headers: { host: 'api.exemplo.com' } })).status, 200);
+  });
+});
+
+describe('0.11.3 · barra final nas rotas do framework', () => {
+  it('/readyz/, /livez/, /openapi.json/ e /docs/ respondem como as rotas normais', async () => {
+    const app = createApp({ logger: false }).mount(Plain).health().openapi({ docs: true });
+    for (const url of ['/readyz/', '/livez/', '/openapi.json/', '/docs/']) {
+      assert.equal((await app.inject(url)).status, 200, url);
+    }
+  });
+});
+
+describe('0.11.3 · reloadTLS() adicionando sni', () => {
+  it('funciona mesmo que o listen() não tivesse sni', async () => {
+    const f = (n: string) => readFileSync(new URL(`../fixtures/tls/${n}`, import.meta.url));
+    const cert = (n: string) => ({ key: f(`${n}.key`), cert: f(`${n}.crt`) });
+    const ca = ['default', 'api'].map((n) => f(`${n}.crt`));
+    const app = createApp({ logger: false, shutdown: false }).mount(Plain);
+    const server = await app.listen({ port: 0, tls: cert('default') });
+    const cn = (servername: string) =>
+      new Promise<string>((resolve, reject) => {
+        const req = https.request(
+          {
+            host: '127.0.0.1',
+            port: (server.address() as AddressInfo).port,
+            path: '/x',
+            servername,
+            ca,
+            agent: false,
+            checkServerIdentity: () => undefined,
+          },
+          (res) => {
+            resolve(String((res.socket as TLSSocket).getPeerCertificate().subject.CN));
+            res.resume();
+          },
+        );
+        req.on('error', reject);
+        req.end();
+      });
+    try {
+      assert.equal(await cn('api.test'), 'localhost');
+      app.reloadTLS({ ...cert('default'), sni: { 'api.test': cert('api') } });
+      assert.equal(await cn('api.test'), 'api.test');
+      assert.equal(await cn('outro.test'), 'localhost');
+    } finally {
+      await app.close();
+    }
+  });
+});

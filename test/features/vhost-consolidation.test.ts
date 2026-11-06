@@ -413,3 +413,57 @@ describe('0.11.2 · ciclo de vida dos grupos', () => {
     assert.throws(() => createApp().group({}, (g) => g.mount(A1).mount(A2)), /already registered/);
   });
 });
+
+describe('0.11.3 · atomicidade de cada mount() dentro de um grupo', () => {
+  it('mount() que falha no meio, com o erro capturado no callback, não deixa rotas', async () => {
+    @Router('/')
+    class Existing {
+      @Get('/b') b() {
+        return 'existing';
+      }
+    }
+    @Router('/')
+    class New {
+      @Get('/a') a() {
+        return 'new';
+      }
+      @Get('/b') b() {
+        return 'conflict';
+      }
+    }
+    @Router('/')
+    class Ok {
+      @Get('/c') c() {
+        return 'c';
+      }
+    }
+    const app = createApp({ logger: false }).mount(Existing);
+    app.group({}, (g) => {
+      try {
+        g.mount(New);
+      } catch {}
+      g.mount(Ok);
+    });
+    assert.equal((await app.inject('/a')).status, 404, 'parte do mount que falhou não entra');
+    assert.equal((await app.inject('/b')).body, 'existing');
+    assert.equal((await app.inject('/c')).status, 200, 'os mounts bem-sucedidos do grupo entram');
+  });
+
+  it('rota manual com conflito capturado dentro do grupo também não deixa rastro', async () => {
+    @Router('/')
+    class M {
+      @Get('/x') x() {
+        return 'x';
+      }
+    }
+    const app = createApp({ logger: false });
+    app.group({}, (g) => {
+      const m = g.mount(M);
+      try {
+        m.get('/x', (r) => r.x);
+      } catch {}
+    });
+    assert.equal((await app.inject('/x')).status, 200);
+    assert.deepEqual(Object.keys((app.openapiDocument() as any).paths), ['/x'], 'a rota não ficou duplicada');
+  });
+});

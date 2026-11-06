@@ -62,10 +62,10 @@ export function compileTls(tls: TlsOptions, lookup?: { current: SniTable }): Com
   const table = buildSniTable(sni ?? {}, minVersion);
   if (lookup) lookup.current = table;
   const options: CompiledTls['options'] = { ...(main ?? { minVersion: minVersion as SecureContextOptions['minVersion'] }) };
-  if (sni) {
-    const ref = lookup ?? { current: table };
-    options.SNICallback = (servername, cb) => cb(null, ref.current.find(servername));
-  }
+  // Sempre instalado: assim um `reloadTLS()` com `sni` funciona mesmo que o `listen()` não tivesse `sni`.
+  // Sem entrada para o domínio, devolve `undefined` e vale o certificado principal.
+  const ref = lookup ?? { current: table };
+  options.SNICallback = (servername, cb) => cb(null, ref.current.find(servername));
   return { options, main };
 }
 

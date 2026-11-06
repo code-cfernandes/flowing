@@ -632,7 +632,7 @@ await app.listen({
   ```
 
   Sem certificado principal, um domínio fora da lista não completa o handshake. Para recusar o domínio também na camada HTTP, combine com `allowedHosts`.
-- **Renovação sem reiniciar:** `app.reloadTLS({ key, cert, sni })` troca os certificados. As conexões novas usam os novos, e as abertas continuam com os antigos. Um certificado inválido lança erro e mantém os atuais. É o ponto de integração para um cliente ACME externo, como Let's Encrypt via certbot:
+- **Renovação sem reiniciar:** `app.reloadTLS({ key, cert, sni })` troca os certificados, inclusive adicionando `sni` a um servidor que subiu sem ele. As conexões novas usam os novos, e as abertas continuam com os antigos. Um certificado inválido lança erro e mantém os atuais. É o ponto de integração para um cliente ACME externo, como Let's Encrypt via certbot:
 
   ```ts
   watch('/etc/ssl/fullchain.pem', () => app.reloadTLS({ key: readFileSync(keyPath), cert: readFileSync(certPath) }));
@@ -685,6 +685,8 @@ app.health({
 
 - **Os checks rodam em paralelo.** O motivo da falha vai só para o log, nunca para a resposta, porque pode conter host, usuário ou URL do banco.
 - **As rotas são servidas antes dos middlewares globais,** já que sondas não têm credenciais nem devem consumir rate limit. Para restringir, use `guards`/`middlewares` no próprio `health()`.
+- **Qualquer host válido:** sondas de orquestradores chegam com o IP do pod no `Host` (Kubernetes, ECS), então o `/livez` e o `/readyz` respondem mesmo fora do `allowedHosts`. Um `Host` malformado continua recebendo 400, e as demais rotas seguem a lista normalmente. `health({ anyHost: false })` volta ao comportamento estrito.
+- **Paths reservados:** um path do `health()` ou do `openapi()` que coincida com uma rota GET sua gera erro no registro, em qualquer ordem, porque a rota nunca seria alcançada. A barra final é tratada como nas rotas normais (`/readyz/` responde).
 - **Opções:** `live: '/health'` muda o path, e `ready: false` desliga a rota.
 
 **Testes sem rede.** `app.inject()` executa a requisição em memória:

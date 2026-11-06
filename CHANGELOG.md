@@ -9,6 +9,27 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.3] - 2026-11-06
+
+### Corrigido
+
+- Atomicidade de cada `mount()` dentro de um `group()`: quando um `mount()` falhava no meio (por exemplo, um
+  conflito na segunda rota) e o callback capturava o erro, as rotas anteriores desse `mount()` eram efetivadas
+  com o grupo. Agora cada `mount()` e cada rota manual restauram o lote ao estado anterior quando falham.
+- `health()` e `openapi()` encobriam, sem aviso, uma rota GET do usuário com o mesmo path. Agora o conflito gera
+  erro no registro, em qualquer ordem, e também entre os dois.
+- Healthchecks com `allowedHosts`: sondas do Kubernetes e do ECS, que mandam o IP do pod no `Host`, recebiam 400
+  e tiravam a instância de rotação. Agora o `/livez` e o `/readyz` aceitam qualquer host válido (um `Host`
+  malformado continua 400). `health({ anyHost: false })` mantém o comportamento estrito.
+- `/readyz/`, `/livez/`, `/openapi.json/` e `/docs/` (com barra final) respondiam 404, ao contrário das rotas
+  normais.
+- `reloadTLS()` com `sni` não tinha efeito quando o `listen({ tls })` original não tinha `sni`.
+
+### Observação
+
+- Um `Set-Cookie` (ou outro header) definido pelo handler antes de lançar um erro continua na resposta de erro,
+  como no Express e no Fastify. Se o handler cria uma sessão, crie-a só depois das operações que podem falhar.
+
 ## [0.11.2] - 2026-11-06
 
 ### Corrigido
