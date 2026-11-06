@@ -274,7 +274,7 @@ Os schemas de resposta valem para o que o **handler** envia. Middlewares e guard
 | `ctx.redirect(url, status?)` | 302 por padrão; aceita 301, 303, 307, 308 |
 | `ctx.throw(status, message)` | Lança um `HttpError` |
 
-Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.ip`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
+Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
 
 > ⚠️ `ctx.send` não faz escape de HTML; escape o conteúdo dinâmico antes. `ctx.redirect` com uma URL vinda do usuário abre um *open redirect*; valide o destino.
 
@@ -350,6 +350,7 @@ Ligado por padrão:
 | Query | Até 1000 pares (`queryMaxKeys`); `__proto__`, `constructor` e `prototype` são descartados. |
 | Erros 5xx | Sem detalhes para o cliente. |
 | Request id | Ids recebidos só são aceitos se forem seguros (contra log injection). |
+| Host e path | `Host` malformado → 400. O path vem do request-target com base fixa: `//evil.com/x` continua sendo esse path e não muda o host. `ctx.url` usa o host validado. |
 
 Opt-in:
 
@@ -367,7 +368,9 @@ createApp({
 - **`cors()`:** a origem é obrigatória, sem default permissivo. Aceita string, lista, RegExp ou função. Responde ao preflight com 204 e envia `Vary: Origin`. Combinar `origin: '*'` com `credentials: true` gera erro.
 - **`rateLimit()`:** guarda os contadores em memória por padrão. Para várias instâncias, implemente `RateLimitStore` (Redis etc.).
 - **Cookies e CSRF:** ainda não há proteção de CSRF embutida. Se a autenticação usar cookies, valide `Origin` num middleware e use `SameSite=Lax` ou `Strict`.
-- **IP:** `ctx.ip` usa o IP do socket. Atrás de um proxy, `X-Forwarded-For` **não** é considerado.
+- **Atrás de proxy:** `ctx.ip`, `ctx.host` e `ctx.protocol` usam o socket e o `Host` por padrão. Com `trustProxy: 1` (o número de proxies à frente do app) ou `true` (toda a cadeia), passam a usar o `X-Forwarded-For`, o `-Host` e o `-Proto`. Só ligue isso atrás de um proxy que reescreve esses headers, porque o cliente pode forjá-los.
+- **`allowedHosts`:** com `allowedHosts: ['api.exemplo.com', /\.exemplo\.dev$/]`, qualquer outro `Host` recebe 400. Protege contra host header injection e DNS rebinding.
+- **Links absolutos** (reset de senha, redirects): prefira uma URL base da configuração em vez do host pedido pelo cliente.
 
 ## Logs e request id
 
@@ -428,6 +431,8 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `securityHeaders` | `'api'` | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar |
 | `serializers` | — | Serializadores por content type, para responder em outros formatos |
 | `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `onShutdown`, `exit`; `false` desliga |
+| `trustProxy` | `false` | `true` ou o número de proxies: `ctx.ip`/`host`/`protocol` passam a usar os `X-Forwarded-*` |
+| `allowedHosts` | qualquer host válido | Lista de hosts (string ou RegExp); os demais recebem 400 |
 | `timeouts` | 30s / 10s / 5s | `requestTimeout`, `headersTimeout`, `keepAliveTimeout` |
 | `logger` | `consoleLogger()` | Logger compatível com pino; `false` desliga |
 | `logRequests` | `false` | Log de cada requisição concluída |
