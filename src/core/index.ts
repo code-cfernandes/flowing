@@ -2,7 +2,8 @@ import '../shims/symbol-metadata.ts';
 
 export { createApp, SashikoApp, type AppOptions, type ListenOptions, type RequestIdOptions, type ServerTimeouts } from './app.ts';
 export type { InjectOptions, InjectResponse } from './inject.ts';
-export type { MethodNames, MountOptions, RouterRef } from './compiler.ts';
+export type { ManualRouteOptions, MethodSelector, MethodsSelector, MountOptions, RouterRef } from './compiler.ts';
+export { MountedGroup } from './mounted-group.ts';
 export type { Middleware } from './compose.ts';
 export type { Guard } from './guard.ts';
 export type { InferBody, InferHeaders, InferParams, InferQuery, InferResponse, InferSchema } from './infer.ts';

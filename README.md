@@ -33,6 +33,7 @@ await app.listen({ port: 3000 });
 - [Requisitos e instalação](#requisitos-e-instalação)
 - [Rotas](#rotas)
 - [Registro e composição: `app.mount()`](#registro-e-composição-appmount)
+- [Mapeamento manual](#mapeamento-manual)
 - [Schemas: validação, serialização e tipos](#schemas-validação-serialização-e-tipos)
 - [Respostas e o `ctx`](#respostas-e-o-ctx)
 - [Middlewares e guards](#middlewares-e-guards)
@@ -99,23 +100,49 @@ app
   .mount(HealthRoutes)
   .mount(userRoutes)                                                     // como declarado
   .mount(userRoutes, { prefix: '/v2/users' })                            // a mesma instância em outro prefixo
-  .mount(userRoutes, { prefix: '/public/users', only: ['list', 'get'] }) // exposição parcial
+  .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.list, r.get] }) // exposição parcial
   .mount(new AdminRoutes(repo), { middlewares: [authenticate], guards: [isAdmin] }); // regras para o grupo
 ```
 
 | Opção | Efeito |
 |---|---|
 | `prefix` | Substitui o prefixo do `@Router` |
-| `only` / `except` | Registra só esses métodos, ou todos menos esses. Os nomes são checados pelo TypeScript; usar os dois juntos gera erro |
-| `middlewares` | Valem para todas as rotas registradas; rodam antes dos `@Use` da classe |
-| `guards` | Valem para todas as rotas registradas; rodam antes dos `@UseGuards` da classe |
+| `only` / `except` | Registra só os métodos selecionados, ou todos menos esses: `(r) => [r.list, r.get]`. O seletor é checado pelo TypeScript; usar os dois juntos gera erro |
+| `auto` | `false` registra só as [rotas manuais](#mapeamento-manual). Padrão: `true` |
+| `middlewares` | Valem para todas as rotas do grupo; rodam antes dos `@Middlewares` da classe |
+| `guards` | Valem para todas as rotas do grupo; rodam antes dos `@Guards` da classe |
 
 Erros de registro aparecem na inicialização, com mensagem clara:
 - classe sem `@Router`;
-- nome em `only`/`except` que não é método de rota;
+- seletor em `only`/`except` que não aponta para um método de rota;
 - a mesma classe registrada duas vezes com o mesmo prefixo.
 
 > **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e esse nome fica reservado para um futuro sistema de plugins.
+
+## Mapeamento manual
+
+Depois do `mount`, os verbos `.get()`, `.post()`, `.put()`, `.patch()` e `.delete()` mapeiam um método da classe para um path que ela não declara: um alias, um endpoint legado, um export. O path é relativo ao prefixo do grupo, e o método é escolhido por um **seletor**, checado pelo TypeScript:
+
+```ts
+@Router('/users')
+class UserRoutes {
+  @Get('/:id', byId)  getUser(ctx: Context<typeof byId>) {}
+  @Schema(csv)        exportCsv(ctx: Context<typeof csv>) {}  // sem verbo: só por mapeamento manual
+  private findOr404() {}                                       // sem decorator: nunca pode ser exposto
+}
+
+app
+  .mount(new UserRoutes(repo))
+  .get('/legacy/:id', (r) => r.getUser)                                 // GET /users/legacy/:id
+  .get('/export.csv', (r) => r.exportCsv, { middlewares: [cache()], guards: [isAuditor] })
+  .mount(HealthRoutes);                                                 // o encadeamento continua
+```
+
+- **Seletor:** funciona com instância (inclusive inline, `mount(new X(repo))`) e com a classe. "Ir para a definição" e renomear no editor funcionam.
+- **Permissão por método:** só podem ser mapeados métodos com algum decorator do Sashiko (verbo, `@Schema`, `@Middlewares` ou `@Guards`). Um método sem decorator gera erro no registro.
+- **Regras herdadas:** a rota manual usa os schemas e os `@Middlewares`/`@Guards` do método, e as regras do grupo.
+- **Opções da rota:** `{ middlewares, guards }` em objeto, e não uma lista de funções, para que middleware, guard e seletor nunca se confundam.
+- **Só mapeamento manual:** `mount(x, { auto: false })` não registra as rotas declaradas na classe.
 
 ## Schemas: validação, serialização e tipos
 
@@ -199,7 +226,7 @@ app.use(async (ctx, next) => {
 });
 ```
 
-Por classe ou por método, use `@Use` e `@UseGuards`; para um grupo inteiro, use as opções `middlewares` e `guards` do `app.mount()`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
+Por classe ou por método, use `@Middlewares` e `@Guards`; para um grupo inteiro ou uma rota manual, use as opções `middlewares` e `guards`, com os mesmos nomes em todos os níveis. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
 
 ```ts
 declare module 'sashiko' {
@@ -212,10 +239,10 @@ const authenticate: Middleware = async (ctx, next) => {
 };
 const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';
 
-@Use(authenticate)
+@Middlewares(authenticate)
 @Router('/admin')
 class AdminRoutes {
-  @UseGuards(isAdmin)
+  @Guards(isAdmin)
   @Delete('/users/:id')
   remove() {}
 }
@@ -224,13 +251,14 @@ class AdminRoutes {
 **Ordem de execução:**
 
 ```
-globais → app.mount(…, { middlewares }) → @Use (classe → método)
-       → app.mount(…, { guards }) → @UseGuards (classe → método) → validação → handler
+globais → mount.middlewares → @Middlewares (classe → método) → rota manual.middlewares
+        → mount.guards → @Guards (classe → método) → rota manual.guards
+        → validação → handler
 ```
 
-**Ordem dos decorators no código.** `@Router`, `@Get`/`@Post`/…, `@Schema`, `@Use` e `@UseGuards` só registram metadata, então a posição entre eles não muda o comportamento; a única regra é que vários `@Use` (ou `@UseGuards`) executam na ordem em que aparecem, de cima para baixo. Já decorators que **envolvem** o método, como `@timer()`, medem tudo o que estiver abaixo deles.
+**Ordem dos decorators no código.** `@Router`, `@Get`/`@Post`/…, `@Schema`, `@Middlewares` e `@Guards` só registram metadata, então a posição entre eles não muda o comportamento; a única regra é que vários `@Middlewares` (ou `@Guards`) executam na ordem em que aparecem, de cima para baixo. Já decorators que **envolvem** o método, como `@timer()`, medem tudo o que estiver abaixo deles.
 
-Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e não um 400 que revelaria o formato esperado. Vários `@Use` na mesma posição executam de cima para baixo.
+Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e não um 400 que revelaria o formato esperado.
 
 ## Erros
 
@@ -328,7 +356,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `mount()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`.
+Métodos do app: `use()`, `mount()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
@@ -347,7 +375,7 @@ O body só é lido como JSON quando o `Content-Type` é `application/json` ou `a
 
 ## Exemplo completo
 
-[`examples/app-users`](examples/app-users) traz CRUD, composição com `app.mount()`, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
+[`examples/app-users`](examples/app-users) traz CRUD, composição com `app.mount()`, mapeamento manual, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
 
 ```bash
 pnpm dev

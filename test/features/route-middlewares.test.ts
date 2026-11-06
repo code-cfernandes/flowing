@@ -2,7 +2,7 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, Router, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Use, UseGuards,
+  type Context, Router, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Middlewares, Guards,
 } from 'sashiko';
 
 declare module 'sashiko' {
@@ -29,11 +29,11 @@ const isLogged: Guard = (ctx) => {
 };
 const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';
 
-@Use(mark('class-1'), mark('class-2'))
+@Middlewares(mark('class-1'), mark('class-2'))
 @Router('/m')
 class M {
-  @Use(mark('method-1'))
-  @Use(mark('method-2'))
+  @Middlewares(mark('method-1'))
+  @Middlewares(mark('method-2'))
   @Get('/order')
   order(ctx: Context) { return { trail: [...(ctx.state.trail ?? []), 'handler'] }; }
 
@@ -41,13 +41,13 @@ class M {
   plain(ctx: Context) { return { trail: ctx.state.trail }; }
 }
 
-@Use(authenticate)
-@UseGuards(isLogged)
+@Middlewares(authenticate)
+@Guards(isLogged)
 @Router('/admin')
 class Admin {
   @Get('/me') me(ctx: Context) { return ctx.state.user; }
 
-  @UseGuards(isAdmin)
+  @Guards(isAdmin)
   @Post('/danger')
   @Schema({ body: Type.Object({ confirm: Type.Literal(true) }) })
   danger() { return { done: true }; }
@@ -60,7 +60,7 @@ class ChildAdmin extends Admin {
 
 const shortCircuit: Middleware = (ctx) => { ctx.status(503).json({ error: 'maintenance' }); };
 @Router('/sc')
-class SC { @Use(shortCircuit) @Get('/') never() { throw new Error('não deveria executar'); } }
+class SC { @Middlewares(shortCircuit) @Get('/') never() { throw new Error('não deveria executar'); } }
 
 const app = createApp()
   .use(mark('global'))
@@ -68,7 +68,7 @@ const app = createApp()
 
 const bearer = (role: string) => ({ authorization: `Bearer ${role}` });
 
-describe('F-01 · @Use', () => {
+describe('F-01 · @Middlewares', () => {
   it('ordem: global → classe (de cima para baixo) → método (de cima para baixo) → handler', async () => {
     const res = await app.inject('/m/order');
     assert.deepEqual(res.json(), { trail: ['global', 'class-1', 'class-2', 'method-1', 'method-2', 'handler'] });
@@ -90,7 +90,7 @@ describe('F-01 · @Use', () => {
   });
 });
 
-describe('F-01 · @UseGuards', () => {
+describe('F-01 · @Guards', () => {
   it('guard que lança unauthorized() responde 401', async () => {
     const res = await app.inject('/admin/me');
     assert.equal(res.status, 401);
@@ -120,7 +120,7 @@ describe('F-01 · @UseGuards', () => {
     assert.deepEqual(ok.json(), { done: true });
   });
 
-  it('subclasse herda @Use e @UseGuards de classe do pai', async () => {
+  it('subclasse herda @Middlewares e @Guards de classe do pai', async () => {
     assert.equal((await app.inject('/admin2/child')).status, 401);
     assert.deepEqual((await app.inject({ url: '/admin2/child', headers: bearer('admin') })).json(), { role: 'admin' });
   });

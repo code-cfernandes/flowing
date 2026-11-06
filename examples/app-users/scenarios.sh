@@ -88,6 +88,11 @@ title "Composição · mesma classe em /public/users, só leitura (only)"
 req "$BASE/public/users"
 req -XPOST "$BASE/public/users" "${JSON[@]}" -d '{"name":"X","email":"x@example.com"}'
 
+title "Mapeamento manual · /users/export.csv (só com a API key) e alias /users/by-id/:id"
+req "$BASE/users/export.csv"
+curl -s -w '  → [%{http_code}]\n' "$BASE/users/export.csv" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"; echo
+req "$BASE/users/by-id/$ID"
+
 title "CRUD · remover (204) e confirmar (404)"
 req -XDELETE "$BASE/users/$ID"
 req "$BASE/users/$ID"

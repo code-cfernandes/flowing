@@ -46,6 +46,8 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | GET | `/health`, `/admin/health` | Herança entre classes de rotas |
 | GET | `/admin/stats` | Guard `apiKeyGuard` aplicado no `server.ts` (401) e header documentado por schema |
 | GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`) |
+| GET | `/users/export.csv` | Mapeamento manual de um método sem verbo, com guard só nessa rota |
+| GET | `/users/by-id/:id` | Mapeamento manual: alias de `GET /users/:id` |
 | GET | `/admin/boom` | Erro interno sem vazar detalhes ao cliente |
 
 ## Cenários cobertos pelo `scenarios.sh`
@@ -57,6 +59,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | Erros | JSON malformado → 400; e-mail duplicado → 400; erro interno em `/admin/boom` responde só `Internal Server Error` |
 | Limites | Body acima de 64KB → 413 com `Connection: close`; rate limit → 429 (subir com `RATE_LIMIT=5`) |
 | Rotas automáticas | HEAD sem corpo; OPTIONS com `Allow`; método não suportado → 405 |
+| Mapeamento manual | `/users/export.csv` só com a API key (401 sem ela); `/users/by-id/:id` como alias |
 | Composição | Guard de `/admin` aplicado em `app.mount(…, { guards })`: sem chave → 401, inclusive na rota herdada `/admin/health`; `/public/users` é a mesma `UserRoutes` com `prefix` e `only`, e `POST` nela → 405 |
 | Segurança | Headers de segurança em toda resposta; preflight CORS de origem permitida e de origem desconhecida |
 | Logs | `X-Request-Id` em toda resposta, reaproveitado quando enviado; logs com `reqId` no terminal do servidor |

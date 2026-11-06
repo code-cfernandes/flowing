@@ -1,7 +1,7 @@
 import type { Context } from './context.ts';
 import type { Guard } from './guard.ts';
 import type { Middleware } from './compose.ts';
-import { readOwnMetadata } from './metadata.ts';
+import { readOwnMetadata, type MethodMetadata, type RouterMetadata } from './metadata.ts';
 import type { RouteDefinition } from './route-table.ts';
 import { joinPaths } from '../utils/path.ts';
 
@@ -13,24 +13,47 @@ export interface CompiledRoute extends RouteDefinition {
 /** Classe com construtor sem argumentos **ou** instância já construída (B-10). */
 export type RouterRef = (new () => object) | object;
 
-/** Nomes dos métodos de uma instância (para `only`/`except`). */
-export type MethodNames<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T] & string;
+type AnyMethod = (...args: never[]) => unknown;
 
-/** Opções de `app.mount()`, aplicadas no ponto de composição (F-28). */
+/** Seleciona um método da instância montada: `(r) => r.getUser` (F-30). */
+export type MethodSelector<T> = (routes: T) => AnyMethod;
+/** Seleciona vários métodos: `(r) => [r.list, r.getUser]` (F-30). */
+export type MethodsSelector<T> = (routes: T) => readonly AnyMethod[];
+
+/** Opções de `app.mount()`, aplicadas no ponto de composição (F-28, F-30). */
 export interface MountOptions<T = object> {
   /** Substitui o prefixo definido no `@Router`. */
   prefix?: string;
   /** Registra só estes métodos de rota. Não pode ser usado junto com `except`. */
-  only?: readonly MethodNames<T>[];
+  only?: MethodsSelector<T>;
   /** Registra todos os métodos de rota, exceto estes. */
-  except?: readonly MethodNames<T>[];
-  /** Middlewares para todas as rotas registradas; rodam antes dos `@Use` da classe. */
+  except?: MethodsSelector<T>;
+  /** Registra as rotas declaradas na classe. Padrão: `true`. Use `false` para só mapear manualmente. */
+  auto?: boolean;
+  /** Middlewares para todas as rotas do grupo; rodam antes dos `@Middlewares` da classe. */
   middlewares?: readonly Middleware[];
-  /** Guards para todas as rotas registradas; rodam antes dos `@UseGuards` da classe. */
+  /** Guards para todas as rotas do grupo; rodam antes dos `@Guards` da classe. */
   guards?: readonly Guard[];
 }
 
-export function compileRoutes(ref: RouterRef, opts: MountOptions = {}): CompiledRoute[] {
+/** Opções de uma rota mapeada manualmente: `.get(path, sel, { middlewares, guards })` (F-30). */
+export interface ManualRouteOptions {
+  /** Rodam depois dos `@Middlewares` do método (são as mais específicas). */
+  middlewares?: readonly Middleware[];
+  /** Rodam depois dos `@Guards` do método. */
+  guards?: readonly Guard[];
+}
+
+/** Um grupo montado: a instância, sua metadata e as opções do `mount`. */
+export interface RouteGroup {
+  name: string;
+  instance: object;
+  meta: RouterMetadata;
+  prefix: string;
+  options: MountOptions;
+}
+
+export function createGroup(ref: RouterRef, options: MountOptions = {}): RouteGroup {
   const isClass = typeof ref === 'function';
   const Class = (isClass ? ref : ref.constructor) as new () => object;
   const meta = readOwnMetadata(Class);
@@ -40,47 +63,91 @@ export function compileRoutes(ref: RouterRef, opts: MountOptions = {}): Compiled
       `Add it to register the class with app.mount().`,
     );
   }
-
-  const routeNames = [...meta.methods].filter(([, m]) => m.method && m.path).map(([name]) => String(name));
-  const selected = selectRoutes(Class.name, routeNames, opts);
-
+  if (options.only && options.except) {
+    throw new Error(`[sashiko] app.mount(${Class.name}): use either "only" or "except", not both.`);
+  }
   // Instâncias permitem injetar dependências pelo construtor: app.mount(new UserRoutes(repo))
   const instance = isClass ? new Class() : ref;
-  const prefix = opts.prefix ?? meta.prefix;
-  const routes: CompiledRoute[] = [];
-
-  for (const [name, methodMeta] of meta.methods) {
-    if (!methodMeta.method || !methodMeta.path || !selected.has(String(name))) continue;
-    const fn = (instance as Record<string | symbol, unknown>)[name];
-    if (typeof fn !== 'function') continue;
-
-    routes.push({
-      method: methodMeta.method,
-      path: joinPaths(prefix, methodMeta.path),
-      handler: (ctx: Context) => fn.call(instance, ctx),
-      schemas: methodMeta.schemas,
-      // Ordem: composição (app.mount) → classe → método (F-01, F-28)
-      middlewares: [...(opts.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares],
-      guards: [...(opts.guards ?? []), ...meta.guards, ...methodMeta.guards],
-    });
-  }
-
-  return routes;
+  return { name: Class.name, instance, meta, prefix: options.prefix ?? meta.prefix, options };
 }
 
-function selectRoutes(className: string, names: string[], opts: MountOptions): Set<string> {
-  if (opts.only && opts.except) {
-    throw new Error(`[sashiko] app.mount(${className}): use either "only" or "except", not both.`);
-  }
-  const listed = opts.only ?? opts.except ?? [];
-  const unknown = listed.filter((n) => !names.includes(n));
-  if (unknown.length > 0) {
-    throw new Error(
-      `[sashiko] app.mount(${className}): ${unknown.map((n) => `"${n}"`).join(', ')} ` +
-      `is not a route method. Available: ${names.join(', ') || '(none)'}.`,
-    );
-  }
-  if (opts.only) return new Set(opts.only);
-  const except = new Set<string>(opts.except ?? []);
-  return new Set(names.filter((n) => !except.has(n)));
+/** Rotas declaradas na classe (`@Get`, `@Post`…), filtradas por `only`/`except` e `auto`. */
+export function compileAutoRoutes(group: RouteGroup): CompiledRoute[] {
+  const { meta, options } = group;
+  if (options.auto === false) return [];
+
+  const declared = [...meta.methods].filter(([, m]) => m.method && m.path).map(([name]) => name);
+  const pick = (selector: MethodsSelector<object>, label: string) =>
+    new Set(selector(group.instance).map((fn) => resolveMethod(group, fn, label, declared)));
+
+  const excluded = options.except ? pick(options.except, 'except') : new Set<string | symbol>();
+  const selected = options.only ? pick(options.only, 'only') : new Set(declared.filter((n) => !excluded.has(n)));
+
+  return declared
+    .filter((name) => selected.has(name))
+    .map((name) => {
+      const m = meta.methods.get(name)!;
+      return buildRoute(group, name, m, m.method!, m.path!);
+    });
+}
+
+/** Rota mapeada no app: `.get('/legacy/:id', (r) => r.getUser, opts)` (F-30). */
+export function compileManualRoute(
+  group: RouteGroup,
+  httpMethod: string,
+  path: string,
+  selector: MethodSelector<object>,
+  options: ManualRouteOptions = {},
+): CompiledRoute {
+  const name = resolveMethod(group, selector(group.instance), `.${httpMethod.toLowerCase()}('${path}')`);
+  return buildRoute(group, name, group.meta.methods.get(name)!, httpMethod, path, options);
+}
+
+function buildRoute(
+  group: RouteGroup,
+  name: string | symbol,
+  methodMeta: MethodMetadata,
+  httpMethod: string,
+  path: string,
+  manual: ManualRouteOptions = {},
+): CompiledRoute {
+  const fn = (group.instance as Record<string | symbol, unknown>)[name] as (ctx: Context) => unknown;
+  const { meta, options, instance } = group;
+  return {
+    method: httpMethod,
+    path: joinPaths(group.prefix, path),
+    handler: (ctx: Context) => fn.call(instance, ctx),
+    schemas: methodMeta.schemas,
+    // Ordem: mount → classe → método → rota manual (F-01, F-28, F-30)
+    middlewares: [...(options.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares, ...(manual.middlewares ?? [])],
+    guards: [...(options.guards ?? []), ...meta.guards, ...methodMeta.guards, ...(manual.guards ?? [])],
+  };
+}
+
+/**
+ * Descobre o nome do método a partir da função devolvida pelo seletor.
+ * Só aceita métodos com algum decorator do Sashiko (a "permissão" no nível do método).
+ */
+function resolveMethod(
+  group: RouteGroup,
+  fn: unknown,
+  where: string,
+  allowed: readonly (string | symbol)[] = [...group.meta.methods.keys()],
+): string | symbol {
+  const target = group.instance as Record<string | symbol, unknown>;
+  const name = typeof fn === 'function' ? allowed.find((n) => target[n] === fn) : undefined;
+  if (name !== undefined) return name;
+
+  const label = typeof fn === 'function' && fn.name ? `"${fn.name}"` : 'the selected value';
+  const available = allowed.map(String).join(', ') || '(none)';
+  const decorated = typeof fn === 'function' && [...group.meta.methods.keys()].some((n) => target[n] === fn);
+  const isMethod = typeof fn === 'function'
+    && Object.values(Object.getOwnPropertyDescriptors(Object.getPrototypeOf(target))).some((d) => d.value === fn);
+  const reason = decorated
+    ? `${label} has no HTTP verb decorator, so it is not an automatic route; map it manually with .get()/.post()…`
+    : isMethod
+      ? `${label} has no Sashiko decorator (@Get, @Schema, @Middlewares, @Guards…), so it cannot be exposed`
+      : `${label} is not a method of ${group.name}`;
+  const at = where.startsWith('.') ? where : ` ${where}`;
+  throw new Error(`[sashiko] app.mount(${group.name})${at}: ${reason}. Available: ${available}.`);
 }

@@ -71,6 +71,14 @@ export class UserRoutes {
     ctx.status(204);
   }
 
+  // Sem verbo: a classe não expõe este método sozinha. Quem decide o path é o server.ts,
+  // com app.mount(...).get('/export.csv', (r) => r.exportCsv) (F-30).
+  @Schema({ response: { 200: Type.String() } })
+  exportCsv(ctx: Context) {
+    const rows = this.users.list(0, 1000).map((u) => `${u.id},${JSON.stringify(u.name)},${u.email}`);
+    ctx.send(['id,name,email', ...rows].join('\n') + '\n', 'text/csv; charset=utf-8');
+  }
+
   // Forma verbosa, com @Schema separado: equivale ao segundo argumento do verbo.
   // @timer() mede inclusive o tempo aguardado em handlers async (B-04)
   @Post('/:id/greet')

@@ -8,6 +8,25 @@ Enquanto estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões _m
 
 ## [Não lançado]
 
+## [0.2.0] - 2026-11-06
+
+### Adicionado
+- Mapeamento manual depois do `mount`: `.get()`, `.post()`, `.put()`, `.patch()` e `.delete()`
+  expõem um método da classe em outro path ou verbo, escolhido por um seletor checado pelo TypeScript
+  (`(r) => r.getUser`). O path é relativo ao prefixo do grupo, e a rota aceita `{ middlewares, guards }`.
+  Métodos sem decorator do Sashiko não podem ser expostos.
+- `app.mount(x, { auto: false })` registra só as rotas manuais.
+- `MountedGroup`, retornado por `app.mount()`: tem os verbos do mapeamento manual e os métodos do app
+  (`mount`, `use`, `onError`, `listen`, `close`, `callback`, `inject`, `log`).
+
+### Alterado
+- **Incompatível:** `@Use` passou a se chamar `@Middlewares`, e `@UseGuards` passou a se chamar `@Guards`.
+  Agora os nomes são os mesmos das opções `middlewares` e `guards`.
+- **Incompatível:** `only` e `except` recebem um seletor em vez de nomes em texto:
+  `only: (r) => [r.list, r.getUser]`.
+- **Incompatível:** `app.mount()` retorna um `MountedGroup` em vez do app. Quem só encadeia
+  `mount`/`use`/`listen` não precisa mudar nada.
+
 ## [0.1.0] - 2026-11-06
 
 Primeira versão pública.
@@ -87,5 +106,6 @@ Primeira versão pública.
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 
-[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.1.0...HEAD
+[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/code-cfernandes/sashiko/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/code-cfernandes/sashiko/releases/tag/v0.1.0

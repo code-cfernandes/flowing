@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { compileRoutes, type MountOptions, type RouterRef } from './compiler.ts';
+import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
+import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
 import '../shims/symbol-metadata.ts';
@@ -100,27 +101,33 @@ export class SashikoApp {
    * ```ts
    * app
    *   .mount(HealthRoutes)
-   *   .mount(new UserRoutes(repo), { prefix: '/v2/users', middlewares: [auth], except: ['remove'] });
+   *   .mount(new UserRoutes(repo), { prefix: '/v2/users', middlewares: [auth], except: (r) => [r.remove] })
+   *   .get('/legacy/:id', (r) => r.getUser);      // mapeamento manual (F-30)
    * ```
    */
-  mount<T extends object>(ref: new () => T, options?: MountOptions<T>): this;
-  mount<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: MountOptions<T>): this;
-  mount(ref: RouterRef, options: MountOptions = {}): this {
-    const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
-    for (const route of compileRoutes(ref, options)) {
-      if (this.opts.requireSchemas) assertSchemas(name, route);
-      try {
-        this.router.on(route.method, route.path, route);
-      } catch (err) {
-        throw new Error(
-          `[sashiko] app.mount(${name}): ${route.method} ${route.path} is already registered. ` +
-          `Use a different "prefix" to mount the same class twice.`,
-          { cause: err },
-        );
-      }
-    }
-    return this;
+  mount<T extends object>(ref: new () => T, options?: MountOptions<T>): MountedGroup<T>;
+  mount<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: MountOptions<T>): MountedGroup<T>;
+  mount(ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
+    const group = createGroup(ref, options);
+    for (const route of compileAutoRoutes(group)) this.addRoute(group.name, route);
+    return new MountedGroup(this, group, (g, method, path, select, opts) =>
+      this.addRoute(g.name, compileManualRoute(g, method, path, select, opts)),
+    );
   }
+
+  private addRoute(owner: string, route: CompiledRoute): void {
+    if (this.opts.requireSchemas) assertSchemas(owner, route);
+    try {
+      this.router.on(route.method, route.path, route);
+    } catch (err) {
+      throw new Error(
+        `[sashiko] app.mount(${owner}): ${route.method} ${route.path} is already registered. ` +
+        `Use a different "prefix" to mount the same class twice.`,
+        { cause: err },
+      );
+    }
+  }
+
 
 
   async handle(ctx: Context): Promise<void> {
@@ -144,7 +151,7 @@ export class SashikoApp {
 
       ctx.params = match.params;
 
-      // F-01: @Use → @UseGuards → validação → handler. Guards antes da validação, para que
+      // F-01: middlewares → guards → validação → handler. Guards antes da validação, para que
       // quem não tem acesso receba 401/403 e não um 400 que revele a estrutura esperada.
       const route = match;
       const pipeline: Middleware[] = [...route.middlewares];

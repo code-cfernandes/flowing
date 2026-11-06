@@ -17,28 +17,30 @@ function register(decorator: string, pick: 'middlewares' | 'guards', items: read
 }
 
 /**
- * Middlewares por classe ou por rota (F-01). Rodam depois dos globais e antes dos guards.
+ * Middlewares para todas as rotas da classe ou para um método (F-01, F-30). Rodam depois dos globais
+ * e dos `middlewares` do `mount`, e antes dos guards. É o mesmo nome da opção `middlewares`.
  *
  * ```ts
- * @Use(rateLimit({ max: 10 }))          // todas as rotas da classe
+ * @Middlewares(rateLimit({ max: 10 }))   // todas as rotas da classe
  * @Router('/auth')
  * class AuthRoutes {
- *   @Use(audit) @Post('/login') login() {}
+ *   @Middlewares(audit) @Post('/login') login() {}
  * }
  * ```
  */
-export function Use(...middlewares: Middleware[]) {
-  return register('Use', 'middlewares', middlewares);
+export function Middlewares(...middlewares: Middleware[]) {
+  return register('Middlewares', 'middlewares', middlewares);
 }
 
 /**
- * Guards por classe ou por rota (F-01). Rodam antes da validação; `false` responde 403.
+ * Guards para todas as rotas da classe ou para um método (F-01, F-30). Rodam antes da validação;
+ * `false` responde 403. É o mesmo nome da opção `guards`.
  *
  * ```ts
  * const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';
- * @UseGuards(isAdmin) @Delete('/:id') remove() {}
+ * @Guards(isAdmin) @Delete('/:id') remove() {}
  * ```
  */
-export function UseGuards(...guards: Guard[]) {
-  return register('UseGuards', 'guards', guards);
+export function Guards(...guards: Guard[]) {
+  return register('Guards', 'guards', guards);
 }

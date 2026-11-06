@@ -39,7 +39,10 @@ app
   .mount(HealthRoutes)
   .mount(new AdminRoutes(users), { guards: [apiKeyGuard] })          // toda a área /admin exige a API key
   .mount(userRoutes)
-  .mount(userRoutes, { prefix: '/public/users', only: ['listUsers', 'getUser'] }); // vitrine só leitura, mesma instância
+  // Mapeamento manual (F-30): paths que a classe não declara, relativos ao prefixo do grupo
+  .get('/export.csv', (r) => r.exportCsv, { guards: [apiKeyGuard] }) // exige a API key só aqui
+  .get('/by-id/:id', (r) => r.getUser)                                // alias legado de GET /users/:id
+  .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser] }); // vitrine só leitura, mesma instância
 
 await app.listen({ port: PORT });
 

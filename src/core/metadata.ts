@@ -16,9 +16,9 @@ export interface MethodMetadata {
   path?: string;
   schemas: RouteSchemas;
   handlerName?: string | symbol;
-  /** `@Use` no método (F-01). */
+  /** `@Middlewares` no método (F-01). */
   middlewares: Middleware[];
-  /** `@UseGuards` no método (F-01). */
+  /** `@Guards` no método (F-01). */
   guards: Guard[];
 }
 
@@ -27,9 +27,9 @@ export interface RouterMetadata {
   isRouter: boolean;
   prefix: string;
   methods: Map<string | symbol, MethodMetadata>;
-  /** `@Use` na classe: valem para todas as rotas da classe (F-01). */
+  /** `@Middlewares` na classe: valem para todas as rotas da classe (F-01). */
   middlewares: Middleware[];
-  /** `@UseGuards` na classe (F-01). */
+  /** `@Guards` na classe (F-01). */
   guards: Guard[];
 }
 
