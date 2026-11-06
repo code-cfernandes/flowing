@@ -49,6 +49,9 @@ title "B-12 · payload acima de 64KB (413 + Connection: close)"
 BIG=$(head -c 70000 /dev/zero | tr '\0' a)
 curl -s -D - -o /dev/null -XPOST "$BASE/users" "${JSON[@]}" -d "{\"name\":\"$BIG\"}" | grep -iE '^HTTP|^connection'
 
+title "F-06 · cada resposta traz X-Request-Id (reaproveitado se enviado)"
+HDR_FILTER='^x-request-id' hdrs "$BASE/health" -H 'x-request-id: meu-trace-123'
+
 title "F-08 · HEAD (sem corpo) e OPTIONS automático"
 HDR_FILTER='^HTTP|^content-length|^allow' hdrs -I "$BASE/users/$ID"
 HDR_FILTER='^HTTP|^allow' hdrs -XOPTIONS "$BASE/users/$ID"
@@ -68,17 +71,18 @@ HDR_FILTER='^HTTP|^access-control' hdrs -XOPTIONS "$BASE/users" \
   -H 'origin: https://atacante.com' -H 'access-control-request-method: POST'
 echo "(nenhum header access-control acima = bloqueado pelo navegador)"
 
-title "B-09 · herança: /health na base e em /admin/health"
+title "B-09 + F-01 · herança: /health público; /admin/health herda a rota e o guard"
 req "$BASE/health"
 req "$BASE/admin/health"
+req "$BASE/admin/health" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 
-title "B-03 · header obrigatório ausente (400) / chave errada (401) / ok (200)"
+title "F-01 · guard: sem chave (401) / chave errada (401) / ok (200)"
 req "$BASE/admin/stats"
 req "$BASE/admin/stats" -H 'x-api-key: chave-errada'
 req "$BASE/admin/stats" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 
 title "S-05 · erro interno não vaza detalhes (o log do servidor mostra o erro real)"
-req "$BASE/admin/boom"
+req "$BASE/admin/boom" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 
 title "CRUD · remover (204) e confirmar (404)"
 req -XDELETE "$BASE/users/$ID"

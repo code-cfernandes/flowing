@@ -19,13 +19,15 @@ Variáveis de ambiente:
 | `ADMIN_API_KEY` | `dev-admin-key` | Chave exigida em `/admin/stats` |
 | `NODE_ENV=production` | — | Liga o HSTS |
 | `DEBUG_ERRORS=1` | — | Loga os erros no `onError` |
+| `LOG_LEVEL=debug` | `info` | Nível do logger (mostra o `@timer()`) |
 
 ## Estrutura
 
 ```
 server.ts                  configuração do app (segurança, CORS, rate limit, timeouts)
 src/controller/User.ts     CRUD /users
-src/controller/Admin.ts    /health (base) e /admin (herda /health)
+src/controller/Admin.ts    /health (base) e /admin (herda /health), protegido por guard
+src/guards/api-key.ts      guard que exige o header x-api-key
 src/schema/                schemas TypeBox
 src/types/                 tipos derivados dos schemas
 src/store/                 UserRepository em memória, injetado nos controllers
@@ -42,7 +44,7 @@ src/store/                 UserRepository em memória, injetado nos controllers
 | DELETE | `/users/:id` | 204 |
 | POST | `/users/:id/greet` | Handler async medido com `@timer()` |
 | GET | `/health`, `/admin/health` | Herança de controllers |
-| GET | `/admin/stats` | Header obrigatório (`x-api-key`) validado por schema |
+| GET | `/admin/stats` | Guard `apiKeyGuard` (401) e header documentado por schema |
 | GET | `/admin/boom` | Erro interno sem vazar detalhes ao cliente |
 
 ## Cenários cobertos pelo `scenarios.sh`
@@ -51,7 +53,10 @@ src/store/                 UserRepository em memória, injetado nos controllers
 |---|---|
 | B-01 | JSON malformado → 400 |
 | B-02 | Erros de validação com `details` por campo |
-| B-03 | Header obrigatório ausente → 400 |
+| F-01 | `@UseGuards` em `/admin`: sem chave → 401, inclusive nas rotas herdadas |
+| F-02 | Handlers com `Context<typeof schemas>`, sem casts |
+| F-06 | `X-Request-Id` em toda resposta; logs com `reqId` |
+| F-09 | `await app.listen()` e `app.close()` no shutdown |
 | B-06 | Body sem coerção de tipos; query com coerção |
 | B-05 | `POST /users` responde 201 sem `ctx.status()`, pelo único 2xx do schema |
 | B-09 | `/admin/health` herdado de `HealthController` |

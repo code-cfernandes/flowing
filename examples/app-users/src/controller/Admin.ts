@@ -1,9 +1,8 @@
 import { Type } from "@sinclair/typebox";
-import { type Context, Controller, Get, Schema, unauthorized } from "picodecor";
+import { Controller, Get, Schema, UseGuards } from "picodecor";
+import { apiKeyGuard } from "../guards/api-key.ts";
 import { AdminHeaders, HealthSchema, StatsSchema } from "../schema/AdminSchema.ts";
 import type { UserRepository } from "../store/users.ts";
-
-const API_KEY = process.env.ADMIN_API_KEY ?? 'dev-admin-key';
 
 // Controller base: as subclasses herdam GET /health com o próprio prefixo (B-09)
 @Controller('/')
@@ -15,17 +14,18 @@ export class HealthController {
   }
 }
 
+// Todas as rotas de /admin exigem a API key, inclusive as herdadas (F-01)
+@UseGuards(apiKeyGuard)
 @Controller('/admin')
 export class AdminController extends HealthController {
   constructor(private readonly users: UserRepository) {
     super();
   }
 
-  // Header obrigatório validado por schema (B-03)
+  // Header documentado e validado por schema (B-03); a autorização em si é do guard
   @Get('/stats')
   @Schema({ headers: AdminHeaders, response: { 200: StatsSchema } })
-  stats(ctx: Context) {
-    if (ctx.req.headers['x-api-key'] !== API_KEY) throw unauthorized('invalid api key');
+  stats() {
     return { users: this.users.count(), memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024) };
   }
 

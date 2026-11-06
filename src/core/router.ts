@@ -1,18 +1,22 @@
 // src/core/router.ts
 import Router from 'find-my-way';
-import type { RouteSchemas } from './metadata.ts';
+import type { Middleware } from './compose.ts';
 import type { Context } from './context.ts';
+import type { Guard } from './guard.ts';
+import type { RouteSchemas } from './metadata.ts';
 
 export type Handler = (ctx: Context) => unknown | Promise<unknown>;
 
-export interface RouteMatch {
+/** Tudo o que o app precisa para executar uma rota. */
+export interface RouteDefinition {
   handler: Handler;
-  params: Record<string, string>;
   schemas: RouteSchemas;
+  middlewares: readonly Middleware[];
+  guards: readonly Guard[];
 }
 
-interface Store {
-  handler: Handler;
+export interface RouteMatch extends RouteDefinition {
+  params: Record<string, string>;
 }
 
 type Method = Router.HTTPMethod;
@@ -23,12 +27,9 @@ const PROBE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE
 
 export class PicoDecorRouter {
   private inner = Router({ ignoreTrailingSlash: true });
-  private schemasByHandler = new WeakMap<Handler, RouteSchemas>();
 
-  on(method: string, path: string, handler: Handler, schemas: RouteSchemas = {}): void {
-    this.schemasByHandler.set(handler, schemas);
-    const store: Store = { handler };
-    this.inner.on(method as Method, path, NOOP, store);
+  on(method: string, path: string, route: RouteDefinition): void {
+    this.inner.on(method as Method, path, NOOP, route);
   }
 
   find(method: string, path: string): RouteMatch | null {
@@ -37,12 +38,7 @@ export class PicoDecorRouter {
     const found = this.inner.find(method as Method, path)
       ?? (method === 'HEAD' ? this.inner.find('GET', path) : null);
     if (!found) return null;
-    const { handler } = found.store as Store;
-    return {
-      handler,
-      params: found.params as Record<string, string>,
-      schemas: this.schemasByHandler.get(handler) ?? {},
-    };
+    return { ...(found.store as RouteDefinition), params: found.params as Record<string, string> };
   }
 
   /**

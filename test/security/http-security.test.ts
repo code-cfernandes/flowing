@@ -174,13 +174,14 @@ describe('S-06 · DoS', () => {
   });
 
   it('aplica timeouts padrão no servidor', async () => {
-    const server = createApp().listen(0);
+    const app = createApp();
+    const server = await app.listen(0);
     try {
       assert.equal(server.requestTimeout, 30_000);
       assert.equal(server.headersTimeout, 10_000);
       assert.equal(server.keepAliveTimeout, 5_000);
     } finally {
-      server.close();
+      await app.close();
     }
   });
 });

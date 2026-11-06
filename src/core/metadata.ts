@@ -1,4 +1,6 @@
 // src/core/metadata.ts
+import type { Middleware } from './compose.ts';
+import type { Guard } from './guard.ts';
 export const CONTROLLER_METADATA = Symbol.for('pico:controller');
 
 export interface RouteSchemas {
@@ -14,6 +16,10 @@ export interface MethodMetadata {
   path?: string;
   schemas: RouteSchemas;
   handlerName?: string | symbol;
+  /** `@Use` no método (F-01). */
+  middlewares: Middleware[];
+  /** `@UseGuards` no método (F-01). */
+  guards: Guard[];
 }
 
 export interface ControllerMetadata {
@@ -21,6 +27,10 @@ export interface ControllerMetadata {
   isController: boolean;
   prefix: string;
   methods: Map<string | symbol, MethodMetadata>;
+  /** `@Use` na classe: valem para todas as rotas do controller (F-01). */
+  middlewares: Middleware[];
+  /** `@UseGuards` na classe (F-01). */
+  guards: Guard[];
 }
 
 /**
@@ -40,8 +50,14 @@ export function getOrCreateMetadata(meta: DecoratorMetadataObject): ControllerMe
     isController: false,
     prefix: '',
     methods: new Map(
-      [...(inherited?.methods ?? [])].map(([name, m]) => [name, { ...m, schemas: { ...m.schemas } }]),
+      [...(inherited?.methods ?? [])].map(([name, m]) => [
+        name,
+        { ...m, schemas: { ...m.schemas }, middlewares: [...m.middlewares], guards: [...m.guards] },
+      ]),
     ),
+    // A subclasse herda os middlewares/guards de classe do pai e pode acrescentar os seus.
+    middlewares: [...(inherited?.middlewares ?? [])],
+    guards: [...(inherited?.guards ?? [])],
   };
   meta[CONTROLLER_METADATA] = own;
   return own;
@@ -84,7 +100,7 @@ export function metadataFor(context: unknown, decorator: string): ControllerMeta
 export function getOrCreateMethod(meta: ControllerMetadata, name: string | symbol): MethodMetadata {
   let m = meta.methods.get(name);
   if (!m) {
-    m = { schemas: {}, handlerName: name };
+    m = { schemas: {}, handlerName: name, middlewares: [], guards: [] };
     meta.methods.set(name, m);
   }
   return m;

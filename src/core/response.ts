@@ -41,7 +41,7 @@ export function sendError(ctx: Context, err: unknown): void {
   const status = httpErr?.status ?? 500;
   const exposed = httpErr?.expose === true;
 
-  if (!exposed) console.error(`[picodecor] ${ctx.method} ${ctx.path} → ${status}`, err);
+  if (!exposed) ctx.log.error({ err, method: ctx.method, path: ctx.path, status }, 'request failed');
   if (ctx.res.writableEnded) return;
   if (ctx.res.headersSent) return void ctx.res.end();
 

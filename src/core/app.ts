@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import http from 'node:http';
+import { performance } from 'node:perf_hooks';
 import { compileController, type ControllerRef } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
@@ -7,7 +9,17 @@ import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
 import { sendError, sendResult } from './response.ts';
 import { PicoDecorRouter } from './router.ts';
+import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
+import { guardsMiddleware } from './guard.ts';
+import { consoleLogger, silentLogger, type Logger } from './logger.ts';
 import { buildSecurityHeaders, type SecurityHeadersOptions } from '../middlewares/security-headers.ts';
+
+export interface ListenOptions {
+  /** Padrão: 3000. Use 0 para uma porta livre aleatória. */
+  port?: number;
+  /** Padrão: `127.0.0.1`. Use `0.0.0.0` para aceitar conexões externas (ex.: em containers). */
+  host?: string;
+}
 
 export interface ServerTimeouts {
   /** Tempo máximo para receber a requisição inteira. Padrão: 30s. */
@@ -32,7 +44,27 @@ export interface AppOptions {
   requireSchemas?: boolean;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
   queryMaxKeys?: number;
+  /** Logger compatível com pino. Padrão: `consoleLogger()`; `false` desliga (F-06). */
+  logger?: Logger | false;
+  /** Loga cada requisição concluída (método, path, status, duração) em nível `info`. Padrão: `false`. */
+  logRequests?: boolean;
+  /** Request id (F-06). */
+  requestId?: RequestIdOptions;
 }
+
+export interface RequestIdOptions {
+  /** Header lido da requisição e devolvido na resposta. Padrão: `x-request-id`. `false` não envia. */
+  header?: string | false;
+  /**
+   * Reaproveita o id recebido no header (útil atrás de um gateway). Padrão: `true`.
+   * O valor só é aceito se tiver até 128 caracteres de `[A-Za-z0-9._:-]`, para evitar log injection.
+   */
+  trustIncoming?: boolean;
+  /** Gerador de ids. Padrão: `crypto.randomUUID()`. */
+  generate?: () => string;
+}
+
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export class PicoDecorApp {
   private middlewares: Middleware[] = [];
@@ -40,9 +72,13 @@ export class PicoDecorApp {
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
+  private server: http.Server | undefined;
+  /** Logger do app (F-06). Use para logs fora de uma requisição. */
+  readonly log: Logger;
 
   constructor(opts: AppOptions = {}) {
     this.opts = opts;
+    this.log = opts.logger === false ? silentLogger : (opts.logger ?? consoleLogger());
     if (opts.securityHeaders !== false) this.applySecurityHeaders = buildSecurityHeaders(opts.securityHeaders);
     this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024));
   }
@@ -63,7 +99,7 @@ export class PicoDecorApp {
       const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
       for (const route of compileController(ref)) {
         if (this.opts.requireSchemas) assertSchemas(name, route);
-        this.router.on(route.method, route.path, route.handler, route.schemas);
+        this.router.on(route.method, route.path, route);
       }
     }
     return this;
@@ -74,7 +110,7 @@ export class PicoDecorApp {
     this.applySecurityHeaders?.(ctx.res);
     try {
       await compose(ctx, this.middlewares);
-      if (ctx.res.writableEnded) return;
+      if (ctx.sent) return;
 
       const match = this.router.find(ctx.method, ctx.path);
       if (!match) {
@@ -90,12 +126,17 @@ export class PicoDecorApp {
 
       ctx.params = match.params;
 
-      validateRequest(ctx, match.schemas);
-
-      const result = await match.handler(ctx);
-      if (ctx.res.writableEnded) return;
-
-      sendResult(ctx, match.schemas.response, result);
+      // F-01: @Use → @UseGuards → validação → handler. Guards antes da validação, para que
+      // quem não tem acesso receba 401/403 e não um 400 que revele a estrutura esperada.
+      const route = match;
+      const pipeline: Middleware[] = [...route.middlewares];
+      if (route.guards.length > 0) pipeline.push(guardsMiddleware(route.guards));
+      pipeline.push(async () => {
+        validateRequest(ctx, route.schemas);
+        const result = await route.handler(ctx);
+        if (!ctx.sent) sendResult(ctx, route.schemas.response, result);
+      });
+      await compose(ctx, pipeline);
     } catch (err) {
       await this.runErrorHandlers(err, ctx);
     }
@@ -110,7 +151,7 @@ export class PicoDecorApp {
       try {
         await h(err, ctx);
       } catch (handlerErr) {
-        console.error(`[picodecor] onError handler failed on ${ctx.method} ${ctx.path}`, handlerErr);
+        ctx.log.error({ err: handlerErr, method: ctx.method, path: ctx.path }, 'onError handler failed');
         break;
       }
       if (ctx.res.writableEnded) return;
@@ -118,27 +159,90 @@ export class PicoDecorApp {
     sendError(ctx, err);
   }
 
-  listen(port: number, host = '127.0.0.1'): http.Server {
-    const server = http.createServer((req, res) => {
+  /**
+   * Listener `(req, res)` do app, para usar com qualquer servidor do Node:
+   * `https.createServer(opts, app.callback())`, `http2` em modo compat, testes etc. (F-09).
+   */
+  callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void {
+    const rid = this.opts.requestId ?? {};
+    const header = rid.header === false ? undefined : (rid.header ?? 'x-request-id').toLowerCase();
+    const trust = rid.trustIncoming ?? true;
+    const generate = rid.generate ?? (() => randomUUID());
+
+    return (req, res) => {
+      const started = performance.now();
+      const incoming = header ? req.headers[header] : undefined;
+      const id = trust && typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming) ? incoming : generate();
+      if (header) res.setHeader(header, id);
+
       // Última barreira (B-08): nada que aconteça numa requisição pode virar unhandledRejection.
       const fail = (err: unknown) => {
-        console.error('[picodecor] unhandled error while handling request', err);
+        this.log.error({ err, reqId: id, method: req.method, url: req.url }, 'unhandled error while handling request');
         if (!res.headersSent) res.statusCode = 500;
         if (!res.writableEnded) res.end();
       };
       try {
-        this.handle(new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys })).catch(fail);
+        const ctx = new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log });
+        if (this.opts.logRequests) {
+          res.once('finish', () => {
+            const ms = Math.round((performance.now() - started) * 100) / 100;
+            ctx.log.info({ method: ctx.method, path: ctx.path, status: res.statusCode, ms }, 'request completed');
+          });
+        }
+        this.handle(ctx).catch(fail);
       } catch (err) {
         fail(err);
       }
-    });
+    };
+  }
+
+  /** Sobe o servidor HTTP e resolve quando ele está aceitando conexões (F-09). */
+  async listen(options: number | ListenOptions = {}): Promise<http.Server> {
+    if (this.server) throw new Error('[picodecor] app is already listening; call app.close() first.');
+    const { port = 3000, host = '127.0.0.1' } = typeof options === 'number' ? { port: options } : options;
+
+    const server = http.createServer(this.callback());
     const t = this.opts.timeouts ?? {};
     server.requestTimeout = t.requestTimeout ?? 30_000;
     server.headersTimeout = Math.min(t.headersTimeout ?? 10_000, server.requestTimeout || Infinity);
     server.keepAliveTimeout = t.keepAliveTimeout ?? 5_000;
-    server.listen(port, host);
+
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, () => {
+        server.off('error', reject);
+        resolve();
+      });
+    });
+    this.server = server;
     return server;
   }
+
+  /**
+   * Para de aceitar conexões, encerra as ociosas e espera as requisições em andamento terminarem.
+   * Depois de `graceMs`, força o fechamento das restantes.
+   */
+  async close(graceMs = 10_000): Promise<void> {
+    const server = this.server;
+    if (!server) return;
+    this.server = undefined;
+    const force = setTimeout(() => server.closeAllConnections(), graceMs);
+    force.unref();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+        server.closeIdleConnections();
+      });
+    } finally {
+      clearTimeout(force);
+    }
+  }
+
+  /** Executa uma requisição em memória, sem rede. Ideal para testes (F-09). */
+  inject(opts: InjectOptions | string): Promise<InjectResponse> {
+    return inject(this.callback(), typeof opts === 'string' ? { url: opts } : opts);
+  }
+
 }
 
 export function createApp(opts?: AppOptions): PicoDecorApp {

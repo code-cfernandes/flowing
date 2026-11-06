@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1 # manter igual a devEngines.packageManager
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:coverage # falha abaixo dos limites mínimos (F-19)
+      - run: pnpm build
+
+  typescript-5:
+    # R-03: garante compatibilidade com o TypeScript 5.x estável além do 7
+    name: TypeScript 5.9
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --package=typescript@5.9 dlx tsc --noEmit -p tsconfig.json
+      - run: pnpm --package=typescript@5.9 dlx tsc -p tsconfig.build.json
+
+  audit:
+    # S-12: vulnerabilidades nas dependências de produção
+    name: Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level=high
+
+  package:
+    # R-07: o pacote publicado só contém dist/, LICENSE, README e package.json
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Pacote importa em Node puro (sem tsx)
+        run: node -e "import('./dist/index.js').then((m) => { if (!m.createApp) process.exit(1) })"
+      - name: Conteúdo do tarball
+        run: |
+          pnpm pack --dry-run 2>&1 | tee pack.txt
+          if grep -qE '(^|/)(src|test|examples|SPECS)/' pack.txt; then echo "::error::arquivos indevidos no pacote"; exit 1; fi

@@ -6,11 +6,24 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 Enquanto estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões _minor_.
 
-Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando houver.
+Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores internos de acompanhamento.
 
 ## [Não lançado]
 
 ### Adicionado
+- `app.listen()` assíncrono (aceita `{ port, host }`), `app.close()` com encerramento gracioso,
+  `app.callback()` para servidores próprios e `app.inject()` para requisições em memória, sem rede. (F-09)
+- Helpers `ctx.header()`, `ctx.get()`, `ctx.text()`, `ctx.send()` (string, Buffer ou stream) e
+  `ctx.redirect()`; `ctx.sent` indica se a resposta já foi enviada. (F-10)
+- Decorators `@Use()` e `@UseGuards()` para middlewares e guards por controller ou por rota, com herança;
+  tipo `Guard`; interface `ContextState`, extensível por declaration merging. (F-01)
+- Logger plugável compatível com pino (`AppOptions.logger`, `consoleLogger()`, `silentLogger`),
+  `ctx.log` com `reqId`, `app.log`, `logRequests` e request id (`ctx.id`, header `X-Request-Id`,
+  `AppOptions.requestId`). (F-06)
+- `Context<S>` genérico: `ctx.params`, `ctx.query` e `ctx.body` tipados a partir dos schemas, mais os
+  utilitários `InferSchema`, `InferParams`, `InferQuery`, `InferBody`, `InferHeaders` e `InferResponse`. (F-02)
+- CI no GitHub Actions: Node 22/24/26, TypeScript 5.9, `pnpm audit` e verificação do pacote. (F-22)
+- README com guia de uso, segurança, referência de opções e princípios. (F-23)
 - Estrutura do framework: `src/core` (runtime), `src/decorators`, `src/schema` (validação e serialização),
   `src/shims` e ponto de entrada público `src/index.ts`.
 - Exemplo de CRUD em `examples/users`, importando o framework pelo alias `picodecor`.
@@ -33,7 +46,7 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - `ctx.ip`.
 - Mensagens de erro claras quando os decorators são usados com `experimentalDecorators` ou sem
   `Symbol.metadata`.
-- Arquivo `LICENSE` (ISC); `package.json` com `engines.node >=20.11`, `sideEffects`, `keywords` e
+- Arquivo `LICENSE` (ISC); `package.json` com `engines.node`, `sideEffects`, `keywords` e
   `prepublishOnly`.
 - `AppOptions.queryMaxKeys` limita os pares lidos da query string (padrão 1000). (S-06)
 - `app.controllers()` aceita instâncias, para injetar dependências pelo construtor. (B-10)
@@ -44,6 +57,11 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 ### Alterado
 - `Symbol.metadata` agora vem do shim `src/shims/symbol-metadata.ts` (antigo `core/polyfill.ts`).
 - A metadata de controllers foi movida para `src/core/metadata.ts`, para que o core não dependa de `decorators/`.
+- **Incompatível:** `app.listen()` agora retorna `Promise<http.Server>` e recebe `number | { port, host }`;
+  use `await app.listen(...)` e `app.close()` no lugar de `server.close()`. (F-09)
+- **Incompatível:** erros internos passam pelo logger, no formato `{ err, reqId, method, path, status }`,
+  em vez de `console.error(mensagem, erro)`. (F-06)
+- **Incompatível:** `engines.node` passou a ser `>=22` (o Node 20 está em fim de vida).
 - **Incompatível:** o decorator `cors` foi removido em favor do middleware `cors()`. (B-04)
 - **Incompatível:** `timer` virou uma fábrica: use `@timer()` em vez de `@timer`. (B-04)
 - O header `Allow` em respostas 405 passa a incluir `HEAD` e `OPTIONS`.

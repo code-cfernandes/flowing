@@ -45,7 +45,8 @@ describe('B-05 · status x schema de resposta', () => {
     const text = await res.text();
     assert.doesNotMatch(text, /password/);
     assert.equal(errorLog.mock.callCount(), 1);
-    assert.match(String(errorLog.mock.calls[0]!.arguments[1]), /no response schema for status 202/);
+    const data = errorLog.mock.calls[0]!.arguments[1] as { err: Error };
+    assert.match(data.err.message, /no response schema for status 202/);
   });
 
   it('resposta sem corpo dispensa schema', async () => {

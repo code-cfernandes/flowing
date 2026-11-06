@@ -35,7 +35,7 @@
     "./dist/shims/*.js"
   ],
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch examples/app-users/server.ts",

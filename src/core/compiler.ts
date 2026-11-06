@@ -1,13 +1,11 @@
-import { readOwnMetadata, type RouteSchemas } from './metadata.ts';
+import { readOwnMetadata } from './metadata.ts';
 import type { Context } from './context.ts';
-import type { Handler } from './router.ts';
+import type { RouteDefinition } from './router.ts';
 import { joinPaths } from '../utils/path.ts';
 
-export interface CompiledRoute {
+export interface CompiledRoute extends RouteDefinition {
   method: string;
   path: string;
-  handler: Handler;
-  schemas: RouteSchemas;
 }
 
 /** Classe com construtor sem argumentos **ou** instância já construída (B-10). */
@@ -38,6 +36,9 @@ export function compileController(ref: ControllerRef): CompiledRoute[] {
       path: joinPaths(meta.prefix, methodMeta.path),
       handler: (ctx: Context) => fn.call(instance, ctx),
       schemas: methodMeta.schemas,
+      // Ordem: classe → método (F-01)
+      middlewares: [...meta.middlewares, ...methodMeta.middlewares],
+      guards: [...meta.guards, ...methodMeta.guards],
     });
   }
 

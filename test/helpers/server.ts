@@ -6,13 +6,12 @@ export interface TestServer {
   close(): Promise<void>;
 }
 
-/** Sobe o app numa porta efêmera (0) para testes de integração. */
+/**
+ * Sobe o app numa porta efêmera (0) para testes que precisam de rede real
+ * (sockets crus, timeouts, keep-alive). Para o resto, prefira `app.inject()`.
+ */
 export async function startServer(app: PicoDecorApp): Promise<TestServer> {
-  const server = app.listen(0);
-  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const server = await app.listen(0);
   const { port } = server.address() as AddressInfo;
-  return {
-    url: `http://127.0.0.1:${port}`,
-    close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
-  };
+  return { url: `http://127.0.0.1:${port}`, close: () => app.close() };
 }

@@ -116,8 +116,10 @@ describe('tratamento de erros', () => {
       errorLog.mock.resetCalls();
       await get('/t/plain-error');
       assert.equal(errorLog.mock.callCount(), 1);
-      const logged = errorLog.mock.calls[0]!.arguments.find((a) => a instanceof Error) as Error;
-      assert.match(logged.message, /SELECT \* FROM users/);
+      const data = errorLog.mock.calls[0]!.arguments[1] as { err: Error; status: number; reqId: string };
+      assert.match(data.err.message, /SELECT \* FROM users/);
+      assert.equal(data.status, 500);
+      assert.ok(data.reqId, 'o log traz o request id');
     });
   });
 });

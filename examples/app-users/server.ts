@@ -1,4 +1,4 @@
-import { cors, createApp, rateLimit } from "picodecor";
+import { consoleLogger, cors, createApp, rateLimit } from "picodecor";
 import { AdminController, HealthController } from "./src/controller/Admin.ts";
 import { UserController } from "./src/controller/User.ts";
 import { UserRepository } from "./src/store/users.ts";
@@ -17,6 +17,9 @@ const app = createApp({
   securityHeaders: { strictTransportSecurity: process.env.NODE_ENV === 'production' },
   // Timeouts contra Slowloris e conexões penduradas (S-06)
   timeouts: { requestTimeout: 15_000, headersTimeout: 5_000 },
+  // Logger compatível com pino (F-06): troque por `pino()` em produção. Cada resposta leva X-Request-Id.
+  logger: consoleLogger({ level: process.env.LOG_LEVEL === 'debug' ? 'debug' : 'info' }),
+  logRequests: true,
 });
 
 app
@@ -26,18 +29,19 @@ app
   .use(rateLimit({ max: Number(process.env.RATE_LIMIT ?? 100), windowMs: 60_000 }))
   .onError((err, ctx) => {
     // Ponto para enviar a um APM; se este handler falhar, o app não cai (B-08)
-    if (process.env.DEBUG_ERRORS) console.warn(`[onError] ${ctx.method} ${ctx.path}`, err);
+    if (process.env.DEBUG_ERRORS) ctx.log.warn({ err }, 'onError hook');
   })
   // Classe sem dependências pode ir direto; com dependências, passe a instância (B-10)
   .controllers([HealthController, new AdminController(users), new UserController(users)]);
 
-const server = app.listen(PORT);
+await app.listen({ port: PORT });
 
 // ---------- Graceful shutdown ----------
+// app.close() para de aceitar conexões e espera as requisições em andamento (F-09)
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    server.close(() => process.exit(0));
+    void app.close().then(() => process.exit(0));
   });
 }
 
-console.log(`PicoDecor running at http://127.0.0.1:${PORT}`);
+app.log.info({ port: PORT }, 'PicoDecor running');
