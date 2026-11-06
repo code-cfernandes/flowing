@@ -12,6 +12,7 @@ e a _patch_ só com correções.
 ## [0.12.1] - 2026-11-06
 
 ### Corrigido
+
 - `ctx.signal` não era cancelado se o cliente desconectasse antes do primeiro acesso a ele (por exemplo,
   durante um `await` anterior), porque o evento de fechamento já tinha passado. Agora nasce cancelado.
 - `If-Range` seguia regras mais frouxas que a RFC 9110. Um ETag (os nossos são fracos) autorizava resposta
@@ -24,6 +25,13 @@ e a _patch_ só com correções.
   claro, em vez de uma falha interna.
 - `static()` não existia no retorno de `mount()`: `app.mount(X).static(...)` falhava em JavaScript (em
   TypeScript, nem compilava). Agora existe e respeita o escopo do grupo.
+- `static()` não funcionava com `requireSchemas: true`, que exigia schema de resposta das rotas de arquivo. As
+  rotas internas agora ficam fora dessa exigência.
+- `ctx.sendFile()` sem `await`/`return` no handler respondia 200 vazio, e um erro (404, por exemplo) virava um
+  `unhandledRejection`, que derruba o processo no Node. Agora o app aguarda o envio pendente, e o erro passa
+  pelo tratamento normal.
+- `inject()` não emitia `finish`/`close`. Com isso, `onResponse` e `logRequests` não rodavam em testes, e cada
+  `inject()` ficava para sempre entre as respostas em andamento do app (vazamento de memória em suítes longas).
 
 ## [0.12.0] - 2026-11-06
 

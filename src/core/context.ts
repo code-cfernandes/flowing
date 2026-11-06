@@ -15,6 +15,8 @@ import { sendFile, type SendFileOptions } from '../server/static.ts';
 export const kRawSend = Symbol('sashiko.rawSend');
 /** @internal Cancela o `ctx.signal` (encerramento do app) (F-13). */
 export const kAbort = Symbol('sashiko.abort');
+/** @internal Envio de arquivo em andamento, que o app aguarda mesmo sem `await` no handler (F-13). */
+export const kPendingSend = Symbol('sashiko.pendingSend');
 /** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
 export const kBindResponse = Symbol('sashiko.bindResponse');
 
@@ -281,9 +283,16 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * Com `root`, o path é relativo e não pode sair dela; sem `root`, precisa ser absoluto.
    * Arquivo inexistente responde 404.
    */
-  async sendFile(path: string, opts?: SendFileOptions): Promise<void> {
-    await sendFile(this as unknown as Context, path, opts);
+  sendFile(path: string, opts?: SendFileOptions): Promise<void> {
+    // O app aguarda este envio mesmo que o handler esqueça o `await`/`return`: sem isso, a resposta sairia
+    // vazia e um erro (404, por exemplo) viraria um unhandledRejection.
+    const pending = sendFile(this as unknown as Context, path, opts);
+    this[kPendingSend] = pending;
+    return pending;
   }
+
+  /** @internal */
+  [kPendingSend]: Promise<void> | undefined;
   private readonly onSendHooks: readonly OnSendHook[];
 
   /**
