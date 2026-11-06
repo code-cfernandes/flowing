@@ -35,6 +35,26 @@ function createAjv(coerceTypes: boolean | 'array') {
 const coercing = createAjv('array');
 const strict = createAjv(false);
 
+// F-31: para respostas em formatos não JSON, remove TODOS os campos não declarados (como o
+// fast-json-stringify faz no JSON) antes do serializador, sem alterar o objeto do handler.
+const stripper = new Ajv({ allErrors: true, coerceTypes: false, useDefaults: false, removeAdditional: 'all' });
+addFormats(stripper);
+const stripCache = new WeakMap<object, ValidateFunction>();
+
+/**
+ * Valida `data` contra `schema` sobre uma cópia, removendo campos não declarados.
+ * Retorna a cópia filtrada, ou os problemas encontrados.
+ */
+export function stripToSchema(schema: object, data: unknown): { ok: true; value: unknown } | { ok: false; issues: ValidationIssue[] } {
+  let fn = stripCache.get(schema);
+  if (!fn) {
+    fn = stripper.compile(schema);
+    stripCache.set(schema, fn);
+  }
+  const copy: unknown = data === undefined ? undefined : JSON.parse(JSON.stringify(data));
+  return fn(copy) ? { ok: true, value: copy } : { ok: false, issues: formatErrors(fn.errors ?? []) };
+}
+
 const caches = new Map([
   [coercing, new WeakMap<object, ValidateFunction>()],
   [strict, new WeakMap<object, ValidateFunction>()],

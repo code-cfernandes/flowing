@@ -16,11 +16,23 @@ export interface SecurityHeadersOptions {
   strictTransportSecurity?: boolean | { maxAge: number; includeSubDomains?: boolean; preload?: boolean };
 }
 
+/** `'api'`: restritivo, para APIs (padrão). `'web'`: permite recursos do próprio site (F-31). */
+export type SecurityPreset = 'api' | 'web';
+
+const PRESETS: Record<SecurityPreset, SecurityHeadersOptions> = {
+  api: {},
+  web: {
+    contentSecurityPolicy: "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
+    frameOptions: 'SAMEORIGIN',
+  },
+};
+
 /**
- * Headers de segurança padrão (S-04) e proteções contra XSS em APIs JSON (S-02).
+ * Headers de segurança padrão (S-04) e proteções contra XSS (S-02).
  * Retorna uma função que aplica os headers pré-calculados na resposta.
  */
-export function buildSecurityHeaders(opts: SecurityHeadersOptions = {}): (res: ServerResponse) => void {
+export function buildSecurityHeaders(input: SecurityHeadersOptions | SecurityPreset = {}): (res: ServerResponse) => void {
+  const opts = typeof input === 'string' ? PRESETS[input] : input;
   const headers: [string, string][] = [['X-Content-Type-Options', 'nosniff']];
 
   const csp = opts.contentSecurityPolicy ?? "default-src 'none'; frame-ancestors 'none'";

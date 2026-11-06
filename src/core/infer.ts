@@ -27,5 +27,11 @@ export type InferHeaders<S extends RouteSchemas> = InferSchema<S['headers'], Rec
  */
 export type InferResponse<S extends RouteSchemas, Status extends number = number> =
   S['response'] extends Record<number, unknown>
-    ? { [K in keyof S['response'] & Status]: InferSchema<S['response'][K]> }[keyof S['response'] & Status]
+    ? { [K in keyof S['response'] & Status]: InferSchema<UnwrapResponse<S['response'][K]>> }[keyof S['response'] & Status]
     : unknown;
+
+/** `{ contentType, schema }` → `schema`; um schema JSON direto continua como está (F-31). */
+type UnwrapResponse<E> =
+  E extends { contentType: unknown; schema: infer S } ? S
+  : E extends { contentType: unknown } ? undefined
+  : E;

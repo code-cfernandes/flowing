@@ -2,6 +2,7 @@ import { consoleLogger, cors, createApp, rateLimit } from "sashiko";
 import { AdminRoutes, HealthRoutes } from "./src/routes/admin.ts";
 import { apiKeyGuard } from "./src/guards/api-key.ts";
 import { UserRoutes } from "./src/routes/users.ts";
+import { csvSerializer } from "./src/serializers/csv.ts";
 import { UserRepository } from "./src/store/users.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -22,6 +23,10 @@ const app = createApp({
   // Logger compatível com pino (F-06): troque por `pino()` em produção. Cada resposta leva X-Request-Id.
   logger: consoleLogger({ level: process.env.LOG_LEVEL === 'debug' ? 'debug' : 'info' }),
   logRequests: true,
+  // Formatos além do JSON (F-31): GET /users com Accept: text/csv responde em CSV
+  serializers: { 'text/csv': csvSerializer },
+  // Encerramento gracioso nos sinais do processo (ligado por padrão); aqui só ajustamos o prazo
+  shutdown: { timeoutMs: 5_000, onShutdown: (signal) => app.log.info({ signal, users: users.count() }, 'bye') },
 });
 
 app
@@ -44,14 +49,7 @@ app
   .get('/by-id/:id', (r) => r.getUser)                                // alias legado de GET /users/:id
   .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser] }); // vitrine só leitura, mesma instância
 
+// SIGINT/SIGTERM já são tratados: o app espera as requisições em andamento e fecha (F-07)
 await app.listen({ port: PORT });
-
-// ---------- Graceful shutdown ----------
-// app.close() para de aceitar conexões e espera as requisições em andamento (F-09)
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    void app.close().then(() => process.exit(0));
-  });
-}
 
 app.log.info({ port: PORT }, 'Sashiko running');

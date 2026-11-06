@@ -18,6 +18,10 @@ ID=$(echo "$CREATED" | sed -E 's/.*"id":"([^"]+)".*/\1/')
 title "CRUD · listar com paginação (query coagida: limit=\"10\" → 10)"
 req "$BASE/users?limit=10&offset=0"
 
+title "Formatos · a mesma lista em CSV pelo Accept, e 406 para formato não oferecido"
+curl -s -w '  → [%{http_code}] %{content_type}\n' "$BASE/users" -H 'accept: text/csv'
+req "$BASE/users" -H 'accept: application/xml'
+
 title "CRUD · buscar por id"
 req "$BASE/users/$ID"
 

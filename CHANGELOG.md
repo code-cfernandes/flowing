@@ -8,6 +8,35 @@ Enquanto estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões _m
 
 ## [Não lançado]
 
+### Adicionado
+- Encerramento gracioso embutido: o `listen()` trata SIGINT e SIGTERM, espera as requisições em
+  andamento (com prazo) e sai com código 0. Configurável em `createApp({ shutdown })` (`signals`,
+  `timeoutMs`, `onShutdown`, `exit`); `shutdown: false` desliga. Um segundo sinal força a saída.
+- Respostas além do JSON:
+  - o tipo da resposta vem do valor retornado em rotas sem schema (string → `text/plain`,
+    Buffer → `application/octet-stream`, stream);
+  - `contentType` nas entradas de `response`, com um tipo ou uma lista negociada pelo `Accept`
+    (q-values, curingas, `406 Not Acceptable` e `Vary: Accept`);
+  - serializadores plugáveis em `createApp({ serializers })`;
+  - campos não declarados são removidos em qualquer formato.
+- Preset `securityHeaders: 'web'`, para quem também serve páginas.
+- `ctx.status(code)` tipado: com schemas de resposta, aceita só os status declarados, e o `json()`/`send()`
+  seguinte exige o corpo daquele status (`StatusContext`, `DeclaredStatus` e `BodyFor` exportados).
+- `ctx.send(objeto)` envia objetos pelo pipeline, com negociação pelo `Accept`.
+
+### Alterado
+- **Incompatível:** numa rota **sem** schema de resposta, retornar uma string agora responde
+  `text/plain` com o texto cru, em vez de uma string JSON. Rotas com schema JSON não mudam.
+
+### Segurança
+- `ctx.json()`, `ctx.send()` e `ctx.text()` no handler passam pelo mesmo pipeline do `return`: schema do
+  status, remoção de campos não declarados e status padrão. Antes, o envio imperativo ignorava o schema
+  de resposta e podia vazar campos como `password`.
+
+### Corrigido
+- O `close()` não fica mais preso esperando conexões keep-alive que ficam ociosas depois de
+  responder durante o encerramento.
+
 ## [0.2.0] - 2026-11-06
 
 ### Adicionado
