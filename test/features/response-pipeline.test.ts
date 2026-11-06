@@ -106,11 +106,11 @@ describe('F-32 · pipeline único de resposta', () => {
   });
 
   it('erros e 404/405 continuam sem o schema da rota', async () => {
-    assert.deepEqual((await app.inject('/nada')).json(), { error: 'Not Found' });
+    assert.deepEqual((await app.inject('/nada')).json(), { type: 'about:blank', title: 'Not Found', status: 404, code: 'NOT_FOUND' });
     assert.equal((await app.inject({ method: 'DELETE', url: '/p/return' })).status, 405);
     const bad = await app.inject({ method: 'POST', url: '/p/job', body: { async: 'x' } });
     assert.equal(bad.status, 400);
-    assert.equal((bad.json() as { error: string }).error, 'Invalid body');
+    assert.equal((bad.json() as { detail: string }).detail, 'Invalid body');
   });
 });
 

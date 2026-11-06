@@ -11,7 +11,7 @@ export function bodyParser(limit: number): Middleware {
     // para o cliente não continuar enviando um corpo que será descartado.
     const tooLarge = (): never => {
       ctx.res.setHeader('Connection', 'close');
-      return ctx.throw(413, 'Payload too large');
+      return ctx.throw(413, 'Payload too large', 'PAYLOAD_TOO_LARGE');
     };
     const declared = Number(ctx.req.headers['content-length']);
     if (Number.isFinite(declared) && declared > limit) tooLarge();
@@ -26,7 +26,7 @@ export function bodyParser(limit: number): Middleware {
     const raw = Buffer.concat(chunks).toString('utf8');
     if (raw) {
       try { ctx.body = JSON.parse(raw); }
-      catch { ctx.throw(400, 'Invalid JSON'); }
+      catch { ctx.throw(400, 'Invalid JSON', 'INVALID_JSON'); }
     }
     await next();
   };

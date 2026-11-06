@@ -143,7 +143,7 @@ describe('F-31 · negociação pelo Accept', () => {
   it('nenhum tipo aceitável → 406 com os tipos disponíveis', async () => {
     const res = await get('application/xml');
     assert.equal(res.status, 406);
-    assert.deepEqual(res.json(), { error: 'Not Acceptable', details: { available: ['application/json', 'text/csv'] } });
+    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Not Acceptable', status: 406, code: 'NOT_ACCEPTABLE', details: { available: ['application/json', 'text/csv'] } });
   });
 });
 

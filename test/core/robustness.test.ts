@@ -34,7 +34,7 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
   it('responde 500 genérico e não gera unhandledRejection', async () => {
     const res = await fetch(srv.url + '/b08');
     assert.equal(res.status, 500);
-    assert.deepEqual(await res.json(), { error: 'Internal Server Error' });
+    assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Internal Server Error', status: 500 });
     await new Promise((r) => setImmediate(r));
     assert.deepEqual(rejections, []);
   });
@@ -99,8 +99,8 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   it('B-02 · 400 traz a parte inválida e os detalhes de cada erro', async () => {
     const res = await postJson(srv.url + '/v/body', { name: '', age: 'x' });
     assert.equal(res.status, 400);
-    const json = await res.json() as { error: string; details: { path: string; message: string }[] };
-    assert.equal(json.error, 'Invalid body');
+    const json = await res.json() as { detail: string; details: { path: string; message: string }[] };
+    assert.equal(json.detail, 'Invalid body');
     const paths = json.details.map((d) => d.path).sort();
     assert.deepEqual(paths, ['/age', '/name']);
     for (const d of json.details) assert.equal(typeof d.message, 'string');
@@ -124,7 +124,7 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   it('B-03 · header obrigatório ausente responde 400', async () => {
     const res = await fetch(srv.url + '/v/headers');
     assert.equal(res.status, 400);
-    assert.equal((await res.json() as { error: string }).error, 'Invalid headers');
+    assert.equal((await res.json() as { detail: string }).detail, 'Invalid headers');
   });
 
   it('B-03 · header válido passa e os demais headers ficam intactos', async () => {

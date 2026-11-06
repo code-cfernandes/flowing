@@ -38,7 +38,7 @@ describe('S-09 · Host e request-target (rede real)', () => {
   it('Host malformado responde 400, e não 500', async () => {
     const res = await raw(port, req('/a', { Host: 'a b' }));
     assert.equal(res.status, 400);
-    assert.deepEqual(JSON.parse(res.body), { error: 'Invalid Host header' });
+    assert.deepEqual(JSON.parse(res.body), { type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Invalid Host header', code: 'INVALID_HOST' });
   });
 
   it('path "//evil.com/x" continua sendo esse path; o host não muda', async () => {

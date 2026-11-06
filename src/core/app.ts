@@ -4,11 +4,12 @@ import { performance } from 'node:perf_hooks';
 import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
+import { Context, kBindResponse, type OnSendHook } from './context.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
-import { sendError, sendResult, type Serializer } from './response.ts';
+import { problem, sendError, sendProblem, sendResult, type Serializer } from './response.ts';
+import type { ErrorFormatter } from './errors.ts';
 import { RouteTable } from './route-table.ts';
 import { mediaType } from '../utils/content-type.ts';
 import { compileHostMatcher } from '../utils/origin-match.ts';
@@ -86,6 +87,11 @@ export interface AppOptions {
    * - uma RegExp precisa casar o hostname **inteiro** (como se tivesse `^…$`).
    */
   allowedHosts?: readonly (string | RegExp)[];
+  /**
+   * Personaliza o corpo de todos os erros do framework e dos `HttpError` (F-15). Padrão: Problem
+   * Details (RFC 9457) em `application/problem+json`. O retorno é enviado como `application/json`.
+   */
+  formatError?: ErrorFormatter;
 }
 
 export interface RequestIdOptions {
@@ -225,11 +231,9 @@ export class SashikoApp {
           ctx.res.setHeader('Allow', allowed.join(', '));
           // F-08: OPTIONS automático para qualquer path com rotas.
           if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
-          ctx.res.statusCode = 405;
-          return void ctx[kRawSend](JSON.stringify({ error: 'Method Not Allowed', allowed }), 'application/json; charset=utf-8');
+          return void sendProblem(ctx, problem(405, undefined, { code: 'METHOD_NOT_ALLOWED', details: { allowed } }), this.opts.formatError);
         }
-        ctx.res.statusCode = 404;
-        return void ctx[kRawSend](JSON.stringify({ error: 'Not Found' }), 'application/json; charset=utf-8');
+        return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.opts.formatError);
       }
 
       ctx.params = match.params;
@@ -266,7 +270,7 @@ export class SashikoApp {
       }
       if (ctx.res.writableEnded) return;
     }
-    sendError(ctx, err);
+    sendError(ctx, err, this.opts.formatError);
   }
 
   /**
@@ -305,8 +309,7 @@ export class SashikoApp {
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         if (!ctx.host || (this.allowedHosts && !this.allowedHosts(ctx.hostname, ctx.host))) {
           this.applySecurityHeaders?.(res);
-          res.statusCode = 400;
-          ctx[kRawSend](JSON.stringify({ error: 'Invalid Host header' }), 'application/json; charset=utf-8');
+          sendProblem(ctx, problem(400, 'Invalid Host header', { code: 'INVALID_HOST' }), this.opts.formatError);
           return;
         }
         if (this.opts.logRequests || this.onResponseHooks.length > 0) {

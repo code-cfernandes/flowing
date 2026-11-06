@@ -9,6 +9,19 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+### Alterado
+- **Incompatível:** todos os erros (`HttpError`, validação, JSON inválido, body grande demais, 404, 405, 406,
+  `Host` inválido, guards, CSRF e rate limit) saem no formato Problem Details (RFC 9457), com
+  `Content-Type: application/problem+json`: `{ type, title, status, detail?, code?, details? }`. A mensagem
+  passa de `error` para `detail`, e o `code` do `HttpError` agora chega ao cliente. No 405, `allowed` passa
+  para `details.allowed`. **Migração:** leia `detail` (ou `title`) no lugar de `error`, ou mantenha o formato
+  antigo com `createApp({ formatError: (p) => ({ error: p.detail ?? p.title, details: p.details }) })`.
+
+### Adicionado
+- `AppOptions.formatError`, para personalizar o corpo de todos os erros.
+- Opção `type` no `HttpError` (URI do tipo do problema) e os tipos `ProblemDetails` e `ErrorFormatter`.
+- Códigos `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `METHOD_NOT_ALLOWED` e `INVALID_HOST` nos erros do framework.
+
 ## [0.6.0] - 2026-11-06
 
 ### Adicionado

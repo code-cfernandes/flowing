@@ -94,7 +94,7 @@ describe('F-01 · @Guards', () => {
   it('guard que lança unauthorized() responde 401', async () => {
     const res = await app.inject('/admin/me');
     assert.equal(res.status, 401);
-    assert.deepEqual(res.json(), { error: 'login required' });
+    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Unauthorized', status: 401, detail: 'login required', code: 'UNAUTHORIZED' });
   });
 
   it('guards passam e o ctx.state chega tipado ao handler', async () => {
@@ -105,7 +105,7 @@ describe('F-01 · @Guards', () => {
   it('guard que retorna false responde 403', async () => {
     const res = await app.inject({ method: 'POST', url: '/admin/danger', headers: bearer('user'), body: { confirm: true } });
     assert.equal(res.status, 403);
-    assert.deepEqual(res.json(), { error: 'Forbidden' });
+    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Forbidden', status: 403, code: 'FORBIDDEN' });
   });
 
   it('guards rodam antes da validação: sem permissão não há 400 revelando o schema', async () => {

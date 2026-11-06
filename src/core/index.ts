@@ -12,7 +12,7 @@ export type { Serializer } from './response.ts';
 export type { CookieOptions } from '../utils/cookie.ts';
 export { consoleLogger, silentLogger, type ConsoleLoggerOptions, type Logger, type LogLevel } from './logger.ts';
 export { Context, type BodyFor, type OnSendHook, type SendPayload, type ContextOptions, type ContextState, type DeclaredStatus, type StatusContext } from './context.ts';
-export { badRequest, forbidden, HttpError, internal, isHttpError, notFound, unauthorized, type HttpErrorOptions } from './errors.ts';
+export { badRequest, forbidden, HttpError, internal, isHttpError, notFound, unauthorized, type ErrorFormatter, type HttpErrorOptions, type ProblemDetails } from './errors.ts';
 export { isResponseContent, ROUTER_METADATA, readOwnMetadata, type ResponseContent, type ResponseEntry, type RouterMetadata, type MethodMetadata, type RouteSchemas } from './metadata.ts';
 export type { Handler } from './route-table.ts';
 export type { ValidationIssue, ValidationTarget } from '../schema/validation.ts';
