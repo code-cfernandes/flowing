@@ -4,9 +4,25 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
 e o projeto adota o [Versionamento Semântico](https://semver.org/lang/pt-BR/).
-Enquanto estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões _minor_.
+Enquanto estiver em `0.x`, a versão _minor_ sobe com funcionalidades novas ou mudanças incompatíveis,
+e a _patch_ só com correções.
 
 ## [Não lançado]
+
+## [0.4.0] - 2026-11-06
+
+### Adicionado
+- Hooks de ciclo de vida:
+  - `app.onSend()`: síncrono, antes de escrever respostas com corpo, inclusive erros e 404. Pode alterar
+    headers ou o payload; se lançar, a resposta original é enviada.
+  - `app.onResponse()`: depois do envio, com status e duração.
+  - `app.onClose()`: em qualquer `close()`, antes do `shutdown.onShutdown`.
+- `ctx.sentBody` e `ctx.sentType`: o corpo exatamente como foi enviado, depois do `await next()` num
+  middleware. Permite cache com gravação, sempre com os campos já filtrados pelo schema.
+- Exemplo: cache em memória em `/public/users` (`X-Cache: MISS/HIT`) e `onClose`.
+
+### Corrigido
+- Respostas JSON escreviam fora do ponto único de escrita do pipeline.
 
 ## [0.3.1] - 2026-11-06
 
@@ -151,7 +167,8 @@ Primeira versão pública.
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 
-[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.3.1...HEAD
+[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/code-cfernandes/sashiko/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/code-cfernandes/sashiko/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/code-cfernandes/sashiko/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/code-cfernandes/sashiko/compare/v0.1.0...v0.2.0
