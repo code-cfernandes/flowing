@@ -3,6 +3,11 @@ import type { Logger } from './logger.ts';
 export interface ShutdownOptions {
   /** Sinais tratados. Padrão: `['SIGINT', 'SIGTERM']`. */
   signals?: readonly NodeJS.Signals[];
+  /**
+   * Espera antes de parar de aceitar conexões, com o `/readyz` já em 503, para o load balancer tirar
+   * a instância de rotação (Kubernetes, ECS…). Padrão: 0.
+   */
+  drainDelayMs?: number;
   /** Prazo para as requisições em andamento terminarem. Padrão: 10s. */
   timeoutMs?: number;
   /** Executado depois que o servidor fecha (banco, filas…). Se lançar, o processo sai com código 1. */

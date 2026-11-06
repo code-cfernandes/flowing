@@ -42,6 +42,7 @@ await app.listen({ port: 3000 });
 - [Segurança](#segurança)
 - [Logs e request id](#logs-e-request-id)
 - [Ciclo de vida e testes](#ciclo-de-vida-e-testes)
+- [Deploy em produção](#deploy-em-produção)
 - [Referência: `createApp(options)`](#referência-createappoptions)
 - [Princípios](#princípios)
 
@@ -539,7 +540,7 @@ import pino from 'pino';
 createApp({ logger: pino(), logRequests: true });
 ```
 
-- **Logger:** compatível com o pino (`info(obj, msg)`, `child()`). O padrão, `consoleLogger({ level })`, usa o `console`. `logger: false` desliga tudo.
+- **Logger:** compatível com o pino (`info(obj, msg)`, `child()`). O padrão, `consoleLogger({ level, format, redact })`, usa o `console`: `format: 'json'` gera uma linha JSON por evento, para coletores de log. `logger: false` desliga tudo.
 - **Request id:** cada requisição recebe `ctx.id`, também devolvido no header `X-Request-Id`. Um id recebido nesse header é reaproveitado se for seguro; isso é configurável em `requestId`.
 - **`ctx.log`:** já inclui o `reqId`: `ctx.log.info({ userId }, 'user created')`.
 - **`logRequests: true`:** registra método, path, status e duração de cada requisição.
@@ -625,6 +626,28 @@ createApp({
 - **Vários apps no mesmo processo:** compartilham um único listener por sinal e fecham todos juntos.
 - **Limpeza:** os listeners são removidos no `close()`, então testes com vários `listen(0)` não acumulam listeners. O `inject()` e o `callback()` não registram nada.
 - **Opções:** `signals` muda os sinais tratados, `exit: false` fecha sem chamar `process.exit`, e `shutdown: false` desliga tudo (por exemplo, se outra ferramenta controla o processo).
+- **Drain para load balancers:** com `shutdown: { drainDelayMs: 5000 }`, o app espera esse tempo antes de parar de aceitar conexões, já com o `/readyz` em 503, para o balanceador tirar a instância de rotação sem cortar requisições.
+
+### Healthchecks
+
+```ts
+app.health({
+  checks: {
+    db: () => db.query('select 1'),       // lançar ou devolver false = falha
+    cache: () => redis.ping(),
+  },
+  timeoutMs: 2000,                        // por check (padrão)
+});
+```
+
+| Rota | Responde | Uso |
+|---|---|---|
+| `GET /livez` | 200 `{ "status": "ok" }` enquanto o processo estiver de pé | liveness: reiniciar o processo travado |
+| `GET /readyz` | 200 com o resultado de cada check; 503 se algum falhar ou estourar o tempo, e durante o encerramento | readiness: tirar a instância do balanceamento |
+
+- **Os checks rodam em paralelo.** O motivo da falha vai só para o log, nunca para a resposta, porque pode conter host, usuário ou URL do banco.
+- **As rotas são servidas antes dos middlewares globais,** já que sondas não têm credenciais nem devem consumir rate limit. Para restringir, use `guards`/`middlewares` no próprio `health()`.
+- **Opções:** `live: '/health'` muda o path, e `ready: false` desliga a rota.
 
 **Testes sem rede.** `app.inject()` executa a requisição em memória:
 
@@ -633,6 +656,40 @@ const res = await app.inject({ method: 'POST', url: '/users', body: { name: 'Ana
 assert.equal(res.status, 201);
 assert.equal(res.json<{ name: string }>().name, 'Ana');
 ```
+
+## Deploy em produção
+
+```ts
+const app = createApp({
+  logger: consoleLogger({ format: 'json' }),            // uma linha JSON por evento, com redact
+  trustProxy: 1,                                        // atrás de 1 proxy/load balancer
+  allowedHosts: ['api.exemplo.com'],
+  securityHeaders: { strictTransportSecurity: true },   // HSTS: só com HTTPS na frente
+  shutdown: { drainDelayMs: 5_000, timeoutMs: 10_000 },
+})
+  .use(rateLimit({ max: 100, windowMs: 60_000 }))
+  .mount(UserRoutes)
+  .health({ checks: { db: () => db.ping() } });
+
+await app.listen({ port: Number(process.env.PORT ?? 3000), host: '0.0.0.0' });
+```
+
+Checklist:
+
+| Item | Como |
+|---|---|
+| Escutar fora do container | `host: '0.0.0.0'` (o padrão é `127.0.0.1`), porta por `PORT` |
+| TLS | No proxy ou load balancer (recomendado), ou `listen({ tls })` |
+| Proxy à frente | `trustProxy` com o número **exato** de proxies; nunca `true` se o app for acessível direto |
+| Domínios | `allowedHosts` com os domínios servidos |
+| HSTS | `securityHeaders: { strictTransportSecurity: true }`, só quando todo acesso for HTTPS |
+| Logs | `consoleLogger({ format: 'json' })` ou pino; campos sensíveis já mascarados |
+| Healthchecks | `/livez` (liveness) e `/readyz` (readiness) com `app.health()` |
+| Encerramento | SIGTERM já tratado; `drainDelayMs` maior que o intervalo da sonda de readiness |
+| Rate limit com várias instâncias | `RateLimitStore` compartilhado (Redis), porque o padrão é em memória por processo |
+| Autenticação por cookie | `csrf()` ativo |
+| Documentação da API | `openapi({ guards })`, ou gerar só o arquivo com `openapiDocument()` |
+| Processo | Rode `node dist/server.js` direto (não via `npm start`), para o SIGTERM chegar ao Node; em container, `--init` ou `tini` como PID 1 |
 
 ## Referência: `createApp(options)`
 
@@ -643,7 +700,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `requireSchemas` | `false` | Exige schemas de body e de resposta no registro das rotas |
 | `securityHeaders` | `'api'` | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar |
 | `serializers` | — | Serializadores por content type, para responder em outros formatos |
-| `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `onShutdown`, `exit`; `false` desliga |
+| `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `drainDelayMs`, `onShutdown`, `exit`; `false` desliga |
 | `protoPoisoning` | `'error'` | Body com `__proto__`/`constructor.prototype`: `'error'` (400) ou `'remove'` |
 | `trustProxy` | `false` | `true` ou o número de proxies: `ctx.ip`/`host`/`protocol` passam a usar os `X-Forwarded-*` |
 | `allowedHosts` | qualquer host válido | Lista de hosts (string ou RegExp); os demais recebem 400 |
@@ -653,7 +710,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `mount()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
+Métodos do app: `use()`, `mount()`, `group()`, `health()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
