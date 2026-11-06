@@ -1,6 +1,6 @@
 {
   "name": "sashiko",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
   "keywords": [
     "http",
