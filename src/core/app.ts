@@ -117,7 +117,7 @@ export class SashikoApp {
   private readonly onResponseHooks: OnResponseHook[] = [];
   private readonly onCloseHooks: OnCloseHook[] = [];
   private readonly routes: CompiledRoute[] = [];
-  private openapiConfig: { opts: OpenAPIOptions; path: string; docs: string | false; cache?: string } | undefined;
+  private openapiConfig: { opts: OpenAPIOptions; path: string; docs: string | false; pipeline: Middleware[]; cache?: string } | undefined;
   private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
@@ -206,14 +206,17 @@ export class SashikoApp {
   }
 
   /**
-   * Serve o documento OpenAPI 3.1 gerado das rotas (`/openapi.json`) e o Swagger UI (`/docs`) (F-16).
-   * As rotas passam pelos middlewares globais, então um `use(auth)` antes protege também a documentação.
-   * O documento é gerado na primeira requisição, depois de todos os `mount()`.
+   * Serve o documento OpenAPI 3.1 gerado das rotas (`/openapi.json`) e, com `docs`, o Swagger UI (F-16).
+   * As duas rotas passam pelos middlewares globais e pelos `middlewares`/`guards` informados aqui:
+   * `app.openapi({ guards: [isAdmin] })`. O documento é gerado na primeira requisição, depois dos `mount()`.
    */
   openapi(opts: OpenAPIOptions = {}): this {
     const path = opts.path ?? '/openapi.json';
-    const docs = opts.docs === undefined ? '/docs' : opts.docs;
-    this.openapiConfig = { opts, path, docs };
+    const docs = opts.docs === true ? '/docs' : opts.docs || false;
+    if (docs === path) throw new Error(`[sashiko] openapi(): "docs" and "path" cannot both be "${path}".`);
+    const pipeline: Middleware[] = [...(opts.middlewares ?? [])];
+    if (opts.guards?.length) pipeline.push(guardsMiddleware(opts.guards));
+    this.openapiConfig = { opts, path, docs, pipeline };
     return this;
   }
 
@@ -222,24 +225,26 @@ export class SashikoApp {
     return generateOpenAPI(this.routes, opts, !this.opts.formatError);
   }
 
-  /** Responde `/openapi.json` e `/docs`, quando ligados. Devolve `true` se respondeu. */
-  private serveOpenAPI(ctx: Context): boolean {
+  /** Se a requisição é para `/openapi.json` ou `/docs` (quando ligados), responde e devolve `true`. */
+  private async serveOpenAPI(ctx: Context): Promise<boolean> {
     const cfg = this.openapiConfig;
     if (!cfg || (ctx.method !== 'GET' && ctx.method !== 'HEAD')) return false;
-    if (ctx.path === cfg.path) {
-      cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
-      ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
-      return true;
-    }
-    if (cfg.docs && ctx.path === cfg.docs) {
+    const isSpec = ctx.path === cfg.path;
+    if (!isSpec && !(cfg.docs && ctx.path === cfg.docs)) return false;
+
+    await compose(ctx, [...cfg.pipeline, () => {
+      if (isSpec) {
+        cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
+        ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
+        return;
+      }
       const nonce = randomBytes(16).toString('base64');
       const { html, csp } = docsPage(cfg.path, cfg.opts.info?.title ?? 'API', nonce);
       ctx.res.setHeader('Content-Security-Policy', csp);
       ctx.res.setHeader('Cache-Control', 'no-store');
       ctx[kRawSend](html, 'text/html; charset=utf-8');
-      return true;
-    }
-    return false;
+    }]);
+    return true;
   }
 
   private addRoute(owner: string, route: CompiledRoute): void {
@@ -264,7 +269,7 @@ export class SashikoApp {
     this.applySecurityHeaders?.(ctx.res);
     try {
       await compose(ctx, this.middlewares);
-      if (ctx.sent || this.serveOpenAPI(ctx)) return;
+      if (ctx.sent || (await this.serveOpenAPI(ctx))) return;
 
       const match = this.router.find(ctx.method, ctx.path);
       if (!match) {

@@ -113,8 +113,8 @@ describe('F-16 · /openapi.json e /docs', () => {
     assert.equal(Object.keys((await app.inject('/openapi.json')).json<Doc>().paths).length, 3);
   });
 
-  it('/docs serve o Swagger UI com SRI, nonce e CSP própria', async () => {
-    const app = createApp({ logger: false }).mount(Health).openapi({ path: '/spec.json', info: { title: '<script>', version: '1' } });
+  it('docs: true serve o Swagger UI em /docs, com SRI, nonce e CSP própria', async () => {
+    const app = createApp({ logger: false }).mount(Health).openapi({ path: '/spec.json', docs: true, info: { title: '<script>', version: '1' } });
     const res = await app.inject('/docs');
     assert.equal(res.status, 200);
     assert.equal(res.headers['content-type'], 'text/html; charset=utf-8');
@@ -131,16 +131,50 @@ describe('F-16 · /openapi.json e /docs', () => {
     assert.notEqual(String(again.headers['content-security-policy']), csp, 'nonce novo a cada resposta');
   });
 
-  it('docs: false desliga a página; middlewares globais protegem as duas rotas', async () => {
+  it('/docs é opt-in: desligado por padrão e com docs: false', async () => {
+    const off = createApp({ logger: false }).mount(Health).openapi();
+    assert.equal((await off.inject('/openapi.json')).status, 200);
+    assert.equal((await off.inject('/docs')).status, 404);
+    const explicit = createApp({ logger: false }).mount(Health).openapi({ docs: false });
+    assert.equal((await explicit.inject('/docs')).status, 404);
+  });
+
+  it('middlewares globais também protegem as rotas', async () => {
     const auth: Middleware = (ctx, next) => { if (ctx.get('authorization') !== 'ok') throw unauthorized(); return next(); };
-    const app = createApp({ logger: false }).use(auth).openapi({ docs: false }).mount(Health);
+    const app = createApp({ logger: false }).use(auth).openapi().mount(Health);
     assert.equal((await app.inject('/openapi.json')).status, 401);
     assert.equal((await app.inject({ url: '/openapi.json', headers: { authorization: 'ok' } })).status, 200);
-    assert.equal((await app.inject({ url: '/docs', headers: { authorization: 'ok' } })).status, 404);
+  });
+
+  it('middlewares e guards do openapi() valem só para o documento e a página, no path configurado', async () => {
+    const order: string[] = [];
+    const mark: Middleware = (_ctx, next) => { order.push('mw'); return next(); };
+    const isAdmin = (ctx: Context) => { order.push('guard'); return ctx.get('x-role') === 'admin'; };
+    const app = createApp({ logger: false })
+      .mount(Health)
+      .openapi({ path: '/spec.json', docs: '/ref', middlewares: [mark], guards: [isAdmin] });
+
+    for (const url of ['/spec.json', '/ref']) {
+      const denied = await app.inject(url);
+      assert.equal(denied.status, 403);
+      assert.equal(denied.json<{ code: string }>().code, 'FORBIDDEN');
+      assert.equal((await app.inject({ url, headers: { 'x-role': 'admin' } })).status, 200);
+    }
+    assert.deepEqual(order.slice(0, 2), ['mw', 'guard'], 'middlewares antes dos guards');
+
+    order.length = 0;
+    assert.equal((await app.inject('/health')).status, 200, 'as rotas da API não passam pelos guards da documentação');
+    assert.deepEqual(order, []);
+    assert.equal((await app.inject('/openapi.json')).status, 404, 'o path padrão não fica exposto');
+  });
+
+  it('docs e path iguais falham na configuração', () => {
+    assert.throws(() => createApp().openapi({ path: '/x', docs: '/x' }), /cannot both be/);
   });
 
   it('openapi() pode ser chamado a partir do retorno de mount()', async () => {
     const app = createApp({ logger: false }).mount(Health).openapi({ docs: '/ref' });
+    assert.equal((await app.inject('/docs')).status, 404);
     assert.equal((await app.inject('/ref')).status, 200);
   });
 });

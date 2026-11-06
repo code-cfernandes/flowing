@@ -52,8 +52,9 @@ app
   .get('/by-id/:id', (r) => r.getUser)                                // alias legado de GET /users/:id
   // Vitrine só leitura, mesma instância, com cache de 10s por URL e Accept (F-04: ctx.sentBody)
   .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser], middlewares: [cache(10_000)] })
-  // OpenAPI 3.1 gerado das rotas acima: /openapi.json e Swagger UI em /docs (F-16)
-  .openapi({ info: { title: 'Sashiko · exemplo de usuários', version: '1.0.0' } });
+  // OpenAPI 3.1 gerado das rotas acima: /openapi.json e Swagger UI em /docs (F-16).
+  // Aberto no exemplo; em produção, proteja com guards: [apiKeyGuard] ou desligue o docs.
+  .openapi({ info: { title: 'Sashiko · exemplo de usuários', version: '1.0.0' }, docs: true });
 
 // SIGINT/SIGTERM já são tratados: o app espera as requisições em andamento e fecha (F-07)
 await app.listen({ port: PORT });

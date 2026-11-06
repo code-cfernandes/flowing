@@ -1,5 +1,7 @@
 import { STATUS_CODES } from 'node:http';
 import type { CompiledRoute } from '../core/compiler.ts';
+import type { Middleware } from '../core/compose.ts';
+import type { Guard } from '../core/guard.ts';
 import { isResponseContent, type ResponseEntry } from '../core/metadata.ts';
 
 /** Opções de `app.openapi()` (F-16). */
@@ -9,8 +11,12 @@ export interface OpenAPIOptions {
   servers?: readonly { url: string; description?: string }[];
   /** Onde servir o documento JSON. Padrão: `'/openapi.json'`. */
   path?: string;
-  /** Onde servir o Swagger UI. Padrão: `'/docs'`; `false` desliga. */
-  docs?: string | false;
+  /** Swagger UI. Desligado por padrão: `true` serve em `'/docs'`, uma string escolhe o path. */
+  docs?: string | boolean;
+  /** Rodam antes de servir o documento e a página, depois dos middlewares globais. */
+  middlewares?: readonly Middleware[];
+  /** Rodam depois dos `middlewares`, como nas rotas (401/403 antes de gerar o documento). */
+  guards?: readonly Guard[];
 }
 
 type Json = Record<string, unknown>;
