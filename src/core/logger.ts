@@ -24,7 +24,7 @@ export interface ConsoleLoggerOptions {
 }
 
 /**
- * Logger padrão sobre o `console`, sem dependências. Formato: `[picodecor] mensagem { ...dados }`.
+ * Logger padrão sobre o `console`, sem dependências. Formato: `[sashiko] mensagem { ...dados }`.
  * Não registra headers nem body: dados sensíveis só entram se você os passar (S-11).
  */
 export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<string, unknown> = {}): Logger {
@@ -32,7 +32,7 @@ export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<
   const emit = (level: Exclude<LogLevel, 'silent'>) => (objOrMsg: object | string, msg?: string) => {
     if (LEVELS[level] < min) return;
     const [data, text] = typeof objOrMsg === 'string' ? [{}, objOrMsg] : [objOrMsg, msg ?? ''];
-    console[level](`[picodecor] ${text}`, { ...bindings, ...data });
+    console[level](`[sashiko] ${text}`, { ...bindings, ...data });
   };
   return {
     debug: emit('debug'),

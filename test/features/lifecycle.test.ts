@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
-import { type Context, Router, createApp, Get, Post, Schema } from 'picodecor';
+import { type Context, Router, createApp, Get, Post, Schema } from 'sashiko';
 
 @Router('/l')
 class L {

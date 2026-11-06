@@ -4,7 +4,7 @@ import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import {
   type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer,
-} from 'picodecor';
+} from 'sashiko';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 @Router('/api')

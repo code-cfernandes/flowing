@@ -31,7 +31,7 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 - README com guia de uso, segurança, referência de opções e princípios. (F-23)
 - Estrutura do framework: `src/core` (runtime), `src/decorators`, `src/schema` (validação e serialização),
   `src/shims` e ponto de entrada público `src/index.ts`.
-- Exemplo de CRUD em `examples/users`, importando o framework pelo alias `picodecor`.
+- Exemplo de CRUD em `examples/users`, importando o framework pelo alias `sashiko`.
 - Exemplo `examples/app-users` com CRUD completo, CORS, rate limit, headers de segurança, `requireSchemas`,
   herança de controllers e o script `scenarios.sh`, que percorre todos os cenários.
 - `tsconfig.build.json` para gerar a biblioteca em `dist/`; `package.json` com `exports`, `types` e `files`.
@@ -60,6 +60,8 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 - Opção `--test-timeout` nos scripts de teste, para um request travado não segurar a suíte.
 
 ### Alterado
+- **Incompatível:** o projeto passou a se chamar **Sashiko** (antes PicoDecor): pacote `sashiko`, classe
+  `SashikoApp` (antes `PicoDecorApp`), prefixo `[sashiko]` nos logs e na metadata (`Symbol.for('sashiko:router')`).
 - `Symbol.metadata` agora vem do shim `src/shims/symbol-metadata.ts` (antigo `core/polyfill.ts`).
 - A metadata de controllers foi movida para `src/core/metadata.ts`, para que o core não dependa de `decorators/`.
 - **Incompatível:** `@Controller` virou `@Router`, e `app.controllers([A, B])` virou `app.mount(A).mount(B)`.
@@ -109,5 +111,5 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 - Versão inicial: decorators `@Controller`, `@Get`/`@Post`/`@Put`/`@Patch`/`@Delete` e `@Schema`,
   roteamento com `find-my-way`, validação com Ajv e serialização com `fast-json-stringify`.
 
-[Não lançado]: https://github.com/OWNER/picodecor/compare/v0.0.1...HEAD
-[0.0.1]: https://github.com/OWNER/picodecor/releases/tag/v0.0.1
+[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/code-cfernandes/sashiko/releases/tag/v0.0.1

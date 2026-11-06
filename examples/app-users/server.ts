@@ -1,4 +1,4 @@
-import { consoleLogger, cors, createApp, rateLimit } from "picodecor";
+import { consoleLogger, cors, createApp, rateLimit } from "sashiko";
 import { AdminRoutes, HealthRoutes } from "./src/routes/admin.ts";
 import { apiKeyGuard } from "./src/guards/api-key.ts";
 import { UserRoutes } from "./src/routes/users.ts";
@@ -51,4 +51,4 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-app.log.info({ port: PORT }, 'PicoDecor running');
+app.log.info({ port: PORT }, 'Sashiko running');

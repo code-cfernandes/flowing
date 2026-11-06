@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { describe, it, mock } from 'node:test';
-import { type Context, Router, createApp, Get } from 'picodecor';
+import { type Context, Router, createApp, Get } from 'sashiko';
 import { startServer } from '../helpers/server.ts';
 
 @Router('/h')

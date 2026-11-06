@@ -1,7 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import {
   type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer,
-} from "picodecor";
+} from "sashiko";
 import {
   CreateUserSchema, GreetingSchema, ListUsersQuery, UpdateUserSchema, UserIdParams, UserSchema,
 } from "../schema/UserSchema.ts";

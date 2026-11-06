@@ -12,7 +12,7 @@ import type { RouteSchemas } from './metadata.ts';
  * Estenda com declaration merging para ter tipos (F-01):
  *
  * ```ts
- * declare module 'picodecor' {
+ * declare module 'sashiko' {
  *   interface ContextState { user?: { id: string; role: 'admin' | 'user' } }
  * }
  * ```

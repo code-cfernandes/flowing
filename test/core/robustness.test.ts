@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
-import { type Context, Router, createApp, Get, Post, Schema } from 'picodecor';
+import { type Context, Router, createApp, Get, Post, Schema } from 'sashiko';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 const postJson = (url: string, body: unknown) =>

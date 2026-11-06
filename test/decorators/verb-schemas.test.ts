@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Get, Post, Router, type RouteSchemas, Schema } from 'picodecor';
+import { type Context, createApp, Get, Post, Router, type RouteSchemas, Schema } from 'sashiko';
 
 const Item = Type.Object({ id: Type.String() });
 const byId = { params: Type.Object({ id: Type.String({ pattern: '^[0-9]+$' }) }), response: { 200: Item } } satisfies RouteSchemas;

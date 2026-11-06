@@ -66,7 +66,7 @@ export interface RequestIdOptions {
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
-export class PicoDecorApp {
+export class SashikoApp {
   private middlewares: Middleware[] = [];
   private router = new RouteTable();
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
@@ -113,7 +113,7 @@ export class PicoDecorApp {
         this.router.on(route.method, route.path, route);
       } catch (err) {
         throw new Error(
-          `[picodecor] app.mount(${name}): ${route.method} ${route.path} is already registered. ` +
+          `[sashiko] app.mount(${name}): ${route.method} ${route.path} is already registered. ` +
           `Use a different "prefix" to mount the same class twice.`,
           { cause: err },
         );
@@ -216,7 +216,7 @@ export class PicoDecorApp {
 
   /** Sobe o servidor HTTP e resolve quando ele está aceitando conexões (F-09). */
   async listen(options: number | ListenOptions = {}): Promise<http.Server> {
-    if (this.server) throw new Error('[picodecor] app is already listening; call app.close() first.');
+    if (this.server) throw new Error('[sashiko] app is already listening; call app.close() first.');
     const { port = 3000, host = '127.0.0.1' } = typeof options === 'number' ? { port: options } : options;
 
     const server = http.createServer(this.callback());
@@ -263,6 +263,6 @@ export class PicoDecorApp {
 
 }
 
-export function createApp(opts?: AppOptions): PicoDecorApp {
-  return new PicoDecorApp(opts);
+export function createApp(opts?: AppOptions): SashikoApp {
+  return new SashikoApp(opts);
 }

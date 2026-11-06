@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { type Context, Router, createApp, Delete, Get, Patch, Post, Put, Schema } from 'picodecor';
+import { type Context, Router, createApp, Delete, Get, Patch, Post, Put, Schema } from 'sashiko';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 const Item = Type.Object({ id: Type.String(), name: Type.String() });

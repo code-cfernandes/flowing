@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import {
   type Context, Router, createApp, Get, type InferBody, type InferParams, type InferQuery, type InferResponse,
   type InferSchema, Post, type RouteSchemas, Schema,
-} from 'picodecor';
+} from 'sashiko';
 
 // ---------- Asserções de tipo: falham no `pnpm typecheck` ----------
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;

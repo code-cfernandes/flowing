@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { Get, Router, Schema } from "picodecor";
+import { Get, Router, Schema } from "sashiko";
 import { AdminHeaders, HealthSchema, StatsSchema } from "../schema/AdminSchema.ts";
 import type { UserRepository } from "../store/users.ts";
 

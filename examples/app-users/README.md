@@ -1,6 +1,6 @@
 # Exemplo: app-users
 
-API de usuários que demonstra os recursos do PicoDecor: CRUD com schemas, validação, segurança e herança de classes de rotas.
+API de usuários que demonstra os recursos do Sashiko: CRUD com schemas, validação, segurança e herança de classes de rotas.
 
 ## Rodar
 

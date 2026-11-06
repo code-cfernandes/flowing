@@ -7,8 +7,8 @@
 
     // Path aliases (resolvidos pelo tsx em dev; o build da lib usa só imports relativos)
     "paths": {
-      "picodecor": ["./src/index.ts"],
-      "picodecor/*": ["./src/*"]
+      "sashiko": ["./src/index.ts"],
+      "sashiko/*": ["./src/*"]
     },
 
     // Environment Settings

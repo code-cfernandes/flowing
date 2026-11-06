@@ -1,4 +1,4 @@
-// Ponto de entrada público do PicoDecor.
+// Ponto de entrada público do Sashiko.
 // O shim precisa ser avaliado antes de qualquer decorator rodar.
 import './shims/symbol-metadata.ts';
 

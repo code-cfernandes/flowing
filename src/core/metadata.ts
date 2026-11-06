@@ -1,7 +1,7 @@
 // src/core/metadata.ts
 import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
-export const ROUTER_METADATA = Symbol.for('pico:router');
+export const ROUTER_METADATA = Symbol.for('sashiko:router');
 
 export interface RouteSchemas {
   params?: object;
@@ -83,15 +83,15 @@ export function readOwnMetadata(Class: object): RouterMetadata | undefined {
 export function metadataFor(context: unknown, decorator: string): RouterMetadata {
   if (typeof context !== 'object' || context === null || !('kind' in context)) {
     throw new Error(
-      `[picodecor] @${decorator} received legacy decorator arguments. PicoDecor uses standard (TC39) ` +
+      `[sashiko] @${decorator} received legacy decorator arguments. Sashiko uses standard (TC39) ` +
       `decorators: remove "experimentalDecorators" (and "emitDecoratorMetadata") from your tsconfig.json.`,
     );
   }
   const meta = (context as { metadata?: DecoratorMetadataObject | null }).metadata;
   if (!meta) {
     throw new Error(
-      `[picodecor] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
-      `Import 'picodecor' before declaring routers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
+      `[sashiko] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
+      `Import 'sashiko' before declaring routers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
     );
   }
   return getOrCreateMetadata(meta);
@@ -107,7 +107,7 @@ export function mergeSchemas(method: MethodMetadata, schemas: RouteSchemas, wher
     if (schemas[key] === undefined) continue;
     if (method.schemas[key] !== undefined) {
       throw new Error(
-        `[picodecor] ${where}: schema "${key}" is declared twice for ${String(method.handlerName)}. ` +
+        `[sashiko] ${where}: schema "${key}" is declared twice for ${String(method.handlerName)}. ` +
         `Declare each part either in the HTTP decorator or in @Schema, not both.`,
       );
     }

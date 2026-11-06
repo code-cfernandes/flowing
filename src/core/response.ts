@@ -27,7 +27,7 @@ export function sendResult(ctx: Context, response: RouteSchemas['response'], res
     return void ctx.res.end(serialize(schema, result));
   }
   if (response && Object.keys(response).length > 0) {
-    throw new Error(`[picodecor] ${ctx.method} ${ctx.path}: no response schema for status ${status}`);
+    throw new Error(`[sashiko] ${ctx.method} ${ctx.path}: no response schema for status ${status}`);
   }
   ctx.json(result);
 }

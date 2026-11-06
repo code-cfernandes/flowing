@@ -1,5 +1,5 @@
 {
-  "name": "picodecor",
+  "name": "sashiko",
   "version": "0.0.1",
   "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
   "keywords": [
@@ -16,6 +16,14 @@
   ],
   "author": "Caio Fernandes",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/code-cfernandes/sashiko.git"
+  },
+  "homepage": "https://github.com/code-cfernandes/sashiko#readme",
+  "bugs": {
+    "url": "https://github.com/code-cfernandes/sashiko/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

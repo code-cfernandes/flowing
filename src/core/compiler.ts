@@ -36,7 +36,7 @@ export function compileRoutes(ref: RouterRef, opts: MountOptions = {}): Compiled
   const meta = readOwnMetadata(Class);
   if (!meta?.isRouter) {
     throw new Error(
-      `[picodecor] Class ${Class.name} is not decorated with @Router('/prefix'). ` +
+      `[sashiko] Class ${Class.name} is not decorated with @Router('/prefix'). ` +
       `Add it to register the class with app.mount().`,
     );
   }
@@ -70,13 +70,13 @@ export function compileRoutes(ref: RouterRef, opts: MountOptions = {}): Compiled
 
 function selectRoutes(className: string, names: string[], opts: MountOptions): Set<string> {
   if (opts.only && opts.except) {
-    throw new Error(`[picodecor] app.mount(${className}): use either "only" or "except", not both.`);
+    throw new Error(`[sashiko] app.mount(${className}): use either "only" or "except", not both.`);
   }
   const listed = opts.only ?? opts.except ?? [];
   const unknown = listed.filter((n) => !names.includes(n));
   if (unknown.length > 0) {
     throw new Error(
-      `[picodecor] app.mount(${className}): ${unknown.map((n) => `"${n}"`).join(', ')} ` +
+      `[sashiko] app.mount(${className}): ${unknown.map((n) => `"${n}"`).join(', ')} ` +
       `is not a route method. Available: ${names.join(', ') || '(none)'}.`,
     );
   }

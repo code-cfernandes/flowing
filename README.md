@@ -1,12 +1,14 @@
-# PicoDecor
+# Sashiko
 
 Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-first** e **seguro por padrão**.
 
-PicoDecor combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só quatro dependências de runtime.
+> **Sashiko** (刺し子) é uma técnica japonesa de bordado em que os pontos decorativos também **reforçam** o tecido. É a ideia do framework: os decorators organizam a API e, ao mesmo tempo, trazem validação e proteções seguras por padrão.
+
+Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só quatro dependências de runtime.
 
 ```ts
 import { Type } from '@sinclair/typebox';
-import { type Context, createApp, Post, Router, type RouteSchemas } from 'picodecor';
+import { type Context, createApp, Post, Router, type RouteSchemas } from 'sashiko';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const create = {
@@ -44,11 +46,11 @@ await app.listen({ port: 3000 });
 ## Requisitos e instalação
 
 - **Node.js 22+**
-- **TypeScript 5.2+**, com decorators **padrão**. **Não** use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o PicoDecor lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados (NestJS, TypeORM…).
+- **TypeScript 5.2+**, com decorators **padrão**. **Não** use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Sashiko lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados (NestJS, TypeORM…).
 - ESM (`"type": "module"`).
 
 ```bash
-pnpm add picodecor @sinclair/typebox
+pnpm add sashiko @sinclair/typebox
 ```
 
 `tsconfig.json` mínimo:
@@ -63,7 +65,7 @@ pnpm add picodecor @sinclair/typebox
 }
 ```
 
-Importe `picodecor` **antes** de declarar as classes de rotas: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Router } from 'picodecor'` isso já acontece.
+Importe `sashiko` **antes** de declarar as classes de rotas: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Router } from 'sashiko'` isso já acontece.
 
 ## Rotas
 
@@ -200,7 +202,7 @@ app.use(async (ctx, next) => {
 Por classe ou por método, use `@Use` e `@UseGuards`; para um grupo inteiro, use as opções `middlewares` e `guards` do `app.mount()`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
 
 ```ts
-declare module 'picodecor' {
+declare module 'sashiko' {
   interface ContextState { user?: { id: string; role: 'admin' | 'user' } }  // ctx.state tipado
 }
 
@@ -233,7 +235,7 @@ Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e
 ## Erros
 
 ```ts
-import { badRequest, forbidden, HttpError, internal, notFound, unauthorized } from 'picodecor';
+import { badRequest, forbidden, HttpError, internal, notFound, unauthorized } from 'sashiko';
 
 throw notFound('user not found');                       // 404 { "error": "user not found" }
 throw new HttpError(409, 'email taken', 'CONFLICT');
@@ -260,7 +262,7 @@ Ligado por padrão:
 Opt-in:
 
 ```ts
-import { cors, createApp, rateLimit } from 'picodecor';
+import { cors, createApp, rateLimit } from 'sashiko';
 
 createApp({
   requireSchemas: true,

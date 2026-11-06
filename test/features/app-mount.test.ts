@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   type Context, createApp, Delete, Get, type Guard, type Middleware, Post, Router, unauthorized, Use, UseGuards,
-} from 'picodecor';
+} from 'sashiko';
 
 const mark = (name: string): Middleware => async (ctx, next) => {
   ((ctx.state.trail as string[] | undefined) ?? (ctx.state.trail = [])) && (ctx.state.trail as string[]).push(name);

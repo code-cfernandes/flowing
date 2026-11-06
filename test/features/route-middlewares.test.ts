@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   type Context, Router, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Use, UseGuards,
-} from 'picodecor';
+} from 'sashiko';
 
-declare module 'picodecor' {
+declare module 'sashiko' {
   interface ContextState {
     trail?: string[];
     user?: { id: string; role: 'admin' | 'user' };
