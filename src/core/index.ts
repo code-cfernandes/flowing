@@ -10,6 +10,7 @@ export type { CheckParams, InferBody, InferHeaders, InferParams, InferQuery, Inf
 export type { ShutdownOptions } from './shutdown.ts';
 export type { Serializer } from './response.ts';
 export type { CookieOptions } from '../utils/cookie.ts';
+export type { TlsCertificate, TlsOptions } from '../server/tls.ts';
 export { consoleLogger, silentLogger, type ConsoleLoggerOptions, type Logger, type LogLevel } from './logger.ts';
 export { Context, type BodyFor, type OnSendHook, type SendPayload, type ContextOptions, type ContextState, type DeclaredStatus, type ParamsFor, type SchemasOf, type StatusContext } from './context.ts';
 export { badRequest, forbidden, HttpError, internal, isHttpError, notFound, unauthorized, type ErrorFormatter, type HttpErrorOptions, type ProblemDetails } from './errors.ts';
