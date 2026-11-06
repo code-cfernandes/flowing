@@ -9,6 +9,22 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+### Adicionado
+- Guards de autenticação `bearerAuth({ verify })` e `basicAuth({ verify })`. O usuário vai para `ctx.state.user`,
+  e qualquer falha recebe o mesmo 401 com `WWW-Authenticate`, sem revelar o motivo. `safeEqual()` compara
+  segredos em tempo constante.
+- `consoleLogger({ redact })` mascara chaves sensíveis em qualquer nível. Por padrão: `authorization`,
+  `cookie`, `password`, `token` e afins; `DEFAULT_REDACT_KEYS` e `redactValue()` são exportados.
+- `SECURITY.md`, com como reportar vulnerabilidades e a política de dependências, e Dependabot semanal para
+  npm e GitHub Actions.
+
+### Alterado
+- **Incompatível:** um body JSON com `__proto__` ou `constructor.prototype`, em qualquer nível, recebe 400
+  (`PROTO_POISONING`). **Migração:** se esses bodies precisarem passar, use `createApp({ protoPoisoning:
+  'remove' })`, que descarta as chaves.
+- **Incompatível:** o `consoleLogger` padrão passa a mascarar chaves sensíveis nos dados logados. **Migração:**
+  `consoleLogger({ redact: false })` volta ao comportamento anterior.
+
 ## [0.9.0] - 2026-11-06
 
 ### Adicionado

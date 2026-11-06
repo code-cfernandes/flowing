@@ -21,18 +21,50 @@ const LEVELS: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error:
 export interface ConsoleLoggerOptions {
   /** Padrão: `info`. */
   level?: LogLevel;
+  /**
+   * Chaves mascaradas como `[REDACTED]` em qualquer nível dos dados logados (S-11). Somadas às padrão
+   * ({@link DEFAULT_REDACT_KEYS}); `false` desliga. A comparação ignora maiúsculas, `-` e `_`, então
+   * `'apiKey'` também cobre `api_key` e `X-Api-Key`.
+   */
+  redact?: readonly string[] | false;
+}
+
+/** Chaves mascaradas por padrão: credenciais, cookies e tokens. */
+export const DEFAULT_REDACT_KEYS: readonly string[] = [
+  'authorization', 'proxy-authorization', 'cookie', 'set-cookie', 'x-api-key', 'api-key',
+  'password', 'passwd', 'secret', 'client-secret', 'token', 'access-token', 'refresh-token', 'id-token',
+];
+
+const REDACTED = '[REDACTED]';
+const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Cópia dos dados com as chaves sensíveis mascaradas. Erros, datas e buffers passam como estão. */
+export function redactValue(value: unknown, keys: ReadonlySet<string>, seen = new WeakSet<object>(), depth = 0): unknown {
+  if (typeof value !== 'object' || value === null || depth > 10) return value;
+  if (value instanceof Error || value instanceof Date || ArrayBuffer.isView(value)) return value;
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((v) => redactValue(v, keys, seen, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = keys.has(normalizeKey(k)) ? REDACTED : redactValue(v, keys, seen, depth + 1);
+  }
+  return out;
 }
 
 /**
  * Logger padrão sobre o `console`, sem dependências. Formato: `[sashiko] mensagem { ...dados }`.
- * Não registra headers nem body: dados sensíveis só entram se você os passar (S-11).
+ * O core não registra headers nem body. O que você logar passa pelo `redact`: `authorization`,
+ * `cookie`, `password`, `token` e afins saem como `[REDACTED]` (S-11).
  */
 export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<string, unknown> = {}): Logger {
   const min = LEVELS[opts.level ?? 'info'];
+  const keys = opts.redact === false ? undefined : new Set([...DEFAULT_REDACT_KEYS, ...(opts.redact ?? [])].map(normalizeKey));
   const emit = (level: Exclude<LogLevel, 'silent'>) => (objOrMsg: object | string, msg?: string) => {
     if (LEVELS[level] < min) return;
     const [data, text] = typeof objOrMsg === 'string' ? [{}, objOrMsg] : [objOrMsg, msg ?? ''];
-    console[level](`[sashiko] ${text}`, { ...bindings, ...data });
+    const merged = { ...bindings, ...data };
+    console[level](`[sashiko] ${text}`, keys ? redactValue(merged, keys) : merged);
   };
   return {
     debug: emit('debug'),
