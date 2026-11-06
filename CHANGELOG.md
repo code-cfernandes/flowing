@@ -9,6 +9,17 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.6.0] - 2026-11-06
+
+### Adicionado
+- Cookies: `ctx.cookies`, `ctx.setCookie()` e `ctx.clearCookie()`, com `HttpOnly`, `Secure`, `SameSite=Lax` e
+  `Path=/` por padrão. Nome, `path` e `domain` inválidos lançam erro (sem injeção de atributos), e as
+  regras de `SameSite=None`, `Partitioned` e dos prefixos `__Host-`/`__Secure-` são conferidas.
+- Middleware `csrf()`: recusa com 403 os métodos que alteram estado vindos de outra origem, com base no
+  `Sec-Fetch-Site` e no `Origin`. `trustedOrigins` usa as mesmas regras do `cors()`. Com `token: true`,
+  adiciona o double-submit token (cookie `__Host-csrf` e header `X-CSRF-Token`, exposto em
+  `ctx.state.csrfToken`).
+
 ## [0.5.0] - 2026-11-06
 
 ### Adicionado

@@ -273,6 +273,9 @@ Os schemas de resposta valem para o que o **handler** envia. Middlewares e guard
 | `ctx.text(str)` | `text/plain; charset=utf-8`, pelo pipeline |
 | `ctx.send(body, contentType?)` | Qualquer corpo pelo pipeline: string, bytes, stream ou objeto (negociado pelo `Accept`) |
 | `ctx.redirect(url, status?)` | 302 por padrão; aceita 301, 303, 307, 308 |
+| `ctx.cookies` | Cookies da requisição (objeto sem protótipo) |
+| `ctx.setCookie(name, value, opts?)` | Adiciona um `Set-Cookie`, com `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/` por padrão |
+| `ctx.clearCookie(name, opts?)` | Remove um cookie (use o mesmo `path` e `domain` da criação) |
 | `ctx.throw(status, message)` | Lança um `HttpError` |
 
 Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.sentBody`, `ctx.sentType`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
@@ -392,7 +395,7 @@ Ligado por padrão:
 Opt-in:
 
 ```ts
-import { cors, createApp, rateLimit } from 'sashiko';
+import { cors, createApp, csrf, rateLimit } from 'sashiko';
 
 createApp({
   requireSchemas: true,
@@ -416,7 +419,15 @@ createApp({
   - **Prefira o curinga à RegExp:** uma regex mal escrita pode ser lenta com uma entrada maliciosa (ReDoS).
   - **Regras inválidas falham na inicialização,** por exemplo uma origem sem esquema (`'app.exemplo.com'`).
 - **`rateLimit()`:** guarda os contadores em memória por padrão. Para várias instâncias, implemente `RateLimitStore` (Redis etc.).
-- **Cookies e CSRF:** ainda não há proteção de CSRF embutida. Se a autenticação usar cookies, valide `Origin` num middleware e use `SameSite=Lax` ou `Strict`.
+- **Cookies:** `ctx.setCookie()` usa `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/` por padrão (os navegadores aceitam `Secure` em `http://localhost`). Nome, `path` e `domain` são validados contra injeção de atributos, e os prefixos `__Host-` e `__Secure-` têm as regras conferidas.
+- **`csrf()`: ative sempre que a autenticação usar cookies.** Métodos que alteram estado (todos menos GET, HEAD e OPTIONS) vindos de outra origem recebem 403. A checagem usa o `Sec-Fetch-Site` e, na falta dele, compara o `Origin` com a própria origem. Requisições sem esses headers (curl, servidor a servidor) passam, porque não há navegador para anexar os cookies da vítima.
+
+  ```ts
+  app.use(csrf());                                              // checagem de origem
+  app.use(csrf({ trustedOrigins: ['https://app.exemplo.com'] })); // front em outra origem
+  app.use(csrf({ token: true }));                               // + double-submit token
+  ```
+  Com `token: true`, o middleware cria o cookie `__Host-csrf` (legível pelo JS, `SameSite=Strict`) e o expõe em `ctx.state.csrfToken`; o cliente o devolve no header `X-CSRF-Token`. Rotas GET nunca devem alterar estado.
 - **Atrás de proxy:** `ctx.ip`, `ctx.host` e `ctx.protocol` usam o socket e o `Host` por padrão. Com `trustProxy: 1` (o número de proxies à frente do app) ou `true` (toda a cadeia), passam a usar o `X-Forwarded-For`, o `-Host` e o `-Proto`. Só ligue isso atrás de um proxy que reescreve esses headers, porque o cliente pode forjá-los.
 - **`allowedHosts`:** com `allowedHosts: ['api.exemplo.com', '*.exemplo.dev']`, qualquer outro `Host` recebe 400. Protege contra host header injection e DNS rebinding. Um host sem porta aceita qualquer porta; com porta (`'api.exemplo.com:8443'`), exige a porta exata.
 - **Links absolutos** (reset de senha, redirects): prefira uma URL base da configuração em vez do host pedido pelo cliente.
