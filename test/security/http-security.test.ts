@@ -79,7 +79,7 @@ describe('S-01 · CORS', () => {
   let srv: TestServer;
   before(async () => {
     const app = createApp()
-      .use(cors({ origin: ['https://app.exemplo.com', /\.exemplo\.dev$/], credentials: true, exposedHeaders: ['X-Total'] }))
+      .use(cors({ origin: ['https://app.exemplo.com', 'https://*.exemplo.dev'], credentials: true, exposedHeaders: ['X-Total'] }))
       .mount(Api);
     srv = await startServer(app);
   });
@@ -102,9 +102,28 @@ describe('S-01 · CORS', () => {
     assert.match(res.headers.get('vary')!, /Origin/);
   });
 
-  it('origem por RegExp é aceita', async () => {
+  it('origem por curinga de subdomínio é aceita', async () => {
     const res = await preflight('https://preview.exemplo.dev');
     assert.equal(res.headers.get('access-control-allow-origin'), 'https://preview.exemplo.dev');
+  });
+
+  it('não falha em requisições consecutivas quando origin usa RegExp com flags g ou y (lastIndex)', async () => {
+    const s = await startServer(
+      createApp()
+        .use(cors({ origin: [/https:\/\/app\.exemplo\.com/g, /https:\/\/preview\.exemplo\.dev/y] }))
+        .mount(Api),
+    );
+    try {
+      for (let i = 0; i < 3; i++) {
+        const resG = await fetch(s.url + '/api/data', { headers: { origin: 'https://app.exemplo.com' } });
+        assert.equal(resG.headers.get('access-control-allow-origin'), 'https://app.exemplo.com', `tentativa ${i + 1} para flag g`);
+
+        const resY = await fetch(s.url + '/api/data', { headers: { origin: 'https://preview.exemplo.dev' } });
+        assert.equal(resY.headers.get('access-control-allow-origin'), 'https://preview.exemplo.dev', `tentativa ${i + 1} para flag y`);
+      }
+    } finally {
+      await s.close();
+    }
   });
 
   it('origem não permitida não recebe Allow-Origin', async () => {

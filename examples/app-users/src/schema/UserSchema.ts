@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { Type } from "sashiko";
 
 export const UserSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),

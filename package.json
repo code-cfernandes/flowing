@@ -1,6 +1,6 @@
 {
   "name": "sashiko",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
   "keywords": [
     "http",
@@ -64,12 +64,12 @@
     }
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.34.52",
     "@types/node": "^26.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "fast-json-stringify": "^7.2.1",

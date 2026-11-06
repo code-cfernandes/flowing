@@ -9,6 +9,33 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.5.0] - 2026-11-06
+
+### Adicionado
+- `Type`, `Static` e `TSchema` do TypeBox re-exportados por `sashiko`, e `@sinclair/typebox` passou a ser
+  dependência de runtime. Não é mais preciso instalá-lo à parte: `import { Type } from 'sashiko'`.
+- Curinga de subdomínio nas regras de origem e de host: `cors({ origin: 'https://*.exemplo.dev' })` e
+  `allowedHosts: ['*.exemplo.dev']`. Aceita só subdomínios, nunca o domínio em si nem
+  `exemplo.dev.atacante.com`.
+
+### Alterado
+- **Incompatível:** nas regras de `cors({ origin })` e `allowedHosts`, uma RegExp precisa casar a string
+  **inteira**, como se tivesse `^…$`. Uma regex de sufixo como `/\.exemplo\.dev$/` deixa de aceitar
+  `https://preview.exemplo.dev`. **Migração:** use o curinga (`'https://*.exemplo.dev'`) ou uma regex
+  completa (`/^https:\/\/[a-z0-9-]+\.exemplo\.dev$/`).
+- **Incompatível:** regras inválidas falham na criação do app ou do middleware: origem sem esquema
+  (`'app.exemplo.com'`), `'*'` dentro de uma lista, curinga fora da primeira posição. Antes, uma origem
+  sem esquema simplesmente nunca casava.
+- Strings de origem são comparadas depois de normalizar com o parser de URL (maiúsculas, porta padrão,
+  barra final, IDN). `'https://App.exemplo.com:443/'` casa com `https://app.exemplo.com`.
+
+### Segurança
+- RegExp com as flags `g` ou `y` em `cors()` e `allowedHosts` alternava entre aceitar e recusar a mesma
+  origem em requisições seguidas, por causa do `lastIndex`. Agora essas flags (e a `m`) são descartadas,
+  sem ampliar o que é aceito.
+- RegExp sem âncora em `cors()` e `allowedHosts` aceitava origens e hosts que apenas *continham* o padrão
+  (`app.exemplo.com.atacante.com`). Agora a string inteira precisa casar.
+
 ## [0.4.0] - 2026-11-06
 
 ### Adicionado
@@ -167,7 +194,8 @@ Primeira versão pública.
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 
-[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/code-cfernandes/sashiko/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/code-cfernandes/sashiko/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/code-cfernandes/sashiko/compare/v0.2.0...v0.3.0

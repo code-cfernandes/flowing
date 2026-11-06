@@ -1,4 +1,5 @@
 import type { Middleware } from '../core/compose.ts';
+import { compileOriginMatcher } from '../utils/origin-match.ts';
 
 export type CorsOrigin =
   | '*'
@@ -8,7 +9,13 @@ export type CorsOrigin =
   | ((origin: string) => boolean | Promise<boolean>);
 
 export interface CorsOptions {
-  /** Origens permitidas. Obrigatório: não existe default permissivo. */
+  /**
+   * Origens permitidas. Obrigatório: não existe default permissivo.
+   * - `'https://app.exemplo.com'`: igualdade exata depois de normalizar (esquema, host e porta);
+   * - `'https://*.exemplo.dev'`: só subdomínios, nunca o domínio em si nem `exemplo.dev.atacante.com`;
+   * - RegExp: precisa casar a origem **inteira** (como se tivesse `^…$`); prefira o curinga;
+   * - função: lógica própria, sob sua responsabilidade.
+   */
   origin: CorsOrigin;
   methods?: readonly string[];
   allowedHeaders?: readonly string[];
@@ -36,7 +43,8 @@ export function cors(opts: CorsOptions): Middleware {
     throw new Error("cors: `origin: '*'` cannot be combined with `credentials: true`. List the allowed origins.");
   }
   const wildcard = opts.origin === '*';
-  const isAllowed = buildMatcher(opts.origin);
+  // `'*'` não passa pelo compilador de regras: é o modo "qualquer origem", tratado à parte.
+  const isAllowed = wildcard ? () => true : buildMatcher(opts.origin);
   const methods = (opts.methods ?? DEFAULT_METHODS).join(', ');
   const allowedHeaders = opts.allowedHeaders?.join(', ');
   const exposed = opts.exposedHeaders?.join(', ');
@@ -83,5 +91,5 @@ function filterHeaders(requested: string): string {
 function buildMatcher(origin: CorsOrigin): (o: string) => boolean | Promise<boolean> {
   if (typeof origin === 'function') return origin;
   const list = Array.isArray(origin) ? origin : [origin as string | RegExp];
-  return (o) => list.some((rule) => (typeof rule === 'string' ? rule === o : rule.test(o)));
+  return compileOriginMatcher(list);
 }
