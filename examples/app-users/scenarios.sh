@@ -88,7 +88,10 @@ req "$BASE/admin/stats" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 title "Erros · erro interno não vaza detalhes (o log do servidor mostra o erro real)"
 req "$BASE/admin/boom" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 
-title "Composição · mesma classe em /public/users, só leitura (only)"
+title "Composição · mesma classe em /public/users, só leitura (only), com cache"
+CACHE_URL="$BASE/public/users?c=$RANDOM"   # URL única por execução: a 1ª é MISS e a 2ª é HIT
+HDR_FILTER='^x-cache' hdrs "$CACHE_URL"
+HDR_FILTER='^x-cache' hdrs "$CACHE_URL"
 req "$BASE/public/users"
 req -XPOST "$BASE/public/users" "${JSON[@]}" -d '{"name":"X","email":"x@example.com"}'
 

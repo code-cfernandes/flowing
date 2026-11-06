@@ -2,6 +2,7 @@ import { consoleLogger, cors, createApp, rateLimit } from "sashiko";
 import { AdminRoutes, HealthRoutes } from "./src/routes/admin.ts";
 import { apiKeyGuard } from "./src/guards/api-key.ts";
 import { UserRoutes } from "./src/routes/users.ts";
+import { cache } from "./src/middlewares/cache.ts";
 import { csvSerializer } from "./src/serializers/csv.ts";
 import { UserRepository } from "./src/store/users.ts";
 
@@ -30,6 +31,8 @@ const app = createApp({
 });
 
 app
+  // Hook de ciclo de vida (F-04): libera recursos em qualquer close() (sinal, teste, código)
+  .onClose(() => app.log.info({ users: users.count() }, 'closing resources'))
   // CORS só para as origens conhecidas, com cookies/credenciais (S-01)
   .use(cors({ origin: ALLOWED_ORIGINS, credentials: true, exposedHeaders: ['RateLimit-Remaining'] }))
   // 100 req/min por IP (S-06)
@@ -47,7 +50,8 @@ app
   // Mapeamento manual (F-30): paths que a classe não declara, relativos ao prefixo do grupo
   .get('/export.csv', (r) => r.exportCsv, { guards: [apiKeyGuard] }) // exige a API key só aqui
   .get('/by-id/:id', (r) => r.getUser)                                // alias legado de GET /users/:id
-  .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser] }); // vitrine só leitura, mesma instância
+  // Vitrine só leitura, mesma instância, com cache de 10s por URL e Accept (F-04: ctx.sentBody)
+  .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser], middlewares: [cache(10_000)] });
 
 // SIGINT/SIGTERM já são tratados: o app espera as requisições em andamento e fecha (F-07)
 await app.listen({ port: PORT });

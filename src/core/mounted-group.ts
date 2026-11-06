@@ -5,7 +5,8 @@ import type { InjectOptions, InjectResponse } from './inject.ts';
 import type { ListenOptions } from './app.ts';
 import type { Logger } from './logger.ts';
 import type { Middleware } from './compose.ts';
-import type { Context } from './context.ts';
+import type { Context, OnSendHook } from './context.ts';
+import type { OnCloseHook, OnResponseHook } from './app.ts';
 
 /**
  * Retorno de `app.mount()` (F-30): permite mapear manualmente métodos do grupo e continuar
@@ -54,6 +55,9 @@ export class MountedGroup<T extends object> {
   }
   use(mw: Middleware): SashikoApp { return this.app.use(mw); }
   onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp { return this.app.onError(h); }
+  onSend(hook: OnSendHook): SashikoApp { return this.app.onSend(hook); }
+  onResponse(hook: OnResponseHook): SashikoApp { return this.app.onResponse(hook); }
+  onClose(hook: OnCloseHook): SashikoApp { return this.app.onClose(hook); }
   listen(options?: number | ListenOptions): Promise<http.Server> { return this.app.listen(options); }
   close(graceMs?: number): Promise<void> { return this.app.close(graceMs); }
   callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void { return this.app.callback(); }
