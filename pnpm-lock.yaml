@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.52
+        version: 0.34.52
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -179,9 +182,6 @@ importers:
         specifier: ^9.10.0
         version: 9.10.0
     devDependencies:
-      '@sinclair/typebox':
-        specifier: ^0.34.52
-        version: 0.34.52
       '@types/node':
         specifier: ^26.0.0
         version: 26.6.6

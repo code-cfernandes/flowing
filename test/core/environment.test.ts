@@ -48,3 +48,13 @@ describe('R-06 · src/ não usa o alias sashiko', () => {
     assert.deepEqual(offenders, []);
   });
 });
+
+describe('B-13 · TypeBox re-exportado', () => {
+  it('reexporta Type do TypeBox pelo ponto de entrada sashiko', async () => {
+    const { Type } = await import('sashiko');
+    assert.ok(Type, 'Type deve estar disponível');
+    assert.equal(typeof Type.Object, 'function');
+    const schema = Type.Object({ name: Type.String() });
+    assert.equal(schema.type, 'object');
+  });
+});

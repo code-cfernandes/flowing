@@ -4,11 +4,10 @@ Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-fi
 
 > **Sashiko** (刺し子) é uma técnica japonesa de bordado em que os pontos decorativos também **reforçam** o tecido. É a ideia do framework: os decorators organizam a API e, ao mesmo tempo, trazem validação e proteções seguras por padrão.
 
-Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só quatro dependências de runtime.
+Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só cinco dependências de runtime.
 
 ```ts
-import { Type } from '@sinclair/typebox';
-import { type Context, createApp, Post, Router, type RouteSchemas } from 'sashiko';
+import { type Context, createApp, Post, Router, type RouteSchemas, Type } from 'sashiko';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const create = {
@@ -52,8 +51,9 @@ await app.listen({ port: 3000 });
 - ESM (`"type": "module"`).
 
 ```bash
-pnpm add sashiko @sinclair/typebox
+pnpm add sashiko
 ```
+*(O TypeBox já vem incluído e re-exportado como `Type`, `Static` e `TSchema`)*
 
 `tsconfig.json` mínimo:
 
@@ -398,15 +398,27 @@ createApp({
   requireSchemas: true,
   securityHeaders: { strictTransportSecurity: true }, // só atrás de HTTPS
 })
-  .use(cors({ origin: ['https://app.exemplo.com', /\.exemplo\.dev$/], credentials: true }))
+  .use(cors({ origin: ['https://app.exemplo.com', 'https://*.exemplo.dev'], credentials: true }))
   .use(rateLimit({ max: 100, windowMs: 60_000 }));     // 429 + Retry-After
 ```
 
-- **`cors()`:** a origem é obrigatória, sem default permissivo. Aceita string, lista, RegExp ou função. Responde ao preflight com 204 e envia `Vary: Origin`. Combinar `origin: '*'` com `credentials: true` gera erro.
+- **`cors()`:** a origem é obrigatória, sem default permissivo. Responde ao preflight com 204 e envia `Vary: Origin`. Combinar `origin: '*'` com `credentials: true` gera erro.
+- **Regras de origem e de host, seguras por padrão** (as mesmas para `cors()` e `allowedHosts`):
+
+  | Regra | Casa com | Não casa com |
+  |---|---|---|
+  | `'https://app.exemplo.com'` | a mesma origem, depois de normalizar (maiúsculas, porta padrão, barra final) | `http://…`, outra porta, `app.exemplo.com.atacante.com` |
+  | `'https://*.exemplo.dev'` | qualquer subdomínio | `exemplo.dev` em si, `exemplo.dev.atacante.com` |
+  | RegExp | a string **inteira**, como se tivesse `^…$` | qualquer casamento parcial |
+  | função | o que ela decidir, sob sua responsabilidade | — |
+
+  - **RegExp sem âncora não vira brecha:** `/app\.exemplo\.com/` não aceita `app.exemplo.com.atacante.com`. As flags `g`, `y` e `m` são descartadas, então o resultado não muda entre requisições.
+  - **Prefira o curinga à RegExp:** uma regex mal escrita pode ser lenta com uma entrada maliciosa (ReDoS).
+  - **Regras inválidas falham na inicialização,** por exemplo uma origem sem esquema (`'app.exemplo.com'`).
 - **`rateLimit()`:** guarda os contadores em memória por padrão. Para várias instâncias, implemente `RateLimitStore` (Redis etc.).
 - **Cookies e CSRF:** ainda não há proteção de CSRF embutida. Se a autenticação usar cookies, valide `Origin` num middleware e use `SameSite=Lax` ou `Strict`.
 - **Atrás de proxy:** `ctx.ip`, `ctx.host` e `ctx.protocol` usam o socket e o `Host` por padrão. Com `trustProxy: 1` (o número de proxies à frente do app) ou `true` (toda a cadeia), passam a usar o `X-Forwarded-For`, o `-Host` e o `-Proto`. Só ligue isso atrás de um proxy que reescreve esses headers, porque o cliente pode forjá-los.
-- **`allowedHosts`:** com `allowedHosts: ['api.exemplo.com', /\.exemplo\.dev$/]`, qualquer outro `Host` recebe 400. Protege contra host header injection e DNS rebinding.
+- **`allowedHosts`:** com `allowedHosts: ['api.exemplo.com', '*.exemplo.dev']`, qualquer outro `Host` recebe 400. Protege contra host header injection e DNS rebinding. Um host sem porta aceita qualquer porta; com porta (`'api.exemplo.com:8443'`), exige a porta exata.
 - **Links absolutos** (reset de senha, redirects): prefira uma URL base da configuração em vez do host pedido pelo cliente.
 
 ## Logs e request id
@@ -481,7 +493,7 @@ O body só é lido como JSON quando o `Content-Type` é `application/json` ou `a
 
 ## Princípios
 
-1. **Micro:** núcleo pequeno, com quatro dependências de runtime (`ajv`, `ajv-formats`, `fast-json-stringify`, `find-my-way`).
+1. **Micro:** núcleo pequeno, com cinco dependências de runtime (`@sinclair/typebox`, `ajv`, `ajv-formats`, `fast-json-stringify`, `find-my-way`). O TypeBox é re-exportado (`Type`, `Static`, `TSchema`), então não precisa ser instalado à parte.
 2. **Só decorators padrão (TC39):** sem `reflect-metadata`.
 3. **Schema-first:** o schema é a fonte da validação, da serialização e dos tipos.
 4. **Seguro por padrão:** desligar uma proteção é sempre explícito.

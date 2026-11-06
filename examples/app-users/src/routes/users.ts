@@ -1,7 +1,5 @@
-import { Type } from "@sinclair/typebox";
 import {
-  type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer,
-} from "sashiko";
+  type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer, Type } from "sashiko";
 import {
   CreateUserSchema, GreetingSchema, ListUsersQuery, UpdateUserSchema, UserIdParams, UserSchema,
 } from "../schema/UserSchema.ts";

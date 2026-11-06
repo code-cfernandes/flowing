@@ -11,6 +11,7 @@ import { assertSchemas, validateRequest } from './request-validation.ts';
 import { sendError, sendResult, type Serializer } from './response.ts';
 import { RouteTable } from './route-table.ts';
 import { mediaType } from '../utils/content-type.ts';
+import { compileHostMatcher } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
 import { shutdownCoordinator, type ShutdownOptions, type ShutdownTarget } from './shutdown.ts';
@@ -80,6 +81,9 @@ export interface AppOptions {
   /**
    * Hosts aceitos (S-09). Requisições com outro `Host` (ou `X-Forwarded-Host` confiável) recebem 400.
    * Protege contra host header injection e DNS rebinding. Padrão: qualquer host válido.
+   * - `'api.exemplo.com'` casa com o hostname (qualquer porta); `'api.exemplo.com:8443'` exige a porta;
+   * - `'*.exemplo.dev'` aceita só subdomínios;
+   * - uma RegExp precisa casar o hostname **inteiro** (como se tivesse `^…$`).
    */
   allowedHosts?: readonly (string | RegExp)[];
 }
@@ -98,13 +102,6 @@ export interface RequestIdOptions {
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
-/** Compara o host com a lista: strings casam com o hostname ou com `host:porta`, sem diferenciar maiúsculas. */
-function hostAllowed(hostname: string, host: string, allowed: readonly (string | RegExp)[]): boolean {
-  const h = hostname.toLowerCase();
-  const full = host.toLowerCase();
-  return allowed.some((rule) => (typeof rule === 'string' ? rule.toLowerCase() === h || rule.toLowerCase() === full : rule.test(h)));
-}
-
 export class SashikoApp {
   private middlewares: Middleware[] = [];
   private router = new RouteTable();
@@ -115,6 +112,7 @@ export class SashikoApp {
   private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
+  private readonly allowedHosts: ((hostname: string, host: string) => boolean) | undefined;
   private readonly serializers: ReadonlyMap<string, Serializer>;
   private server: http.Server | undefined;
   /** Respostas em andamento, para o encerramento gracioso não travar em conexões keep-alive. */
@@ -125,6 +123,8 @@ export class SashikoApp {
 
   constructor(opts: AppOptions = {}) {
     this.opts = opts;
+    // Compilado na criação: uma regra inválida falha aqui, e não na primeira requisição.
+    this.allowedHosts = opts.allowedHosts ? compileHostMatcher(opts.allowedHosts) : undefined;
     this.serializers = new Map(Object.entries(opts.serializers ?? {}).map(([type, fn]) => [mediaType(type), fn]));
     this.log = opts.logger === false ? silentLogger : (opts.logger ?? consoleLogger());
     const sd = opts.shutdown || {};
@@ -303,7 +303,7 @@ export class SashikoApp {
           queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log, trustProxy: this.opts.trustProxy, onSend: this.onSendHooks,
         });
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
-        if (!ctx.host || (this.opts.allowedHosts && !hostAllowed(ctx.hostname, ctx.host, this.opts.allowedHosts))) {
+        if (!ctx.host || (this.allowedHosts && !this.allowedHosts(ctx.hostname, ctx.host))) {
           this.applySecurityHeaders?.(res);
           res.statusCode = 400;
           ctx[kRawSend](JSON.stringify({ error: 'Invalid Host header' }), 'application/json; charset=utf-8');

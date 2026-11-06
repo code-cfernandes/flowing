@@ -91,19 +91,41 @@ describe('S-09 · trustProxy', () => {
 });
 
 describe('S-09 · allowedHosts', () => {
-  const app = createApp({ logger: false, allowedHosts: ['api.exemplo.com', /\.exemplo\.dev$/] }).mount(Echo);
+  const app = createApp({ logger: false, allowedHosts: ['api.exemplo.com', '*.exemplo.dev', /^ci-\d+\.exemplo\.net$/] }).mount(Echo);
   const status = async (host: string) => (await app.inject({ url: '/x', headers: { host } })).status;
 
-  it('aceita hosts da lista (com ou sem porta, sem diferenciar maiúsculas) e RegExp', async () => {
+  it('aceita hosts da lista (com ou sem porta, sem diferenciar maiúsculas), curinga e RegExp', async () => {
     assert.equal(await status('api.exemplo.com'), 200);
     assert.equal(await status('API.exemplo.com:8443'), 200);
     assert.equal(await status('preview.exemplo.dev'), 200);
+    assert.equal(await status('ci-42.exemplo.net'), 200);
+  });
+
+  it('curinga e RegExp não aceitam variações de prefixo ou sufixo', async () => {
+    assert.equal(await status('exemplo.dev'), 400, 'curinga não inclui o domínio em si');
+    assert.equal(await status('exemplo.dev.atacante.com'), 400);
+    assert.equal(await status('ci-42.exemplo.net.atacante.com'), 400, 'RegExp precisa casar o hostname inteiro');
   });
 
   it('recusa hosts fora da lista com 400, já com os headers de segurança', async () => {
     const res = await app.inject({ url: '/x', headers: { host: 'evil.com' } });
     assert.equal(res.status, 400);
     assert.equal(res.headers['x-content-type-options'], 'nosniff');
+  });
+
+  it('não falha em requisições consecutivas com RegExp contendo flags g ou y (lastIndex)', async () => {
+    const appWithFlags = createApp({
+      logger: false,
+      allowedHosts: [/api\.exemplo\.com/g, /preview\.exemplo\.dev/y],
+    }).mount(Echo);
+
+    for (let i = 0; i < 3; i++) {
+      const resG = await appWithFlags.inject({ url: '/x', headers: { host: 'api.exemplo.com' } });
+      assert.equal(resG.status, 200, `tentativa ${i + 1} para flag g`);
+
+      const resY = await appWithFlags.inject({ url: '/x', headers: { host: 'preview.exemplo.dev' } });
+      assert.equal(resY.status, 200, `tentativa ${i + 1} para flag y`);
+    }
   });
 });
 
