@@ -17,12 +17,12 @@ function register(decorator: string, pick: 'middlewares' | 'guards', items: read
 }
 
 /**
- * Middlewares por controller ou por rota (F-01). Rodam depois dos globais e antes dos guards.
+ * Middlewares por classe ou por rota (F-01). Rodam depois dos globais e antes dos guards.
  *
  * ```ts
- * @Use(rateLimit({ max: 10 }))          // todas as rotas do controller
- * @Controller('/auth')
- * class AuthController {
+ * @Use(rateLimit({ max: 10 }))          // todas as rotas da classe
+ * @Router('/auth')
+ * class AuthRoutes {
  *   @Use(audit) @Post('/login') login() {}
  * }
  * ```
@@ -32,7 +32,7 @@ export function Use(...middlewares: Middleware[]) {
 }
 
 /**
- * Guards por controller ou por rota (F-01). Rodam antes da validação; `false` responde 403.
+ * Guards por classe ou por rota (F-01). Rodam antes da validação; `false` responde 403.
  *
  * ```ts
  * const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';

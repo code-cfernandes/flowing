@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
-import { type Context, Controller, createApp, Get, Post, Schema } from 'picodecor';
+import { type Context, Router, createApp, Get, Post, Schema } from 'picodecor';
 
-@Controller('/l')
+@Router('/l')
 class L {
   @Get('/') hello(ctx: Context) { return { ip: ctx.ip, q: ctx.query }; }
   @Post('/') @Schema({ body: Type.Object({ n: Type.Integer() }) }) echo(ctx: Context) { return ctx.body; }
@@ -14,7 +14,7 @@ class L {
 
 describe('F-09 · listen / close / callback', () => {
   it('listen() resolve com o servidor já aceitando conexões', async () => {
-    const app = createApp().controllers([L]);
+    const app = createApp().route(L);
     const server = await app.listen({ port: 0 });
     try {
       const { port } = server.address() as AddressInfo;
@@ -46,7 +46,7 @@ describe('F-09 · listen / close / callback', () => {
   });
 
   it('close() espera as requisições em andamento terminarem', async () => {
-    const app = createApp().controllers([L]);
+    const app = createApp().route(L);
     const server = await app.listen(0);
     const { port } = server.address() as AddressInfo;
     const pending = fetch(`http://127.0.0.1:${port}/l/slow`);
@@ -61,7 +61,7 @@ describe('F-09 · listen / close / callback', () => {
   });
 
   it('callback() funciona com um servidor criado pelo usuário', async () => {
-    const app = createApp().controllers([L]);
+    const app = createApp().route(L);
     const server = http.createServer(app.callback());
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     try {
@@ -74,7 +74,7 @@ describe('F-09 · listen / close / callback', () => {
 });
 
 describe('F-09 · inject() sem rede', () => {
-  const app = createApp().controllers([L]);
+  const app = createApp().route(L);
 
   it('GET com query e IP simulado', async () => {
     const res = await app.inject({ url: '/l?a=1&a=2', remoteAddress: '10.0.0.7' });

@@ -2,7 +2,7 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, Controller, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Use, UseGuards,
+  type Context, Router, createApp, Get, type Guard, type Middleware, Post, Schema, unauthorized, Use, UseGuards,
 } from 'picodecor';
 
 declare module 'picodecor' {
@@ -30,7 +30,7 @@ const isLogged: Guard = (ctx) => {
 const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';
 
 @Use(mark('class-1'), mark('class-2'))
-@Controller('/m')
+@Router('/m')
 class M {
   @Use(mark('method-1'))
   @Use(mark('method-2'))
@@ -43,7 +43,7 @@ class M {
 
 @Use(authenticate)
 @UseGuards(isLogged)
-@Controller('/admin')
+@Router('/admin')
 class Admin {
   @Get('/me') me(ctx: Context) { return ctx.state.user; }
 
@@ -53,18 +53,18 @@ class Admin {
   danger() { return { done: true }; }
 }
 
-@Controller('/admin2')
+@Router('/admin2')
 class ChildAdmin extends Admin {
   @Get('/child') child(ctx: Context) { return { role: ctx.state.user?.role }; }
 }
 
 const shortCircuit: Middleware = (ctx) => { ctx.status(503).json({ error: 'maintenance' }); };
-@Controller('/sc')
+@Router('/sc')
 class SC { @Use(shortCircuit) @Get('/') never() { throw new Error('não deveria executar'); } }
 
 const app = createApp()
   .use(mark('global'))
-  .controllers([M, Admin, ChildAdmin, SC]);
+  .route(M).route(Admin).route(ChildAdmin).route(SC);
 
 const bearer = (role: string) => ({ authorization: `Bearer ${role}` });
 

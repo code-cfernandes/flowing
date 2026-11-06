@@ -1,6 +1,7 @@
 import { consoleLogger, cors, createApp, rateLimit } from "picodecor";
-import { AdminController, HealthController } from "./src/controller/Admin.ts";
-import { UserController } from "./src/controller/User.ts";
+import { AdminRoutes, HealthRoutes } from "./src/routes/admin.ts";
+import { apiKeyGuard } from "./src/guards/api-key.ts";
+import { UserRoutes } from "./src/routes/users.ts";
 import { UserRepository } from "./src/store/users.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -31,8 +32,13 @@ app
     // Ponto para enviar a um APM; se este handler falhar, o app não cai (B-08)
     if (process.env.DEBUG_ERRORS) ctx.log.warn({ err }, 'onError hook');
   })
-  // Classe sem dependências pode ir direto; com dependências, passe a instância (B-10)
-  .controllers([HealthController, new AdminController(users), new UserController(users)]);
+  // app.route() é a única porta de entrada (F-28):
+  // - classe sem dependências vai direto; com dependências, passe a instância (B-10)
+  // - prefix, only/except, middlewares e guards são decididos aqui, sem tocar nas classes
+  .route(HealthRoutes)
+  .route(new AdminRoutes(users), { guards: [apiKeyGuard] })          // toda a área /admin exige a API key
+  .route(new UserRoutes(users))
+  .route(new UserRoutes(users), { prefix: '/public/users', only: ['listUsers', 'getUser'] }); // vitrine só leitura
 
 await app.listen({ port: PORT });
 

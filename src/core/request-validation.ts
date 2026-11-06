@@ -21,8 +21,8 @@ export function validateRequest(ctx: Context, schemas: RouteSchemas): void {
 }
 
 /** Modo `requireSchemas` (S-07): falha no registro se a rota não tiver os schemas obrigatórios. */
-export function assertSchemas(controller: string, route: { method: string; path: string; schemas: RouteSchemas }): void {
-  const where = `${controller}: ${route.method} ${route.path}`;
+export function assertSchemas(owner: string, route: { method: string; path: string; schemas: RouteSchemas }): void {
+  const where = `${owner}: ${route.method} ${route.path}`;
   if (['POST', 'PUT', 'PATCH'].includes(route.method) && !route.schemas.body) {
     throw new Error(`[picodecor] requireSchemas: ${where} has no body schema.`);
   }

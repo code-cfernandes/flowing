@@ -1,13 +1,13 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
-import { type Context, Controller, createApp, Get, Post, Schema } from 'picodecor';
+import { type Context, Router, createApp, Get, Post, Schema } from 'picodecor';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 const Pub = Type.Object({ id: Type.String() });
 
 describe('B-05 · status x schema de resposta', () => {
-  @Controller('/b05')
+  @Router('/b05')
   class C {
     // Só declara 201 e esquece ctx.status(201)
     @Post('/created') @Schema({ body: Type.Object({}), response: { 201: Pub } })
@@ -27,7 +27,7 @@ describe('B-05 · status x schema de resposta', () => {
 
   let srv: TestServer;
   const errorLog = mock.method(console, 'error', () => {});
-  before(async () => { srv = await startServer(createApp().controllers([C])); });
+  before(async () => { srv = await startServer(createApp().route(C)); });
   after(async () => { errorLog.mock.restore(); await srv.close(); });
 
   it('usa o único 2xx declarado como status padrão e filtra os campos', async () => {
@@ -59,7 +59,7 @@ describe('B-05 · status x schema de resposta', () => {
 });
 
 describe('B-07 · query com chaves repetidas', () => {
-  @Controller('/b07')
+  @Router('/b07')
   class C {
     @Get('/raw') raw(ctx: Context) { return ctx.query; }
 
@@ -69,7 +69,7 @@ describe('B-07 · query com chaves repetidas', () => {
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([C])); });
+  before(async () => { srv = await startServer(createApp().route(C)); });
   after(() => srv.close());
 
   it('chave repetida vira array; chave única continua string', async () => {
@@ -92,14 +92,14 @@ describe('B-07 · query com chaves repetidas', () => {
 describe('B-10 · controllers com dependências', () => {
   class Repo { find() { return { id: 'from-repo' }; } }
 
-  @Controller('/b10')
+  @Router('/b10')
   class WithDeps {
     constructor(private readonly repo: Repo) {}
     @Get('/') get() { return this.repo.find(); }
   }
 
   it('aceita uma instância já construída', async () => {
-    const srv = await startServer(createApp().controllers([new WithDeps(new Repo())]));
+    const srv = await startServer(createApp().route(new WithDeps(new Repo())));
     try {
       assert.deepEqual(await (await fetch(srv.url + '/b10')).json(), { id: 'from-repo' });
     } finally { await srv.close(); }
@@ -107,16 +107,16 @@ describe('B-10 · controllers com dependências', () => {
 
   it('instância de classe sem @Controller gera erro claro', () => {
     class Plain {}
-    assert.throws(() => createApp().controllers([new Plain()]), /Plain is not decorated/);
+    assert.throws(() => createApp().route(new Plain()), /Plain is not decorated with @Router/);
   });
 });
 
 describe('B-11 · detecção de JSON pelo media type', () => {
-  @Controller('/b11')
+  @Router('/b11')
   class C { @Post('/') echo(ctx: Context) { return { body: ctx.body ?? null }; } }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([C])); });
+  before(async () => { srv = await startServer(createApp().route(C)); });
   after(() => srv.close());
 
   const send = async (ct: string) => {
@@ -140,11 +140,11 @@ describe('B-11 · detecção de JSON pelo media type', () => {
 });
 
 describe('S-06 · queryMaxKeys', () => {
-  @Controller('/qk')
+  @Router('/qk')
   class C { @Get('/') raw(ctx: Context) { return ctx.query; } }
 
   it('limita os pares lidos da query conforme AppOptions', async () => {
-    const srv = await startServer(createApp({ queryMaxKeys: 2 }).controllers([C]));
+    const srv = await startServer(createApp({ queryMaxKeys: 2 }).route(C));
     try {
       const res = await fetch(srv.url + '/qk?a=1&b=2&c=3');
       assert.deepEqual(await res.json(), { a: '1', b: '2' });

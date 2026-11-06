@@ -84,6 +84,10 @@ req "$BASE/admin/stats" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 title "S-05 · erro interno não vaza detalhes (o log do servidor mostra o erro real)"
 req "$BASE/admin/boom" -H "x-api-key: ${ADMIN_API_KEY:-dev-admin-key}"
 
+title "F-28 · mesma classe em /public/users, só leitura (only)"
+req "$BASE/public/users"
+req -XPOST "$BASE/public/users" "${JSON[@]}" -d '{"name":"X","email":"x@example.com"}'
+
 title "CRUD · remover (204) e confirmar (404)"
 req -XDELETE "$BASE/users/$ID"
 req "$BASE/users/$ID"

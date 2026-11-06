@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
-import { type Context, Controller, createApp, Get, Post, Schema } from 'picodecor';
+import { type Context, Router, createApp, Get, Post, Schema } from 'picodecor';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 const postJson = (url: string, body: unknown) =>
@@ -13,7 +13,7 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
   const rejections: unknown[] = [];
   const onRejection = (r: unknown) => rejections.push(r);
 
-  @Controller('/b08')
+  @Router('/b08')
   class C {
     @Get('/') boom() { throw new Error('original'); }
   }
@@ -22,7 +22,7 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
     process.on('unhandledRejection', onRejection);
     const app = createApp()
       .onError(() => { throw new Error('handler quebrado'); })
-      .controllers([C]);
+      .route(C);
     srv = await startServer(app);
   });
   after(async () => {
@@ -45,19 +45,19 @@ describe('B-08 · exceção em onError não derruba o processo', () => {
 });
 
 describe('B-09 · herança de controllers', () => {
-  @Controller('/base')
+  @Router('/base')
   class Base {
     @Get('/hello') hello() { return { from: 'base' }; }
   }
 
-  @Controller('/child')
+  @Router('/child')
   class Child extends Base {
     @Get('/extra') extra() { return { from: 'child' }; }
     override hello() { return { from: 'child-override' }; }
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([Base, Child])); });
+  before(async () => { srv = await startServer(createApp().route(Base).route(Child)); });
   after(() => srv.close());
 
   const get = async (p: string) => {
@@ -77,7 +77,7 @@ describe('B-09 · herança de controllers', () => {
 });
 
 describe('B-02 / B-03 / B-06 · validação', () => {
-  @Controller('/v')
+  @Router('/v')
   class V {
     @Post('/body')
     @Schema({ body: Type.Object({ name: Type.String({ minLength: 1 }), age: Type.Integer() }) })
@@ -93,7 +93,7 @@ describe('B-02 / B-03 / B-06 · validação', () => {
   }
 
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([V])); });
+  before(async () => { srv = await startServer(createApp().route(V)); });
   after(() => srv.close());
 
   it('B-02 · 400 traz a parte inválida e os detalhes de cada erro', async () => {

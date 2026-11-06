@@ -11,6 +11,9 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 ## [Não lançado]
 
 ### Adicionado
+- `@Router(prefix)` e `app.route(classeOuInstância, { prefix, only, except, middlewares, guards })`:
+  registro único com controle no ponto de composição. Montar a mesma classe em vários prefixos,
+  expor parcialmente e aplicar autenticação/cache a um grupo; `only`/`except` checados pelo TypeScript. (F-28)
 - `app.listen()` assíncrono (aceita `{ port, host }`), `app.close()` com encerramento gracioso,
   `app.callback()` para servidores próprios e `app.inject()` para requisições em memória, sem rede. (F-09)
 - Helpers `ctx.header()`, `ctx.get()`, `ctx.text()`, `ctx.send()` (string, Buffer ou stream) e
@@ -49,7 +52,7 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 - Arquivo `LICENSE` (ISC); `package.json` com `engines.node`, `sideEffects`, `keywords` e
   `prepublishOnly`.
 - `AppOptions.queryMaxKeys` limita os pares lidos da query string (padrão 1000). (S-06)
-- `app.controllers()` aceita instâncias, para injetar dependências pelo construtor. (B-10)
+- O registro de rotas aceita instâncias, para injetar dependências pelo construtor. (B-10)
 - Script `pnpm test:coverage` com limites mínimos de cobertura. (F-19)
 - O exemplo `app-users` passa a injetar um `UserRepository` nos controllers. (F-18)
 - Opção `--test-timeout` nos scripts de teste, para um request travado não segurar a suíte.
@@ -57,6 +60,9 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 ### Alterado
 - `Symbol.metadata` agora vem do shim `src/shims/symbol-metadata.ts` (antigo `core/polyfill.ts`).
 - A metadata de controllers foi movida para `src/core/metadata.ts`, para que o core não dependa de `decorators/`.
+- **Incompatível:** `@Controller` virou `@Router`, e `app.controllers([A, B])` virou `app.route(A).route(B)`.
+  Tipos renomeados: `ControllerRef` → `RouterRef`, `ControllerMetadata` → `RouterMetadata`,
+  `CONTROLLER_METADATA` → `ROUTER_METADATA`. (F-28)
 - **Incompatível:** `app.listen()` agora retorna `Promise<http.Server>` e recebe `number | { port, host }`;
   use `await app.listen(...)` e `app.close()` no lugar de `server.close()`. (F-09)
 - **Incompatível:** erros internos passam pelo logger, no formato `{ err, reqId, method, path, status }`,
@@ -76,7 +82,7 @@ Os códigos entre parênteses (ex.: `B-01`, `F-09`) são identificadores interno
 - Exceção dentro de um `onError` não derruba mais o processo: o erro é logado e a resposta
   padrão é enviada com o erro original. `listen()` também captura qualquer falha restante. (B-08)
 - Subclasses de controllers não alteram mais a metadata da classe pai: herdam as rotas
-  e usam o próprio prefixo. Classes sem `@Controller` próprio são rejeitadas. (B-09)
+  e usam o próprio prefixo. Classes sem `@Router` próprio são rejeitadas. (B-09)
 - O body não sofre mais coerção de tipos (`"30"` não vira `30`); params, query e headers
   continuam com coerção. A validação não remove mais campos do objeto em silêncio. (B-06)
 - Com um único 2xx declarado no schema, ele vira o status padrão sem `ctx.status()`. Um status sem

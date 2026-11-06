@@ -2,7 +2,7 @@ import { type Static, Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  type Context, Controller, createApp, Get, type InferBody, type InferParams, type InferQuery, type InferResponse,
+  type Context, Router, createApp, Get, type InferBody, type InferParams, type InferQuery, type InferResponse,
   type InferSchema, Post, type RouteSchemas, Schema,
 } from 'picodecor';
 
@@ -44,7 +44,7 @@ function _typedContext(ctx: Context<typeof create>) {
 void _typedContext;
 
 // ---------- Runtime: o Context tipado recebe os valores validados ----------
-@Controller('/orgs/:org/users')
+@Router('/orgs/:org/users')
 class Users {
   @Post('/')
   @Schema(create)
@@ -59,7 +59,7 @@ class Users {
 }
 
 describe('F-02 · Context<S> tipado pelo schema', () => {
-  const app = createApp({ logger: false }).controllers([Users]);
+  const app = createApp({ logger: false }).route(Users);
 
   it('handler tipado recebe body, params e query já validados e com defaults', async () => {
     const res = await app.inject({ method: 'POST', url: '/orgs/acme/users', body: { name: 'Ana', tags: [] } });

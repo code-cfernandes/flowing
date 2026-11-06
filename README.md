@@ -2,11 +2,11 @@
 
 Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-first** e **seguro por padrão**.
 
-PicoDecor combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em controllers do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só quatro dependências de runtime.
+PicoDecor combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só quatro dependências de runtime.
 
 ```ts
 import { Type } from '@sinclair/typebox';
-import { type Context, Controller, createApp, Get, Post, type RouteSchemas, Schema } from 'picodecor';
+import { type Context, createApp, Post, Router, type RouteSchemas, Schema } from 'picodecor';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const create = {
@@ -14,8 +14,8 @@ const create = {
   response: { 201: User },
 } satisfies RouteSchemas;
 
-@Controller('/users')
-class UserController {
+@Router('/users')
+class UserRoutes {
   @Post('/')
   @Schema(create)
   create(ctx: Context<typeof create>) {
@@ -23,14 +23,15 @@ class UserController {
   }
 }
 
-const app = createApp().controllers([UserController]);
+const app = createApp().route(UserRoutes);
 await app.listen({ port: 3000 });
 ```
 
 ## Sumário
 
 - [Requisitos e instalação](#requisitos-e-instalação)
-- [Controllers e rotas](#controllers-e-rotas)
+- [Rotas](#rotas)
+- [Registro e composição: `app.route()`](#registro-e-composição-approute)
 - [Schemas: validação, serialização e tipos](#schemas-validação-serialização-e-tipos)
 - [Respostas e o `ctx`](#respostas-e-o-ctx)
 - [Middlewares e guards](#middlewares-e-guards)
@@ -63,13 +64,15 @@ pnpm add picodecor @sinclair/typebox
 }
 ```
 
-Importe `picodecor` **antes** de declarar controllers: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Controller } from 'picodecor'` isso já acontece.
+Importe `picodecor` **antes** de declarar as classes de rotas: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Router } from 'picodecor'` isso já acontece.
 
-## Controllers e rotas
+## Rotas
+
+As rotas ficam em classes marcadas com `@Router`, a "permissão" para o app usar a classe, que também define o prefixo. Verbo e path ficam no método:
 
 ```ts
-@Controller('/users')
-class UserController {
+@Router('/users')
+class UserRoutes {
   @Get('/')         list() {}
   @Get('/:id')      get(ctx: Context) { return { id: ctx.params.id }; }
   @Post('/')        create() {}
@@ -77,19 +80,38 @@ class UserController {
   @Patch('/:id')    update() {}
   @Delete('/:id')   remove(ctx: Context) { ctx.status(204); }
 }
-
-createApp().controllers([UserController]);
 ```
 
 - **HEAD e OPTIONS automáticos:** toda rota `GET` responde a `HEAD`, sem corpo. `OPTIONS` responde 204 com o header `Allow`.
 - **405 e 404:** um método não suportado num path existente recebe 405 com `Allow`; um path inexistente recebe 404.
-- **Herança:** uma subclasse herda as rotas, os middlewares e os guards do pai, usando o próprio prefixo, e pode sobrescrever handlers. A classe base não é alterada.
-- **Dependências:** passe instâncias prontas; não há container nem mágica.
+- **Herança:** uma subclasse (com seu próprio `@Router`) herda as rotas, os middlewares e os guards do pai, com o próprio prefixo, e pode sobrescrever handlers. A classe base não é alterada.
 
-  ```ts
-  const repo = new UserRepository(db);
-  app.controllers([HealthController, new UserController(repo)]);
-  ```
+## Registro e composição: `app.route()`
+
+`app.route()` é a única porta de entrada. Ele aceita a classe (com construtor sem argumentos) ou uma **instância**, que é como as dependências chegam, sem container de DI. No **ponto de composição** (`server.ts`) você decide como expor cada classe, sem mexer nela:
+
+```ts
+const repo = new UserRepository(db);
+
+app
+  .route(HealthRoutes)
+  .route(new UserRoutes(repo))                                            // como declarado
+  .route(new UserRoutes(repo), { prefix: '/v2/users' })                   // a mesma classe em outro prefixo
+  .route(new UserRoutes(repo), { prefix: '/public/users', only: ['list', 'get'] })  // exposição parcial
+  .route(new AdminRoutes(repo), { middlewares: [authenticate], guards: [isAdmin] }); // regras para o grupo
+```
+
+| Opção | Efeito |
+|---|---|
+| `prefix` | Substitui o prefixo do `@Router` |
+| `only` / `except` | Registra só esses métodos, ou todos menos esses. Os nomes são checados pelo TypeScript; usar os dois juntos gera erro |
+| `middlewares` | Valem para todas as rotas registradas; rodam antes dos `@Use` da classe |
+| `guards` | Valem para todas as rotas registradas; rodam antes dos `@UseGuards` da classe |
+
+Erros de registro aparecem na inicialização, com mensagem clara:
+- classe sem `@Router`;
+- nome em `only`/`except` que não é método de rota;
+- a mesma classe registrada duas vezes com o mesmo prefixo.
 
 ## Schemas: validação, serialização e tipos
 
@@ -163,7 +185,7 @@ app.use(async (ctx, next) => {
 });
 ```
 
-Por controller ou por rota, use `@Use` e `@UseGuards`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
+Por classe ou por método, use `@Use` e `@UseGuards`; para um grupo inteiro, use as opções `middlewares` e `guards` do `app.route()`. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
 
 ```ts
 declare module 'picodecor' {
@@ -177,8 +199,8 @@ const authenticate: Middleware = async (ctx, next) => {
 const isAdmin: Guard = (ctx) => ctx.state.user?.role === 'admin';
 
 @Use(authenticate)
-@Controller('/admin')
-class AdminController {
+@Router('/admin')
+class AdminRoutes {
   @UseGuards(isAdmin)
   @Delete('/users/:id')
   remove() {}
@@ -188,7 +210,8 @@ class AdminController {
 **Ordem de execução:**
 
 ```
-middlewares globais → @Use (classe → método) → @UseGuards (classe → método) → validação → handler
+globais → app.route(…, { middlewares }) → @Use (classe → método)
+       → app.route(…, { guards }) → @UseGuards (classe → método) → validação → handler
 ```
 
 Os guards rodam **antes** da validação: quem não tem acesso recebe 401/403, e não um 400 que revelaria o formato esperado. Vários `@Use` na mesma posição executam de cima para baixo.
@@ -255,7 +278,7 @@ createApp({ logger: pino(), logRequests: true });
 ## Ciclo de vida e testes
 
 ```ts
-const app = createApp().controllers([UserController]);
+const app = createApp().route(UserRoutes);
 
 const server = await app.listen({ port: 3000, host: '0.0.0.0' }); // resolve quando está ouvindo
 
@@ -289,7 +312,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `controllers()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`.
+Métodos do app: `use()`, `route()`, `onError()`, `listen()`, `close()`, `callback()`, `inject()`, `log`.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
@@ -300,15 +323,15 @@ O body só é lido como JSON quando o `Content-Type` é `application/json` ou `a
 3. **Schema-first:** o schema é a fonte da validação, da serialização e dos tipos.
 4. **Seguro por padrão:** desligar uma proteção é sempre explícito.
 5. **Node nativo:** `node:http` direto.
-6. **Explícito em vez de mágico:** controllers e dependências registrados à mão, sem varredura de arquivos.
+6. **Explícito em vez de mágico:** rotas e dependências registradas à mão, no ponto de composição, sem varredura de arquivos.
 
 **Extensões:** quando um recurso tem alternativas populares, o core traz uma implementação leve e um ponto de extensão; a biblioteca externa fica a critério do seu projeto. Estão planejados um parser de query plugável (para usar `qs`) e um validador plugável (Zod, Valibot e ArkType via Standard Schema).
 
-**Fora do escopo:** ORM, views e SSR, CLI geradora, GraphQL e WebSockets no core, compatibilidade com middlewares do Express, Bun, Deno e edge (por enquanto).
+**Fora do escopo:** container de DI, módulos e providers; decorators de parâmetro (`@Body`, `@Param`), porque a interface é o `ctx`; interceptors, pipes e exception filters como conceitos separados; ORM, views e SSR, CLI geradora, GraphQL e WebSockets no core, compatibilidade com middlewares do Express, Bun, Deno e edge (por enquanto).
 
 ## Exemplo completo
 
-[`examples/app-users`](examples/app-users) traz CRUD, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
+[`examples/app-users`](examples/app-users) traz CRUD, composição com `app.route()`, guards, CORS, rate limit, logger, herança e injeção de dependências, além de um script que percorre todos os cenários:
 
 ```bash
 pnpm dev

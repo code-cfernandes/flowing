@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { Controller, Get, Schema } from 'picodecor';
+import { Router, Get, Schema } from 'picodecor';
 import { metadataFor } from '../../src/core/metadata.ts';
 
 describe('R-01 · Symbol.metadata', () => {
@@ -12,8 +12,8 @@ describe('R-01 · Symbol.metadata', () => {
 
   it('sem metadata no contexto, o erro explica como resolver', () => {
     assert.throws(
-      () => metadataFor({ kind: 'class', metadata: undefined }, 'Controller'),
-      /@Controller: decorator metadata is unavailable.*Import 'picodecor'/,
+      () => metadataFor({ kind: 'class', metadata: undefined }, 'Router'),
+      /@Router: decorator metadata is unavailable.*Import 'picodecor'/,
     );
   });
 });
@@ -32,7 +32,7 @@ describe('R-02 · decorators legados (experimentalDecorators)', () => {
   });
 
   it('@Controller legado (só o construtor) também é detectado', () => {
-    assert.throws(() => (Controller('/x') as (...a: any[]) => unknown)(class {}), /@Controller received legacy/);
+    assert.throws(() => (Router('/x') as (...a: any[]) => unknown)(class {}), /@Router received legacy/);
   });
 });
 

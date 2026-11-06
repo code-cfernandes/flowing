@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
 import {
-  type Context, Controller, createApp, Get, HttpError, internal, notFound, Post,
+  type Context, Router, createApp, Get, HttpError, internal, notFound, Post,
 } from 'picodecor';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
-@Controller('/t')
+@Router('/t')
 class ErrorsController {
   @Get('/throw-418')
   ctxThrow(ctx: Context) {
@@ -48,7 +48,7 @@ describe('tratamento de erros', () => {
   const errorLog = mock.method(console, 'error', () => {});
 
   before(async () => {
-    const app = createApp({ bodyLimit: 1024 }).controllers([ErrorsController]);
+    const app = createApp({ bodyLimit: 1024 }).route(ErrorsController);
     srv = await startServer(app);
   });
   after(async () => {

@@ -1,6 +1,6 @@
 # Exemplo: app-users
 
-API de usuários que demonstra os recursos do PicoDecor: CRUD com schemas, validação, segurança e herança de controllers.
+API de usuários que demonstra os recursos do PicoDecor: CRUD com schemas, validação, segurança e herança de classes de rotas.
 
 ## Rodar
 
@@ -25,12 +25,12 @@ Variáveis de ambiente:
 
 ```
 server.ts                  configuração do app (segurança, CORS, rate limit, timeouts)
-src/controller/User.ts     CRUD /users
-src/controller/Admin.ts    /health (base) e /admin (herda /health), protegido por guard
-src/guards/api-key.ts      guard que exige o header x-api-key
+src/routes/users.ts        CRUD /users
+src/routes/admin.ts        /health (base) e /admin (herda /health)
+src/guards/api-key.ts      guard que exige o header x-api-key (aplicado no server.ts)
 src/schema/                schemas TypeBox
 src/types/                 tipos derivados dos schemas
-src/store/                 UserRepository em memória, injetado nos controllers
+src/store/                 UserRepository em memória, injetado nas classes de rotas
 ```
 
 ## Rotas
@@ -43,8 +43,9 @@ src/store/                 UserRepository em memória, injetado nos controllers
 | PATCH | `/users/:id` | `Type.Partial` com `minProperties: 1` |
 | DELETE | `/users/:id` | 204 |
 | POST | `/users/:id/greet` | Handler async medido com `@timer()` |
-| GET | `/health`, `/admin/health` | Herança de controllers |
-| GET | `/admin/stats` | Guard `apiKeyGuard` (401) e header documentado por schema |
+| GET | `/health`, `/admin/health` | Herança entre classes de rotas |
+| GET | `/admin/stats` | Guard `apiKeyGuard` aplicado no `server.ts` (401) e header documentado por schema |
+| GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`) |
 | GET | `/admin/boom` | Erro interno sem vazar detalhes ao cliente |
 
 ## Cenários cobertos pelo `scenarios.sh`
@@ -53,13 +54,14 @@ src/store/                 UserRepository em memória, injetado nos controllers
 |---|---|
 | B-01 | JSON malformado → 400 |
 | B-02 | Erros de validação com `details` por campo |
-| F-01 | `@UseGuards` em `/admin`: sem chave → 401, inclusive nas rotas herdadas |
+| F-01 / F-28 | Guard de `/admin` aplicado em `app.route(…, { guards })`: sem chave → 401, inclusive nas rotas herdadas |
+| F-28 | `/public/users` é a `UserRoutes` com `prefix` e `only`; `POST /public/users` → 405 |
 | F-02 | Handlers com `Context<typeof schemas>`, sem casts |
 | F-06 | `X-Request-Id` em toda resposta; logs com `reqId` |
 | F-09 | `await app.listen()` e `app.close()` no shutdown |
 | B-06 | Body sem coerção de tipos; query com coerção |
 | B-05 | `POST /users` responde 201 sem `ctx.status()`, pelo único 2xx do schema |
-| B-09 | `/admin/health` herdado de `HealthController` |
+| B-09 | `/admin/health` herdado de `HealthRoutes` |
 | B-10 | Controllers recebem o `UserRepository` pelo construtor (`server.ts`) |
 | B-12 | Body acima de 64KB → 413 + `Connection: close` |
 | F-08 | HEAD sem corpo e OPTIONS com `Allow` |

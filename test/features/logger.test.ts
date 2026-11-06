@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, consoleLogger, Controller, createApp, Get, type Logger } from 'picodecor';
+import { type Context, consoleLogger, Router, createApp, Get, type Logger } from 'picodecor';
 
 /** Logger em memória que registra as chamadas, no formato do pino. */
 function memoryLogger(bindings: Record<string, unknown> = {}, lines: Record<string, unknown>[] = []): Logger & { lines: typeof lines } {
@@ -15,14 +15,14 @@ function memoryLogger(bindings: Record<string, unknown> = {}, lines: Record<stri
   };
 }
 
-@Controller('/log')
+@Router('/log')
 class L {
   @Get('/') hello(ctx: Context) { ctx.log.info({ custom: true }, 'inside handler'); return { id: ctx.id }; }
   @Get('/boom') boom() { throw new Error('kaboom'); }
 }
 
 describe('F-06 · request id', () => {
-  const app = createApp({ logger: false }).controllers([L]);
+  const app = createApp({ logger: false }).route(L);
 
   it('gera um id, expõe em ctx.id e devolve no header X-Request-Id', async () => {
     const res = await app.inject('/log');
@@ -46,7 +46,7 @@ describe('F-06 · request id', () => {
     const custom = createApp({
       logger: false,
       requestId: { header: 'x-correlation-id', trustIncoming: false, generate: () => `req-${++n}` },
-    }).controllers([L]);
+    }).route(L);
     const res = await custom.inject({ url: '/log', headers: { 'x-correlation-id': 'from-client' } });
     assert.equal(res.headers['x-correlation-id'], 'req-1');
     assert.equal(res.headers['x-request-id'], undefined);
@@ -56,7 +56,7 @@ describe('F-06 · request id', () => {
 describe('F-06 · logger plugável', () => {
   it('ctx.log é filho do logger do app com reqId', async () => {
     const logger = memoryLogger();
-    const app = createApp({ logger }).controllers([L]);
+    const app = createApp({ logger }).route(L);
     const res = await app.inject('/log');
     const line = logger.lines.find((l) => l.msg === 'inside handler')!;
     assert.equal(line.reqId, res.headers['x-request-id']);
@@ -65,7 +65,7 @@ describe('F-06 · logger plugável', () => {
 
   it('erros não expostos vão para o logger com err, status e reqId', async () => {
     const logger = memoryLogger();
-    const app = createApp({ logger }).controllers([L]);
+    const app = createApp({ logger }).route(L);
     const res = await app.inject('/log/boom');
     const line = logger.lines.find((l) => l.level === 'error')!;
     assert.equal((line.err as Error).message, 'kaboom');
@@ -75,7 +75,7 @@ describe('F-06 · logger plugável', () => {
 
   it('logRequests registra método, path, status e duração ao concluir', async () => {
     const logger = memoryLogger();
-    const app = createApp({ logger, logRequests: true }).controllers([L]);
+    const app = createApp({ logger, logRequests: true }).route(L);
     const srvApp = await app.listen(0);
     try {
       const { port } = srvApp.address() as { port: number };
@@ -94,7 +94,7 @@ describe('F-06 · logger plugável', () => {
   it('logger: false não escreve nada', async () => {
     const errorLog = mock.method(console, 'error', () => {});
     try {
-      await createApp({ logger: false }).controllers([L]).inject('/log/boom');
+      await createApp({ logger: false }).route(L).inject('/log/boom');
       assert.equal(errorLog.mock.callCount(), 0);
     } finally { errorLog.mock.restore(); }
   });

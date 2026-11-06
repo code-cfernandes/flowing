@@ -1,7 +1,7 @@
 // src/core/metadata.ts
 import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
-export const CONTROLLER_METADATA = Symbol.for('pico:controller');
+export const ROUTER_METADATA = Symbol.for('pico:router');
 
 export interface RouteSchemas {
   params?: object;
@@ -22,12 +22,12 @@ export interface MethodMetadata {
   guards: Guard[];
 }
 
-export interface ControllerMetadata {
-  /** `true` apenas quando a própria classe recebeu `@Controller` (não herda). */
-  isController: boolean;
+export interface RouterMetadata {
+  /** `true` apenas quando a própria classe recebeu `@Router` (não herda). */
+  isRouter: boolean;
   prefix: string;
   methods: Map<string | symbol, MethodMetadata>;
-  /** `@Use` na classe: valem para todas as rotas do controller (F-01). */
+  /** `@Use` na classe: valem para todas as rotas da classe (F-01). */
   middlewares: Middleware[];
   /** `@UseGuards` na classe (F-01). */
   guards: Guard[];
@@ -41,13 +41,13 @@ export interface ControllerMetadata {
  * clonamos a metadata herdada na primeira escrita (copy-on-write): a subclasse
  * herda as rotas do pai, mas nunca altera a classe base.
  */
-export function getOrCreateMetadata(meta: DecoratorMetadataObject): ControllerMetadata {
-  if (Object.hasOwn(meta, CONTROLLER_METADATA)) {
-    return meta[CONTROLLER_METADATA] as ControllerMetadata;
+export function getOrCreateMetadata(meta: DecoratorMetadataObject): RouterMetadata {
+  if (Object.hasOwn(meta, ROUTER_METADATA)) {
+    return meta[ROUTER_METADATA] as RouterMetadata;
   }
-  const inherited = meta[CONTROLLER_METADATA] as ControllerMetadata | undefined;
-  const own: ControllerMetadata = {
-    isController: false,
+  const inherited = meta[ROUTER_METADATA] as RouterMetadata | undefined;
+  const own: RouterMetadata = {
+    isRouter: false,
     prefix: '',
     methods: new Map(
       [...(inherited?.methods ?? [])].map(([name, m]) => [
@@ -59,16 +59,16 @@ export function getOrCreateMetadata(meta: DecoratorMetadataObject): ControllerMe
     middlewares: [...(inherited?.middlewares ?? [])],
     guards: [...(inherited?.guards ?? [])],
   };
-  meta[CONTROLLER_METADATA] = own;
+  meta[ROUTER_METADATA] = own;
   return own;
 }
 
 /** Lê a metadata própria de uma classe já decorada, sem criar nem herdar. */
-export function readOwnMetadata(Class: object): ControllerMetadata | undefined {
+export function readOwnMetadata(Class: object): RouterMetadata | undefined {
   if (!Object.hasOwn(Class, Symbol.metadata)) return undefined;
   const meta = (Class as { [Symbol.metadata]?: DecoratorMetadataObject | null })[Symbol.metadata];
-  if (!meta || !Object.hasOwn(meta, CONTROLLER_METADATA)) return undefined;
-  return meta[CONTROLLER_METADATA] as ControllerMetadata;
+  if (!meta || !Object.hasOwn(meta, ROUTER_METADATA)) return undefined;
+  return meta[ROUTER_METADATA] as RouterMetadata;
 }
 
 /**
@@ -80,7 +80,7 @@ export function readOwnMetadata(Class: object): ControllerMetadata | undefined {
  *
  * Nos dois casos, falhamos cedo com uma mensagem que diz como resolver.
  */
-export function metadataFor(context: unknown, decorator: string): ControllerMetadata {
+export function metadataFor(context: unknown, decorator: string): RouterMetadata {
   if (typeof context !== 'object' || context === null || !('kind' in context)) {
     throw new Error(
       `[picodecor] @${decorator} received legacy decorator arguments. PicoDecor uses standard (TC39) ` +
@@ -91,13 +91,13 @@ export function metadataFor(context: unknown, decorator: string): ControllerMeta
   if (!meta) {
     throw new Error(
       `[picodecor] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
-      `Import 'picodecor' before declaring controllers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
+      `Import 'picodecor' before declaring routers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
     );
   }
   return getOrCreateMetadata(meta);
 }
 
-export function getOrCreateMethod(meta: ControllerMetadata, name: string | symbol): MethodMetadata {
+export function getOrCreateMethod(meta: RouterMetadata, name: string | symbol): MethodMetadata {
   let m = meta.methods.get(name);
   if (!m) {
     m = { schemas: {}, handlerName: name, middlewares: [], guards: [] };

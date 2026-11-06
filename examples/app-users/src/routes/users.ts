@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import {
-  type Context, Controller, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer,
+  type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer,
 } from "picodecor";
 import {
   CreateUserSchema, GreetingSchema, ListUsersQuery, UpdateUserSchema, UserIdParams, UserSchema,
@@ -16,9 +16,9 @@ const update = { params: UserIdParams, body: UpdateUserSchema, response: { 200: 
 const remove = { params: UserIdParams, response: { 204: Type.Null() } } satisfies RouteSchemas;
 const greet = { params: UserIdParams, body: Type.Object({}), response: { 200: GreetingSchema } } satisfies RouteSchemas;
 
-@Controller('/users')
-export class UserController {
-  // Dependência injetada pelo construtor: app.controllers([new UserController(repo)]) (B-10)
+@Router('/users')
+export class UserRoutes {
+  // Dependência injetada pelo construtor: app.route(new UserRoutes(repo)) (B-10)
   constructor(private readonly users: UserRepository) {}
 
   private findOr404(id: string): User {

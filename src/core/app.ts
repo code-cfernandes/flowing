@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { compileController, type ControllerRef } from './compiler.ts';
+import { compileRoutes, type RouteOptions, type RouterRef } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
 import { sendError, sendResult } from './response.ts';
-import { PicoDecorRouter } from './router.ts';
+import { RouteTable } from './route-table.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
@@ -39,7 +39,7 @@ export interface AppOptions {
   timeouts?: ServerTimeouts;
   /**
    * Modo estrito (S-07): exige schema de `body` em POST/PUT/PATCH e schema de `response`
-   * em toda rota, falhando no registro do controller. Padrão: `false`.
+   * em toda rota, falhando no `app.route()`. Padrão: `false`.
    */
   requireSchemas?: boolean;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
@@ -68,7 +68,7 @@ const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export class PicoDecorApp {
   private middlewares: Middleware[] = [];
-  private router = new PicoDecorRouter();
+  private router = new RouteTable();
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
@@ -93,17 +93,35 @@ export class PicoDecorApp {
     return this;
   }
 
-  /** Registra controllers: classes (`new X()` sem argumentos) ou instâncias prontas (B-10). */
-  controllers(refs: ControllerRef[]): this {
-    for (const ref of refs) {
-      const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
-      for (const route of compileController(ref)) {
-        if (this.opts.requireSchemas) assertSchemas(name, route);
+  /**
+   * Registra uma classe com `@Router` (F-28). Aceita a classe (construtor sem argumentos) ou uma
+   * instância pronta (B-10), e opções aplicadas no ponto de composição:
+   *
+   * ```ts
+   * app
+   *   .route(HealthRoutes)
+   *   .route(new UserRoutes(repo), { prefix: '/v2/users', middlewares: [auth], except: ['remove'] });
+   * ```
+   */
+  route<T extends object>(ref: new () => T, options?: RouteOptions<T>): this;
+  route<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: RouteOptions<T>): this;
+  route(ref: RouterRef, options: RouteOptions = {}): this {
+    const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
+    for (const route of compileRoutes(ref, options)) {
+      if (this.opts.requireSchemas) assertSchemas(name, route);
+      try {
         this.router.on(route.method, route.path, route);
+      } catch (err) {
+        throw new Error(
+          `[picodecor] app.route(${name}): ${route.method} ${route.path} is already registered. ` +
+          `Use a different "prefix" to mount the same class twice.`,
+          { cause: err },
+        );
       }
     }
     return this;
   }
+
 
   async handle(ctx: Context): Promise<void> {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).

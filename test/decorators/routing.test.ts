@@ -1,12 +1,12 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { type Context, Controller, createApp, Delete, Get, Patch, Post, Put, Schema } from 'picodecor';
+import { type Context, Router, createApp, Delete, Get, Patch, Post, Put, Schema } from 'picodecor';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 const Item = Type.Object({ id: Type.String(), name: Type.String() });
 
-@Controller('/items')
+@Router('/items')
 class ItemController {
   @Get('/')
   list() { return [{ id: '1', name: 'a' }]; }
@@ -41,7 +41,7 @@ class ItemController {
 
 describe('roteamento e decorators', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([ItemController])); });
+  before(async () => { srv = await startServer(createApp().route(ItemController)); });
   after(() => srv.close());
 
   const req = (method: string, path: string, body?: unknown) =>
@@ -103,6 +103,6 @@ describe('roteamento e decorators', () => {
 
   it('classe sem @Controller gera erro claro', () => {
     class Plain {}
-    assert.throws(() => createApp().controllers([Plain]), /not decorated with @Controller/);
+    assert.throws(() => createApp().route(Plain), /not decorated with @Router/);
   });
 });

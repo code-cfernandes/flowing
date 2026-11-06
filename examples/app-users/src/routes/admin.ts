@@ -1,12 +1,11 @@
 import { Type } from "@sinclair/typebox";
-import { Controller, Get, Schema, UseGuards } from "picodecor";
-import { apiKeyGuard } from "../guards/api-key.ts";
+import { Get, Router, Schema } from "picodecor";
 import { AdminHeaders, HealthSchema, StatsSchema } from "../schema/AdminSchema.ts";
 import type { UserRepository } from "../store/users.ts";
 
-// Controller base: as subclasses herdam GET /health com o próprio prefixo (B-09)
-@Controller('/')
-export class HealthController {
+// Classe base: as subclasses herdam GET /health com o próprio prefixo (B-09)
+@Router('/')
+export class HealthRoutes {
   @Get('/health')
   @Schema({ response: { 200: HealthSchema } })
   health() {
@@ -14,10 +13,9 @@ export class HealthController {
   }
 }
 
-// Todas as rotas de /admin exigem a API key, inclusive as herdadas (F-01)
-@UseGuards(apiKeyGuard)
-@Controller('/admin')
-export class AdminController extends HealthController {
+// A proteção por API key é aplicada no server.ts, no ponto de composição (F-28)
+@Router('/admin')
+export class AdminRoutes extends HealthRoutes {
   constructor(private readonly users: UserRepository) {
     super();
   }

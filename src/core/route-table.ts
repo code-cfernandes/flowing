@@ -1,4 +1,4 @@
-// src/core/router.ts
+// src/core/route-table.ts
 import Router from 'find-my-way';
 import type { Middleware } from './compose.ts';
 import type { Context } from './context.ts';
@@ -25,7 +25,8 @@ type Method = Router.HTTPMethod;
 const NOOP: Router.Handler<Router.HTTPVersion.V1> = () => {};
 const PROBE_METHODS: readonly Method[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
-export class PicoDecorRouter {
+/** Tabela de rotas interna sobre o find-my-way. */
+export class RouteTable {
   private inner = Router({ ignoreTrailingSlash: true });
 
   on(method: string, path: string, route: RouteDefinition): void {

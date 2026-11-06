@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import {
-  type Context, Controller, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer,
+  type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer,
 } from 'picodecor';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
-@Controller('/api')
+@Router('/api')
 class Api {
   @Get('/data') data() { return { ok: true }; }
   @Post('/data') save(ctx: Context) { return ctx.body; }
@@ -15,7 +15,7 @@ class Api {
 
 describe('S-04 / S-02 · headers de segurança', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([Api])); });
+  before(async () => { srv = await startServer(createApp().route(Api)); });
   after(() => srv.close());
 
   it('aplica os headers padrão em respostas de sucesso', async () => {
@@ -37,9 +37,9 @@ describe('S-04 / S-02 · headers de segurança', () => {
 
   it('é configurável e pode ser desligado', async () => {
     const custom = await startServer(
-      createApp({ securityHeaders: { frameOptions: 'SAMEORIGIN', strictTransportSecurity: true } }).controllers([Api]),
+      createApp({ securityHeaders: { frameOptions: 'SAMEORIGIN', strictTransportSecurity: true } }).route(Api),
     );
-    const off = await startServer(createApp({ securityHeaders: false }).controllers([Api]));
+    const off = await startServer(createApp({ securityHeaders: false }).route(Api));
     try {
       const h1 = (await fetch(custom.url + '/api/data')).headers;
       assert.equal(h1.get('x-frame-options'), 'SAMEORIGIN');
@@ -55,7 +55,7 @@ describe('S-04 / S-02 · headers de segurança', () => {
 
 describe('F-08 · HEAD e OPTIONS automáticos', () => {
   let srv: TestServer;
-  before(async () => { srv = await startServer(createApp().controllers([Api])); });
+  before(async () => { srv = await startServer(createApp().route(Api)); });
   after(() => srv.close());
 
   it('HEAD usa o handler do GET sem corpo', async () => {
@@ -80,7 +80,7 @@ describe('S-01 · CORS', () => {
   before(async () => {
     const app = createApp()
       .use(cors({ origin: ['https://app.exemplo.com', /\.exemplo\.dev$/], credentials: true, exposedHeaders: ['X-Total'] }))
-      .controllers([Api]);
+      .route(Api);
     srv = await startServer(app);
   });
   after(() => srv.close());
@@ -125,7 +125,7 @@ describe('S-01 · CORS', () => {
   });
 
   it("origin '*' responde com * e sem Vary", async () => {
-    const s = await startServer(createApp().use(cors({ origin: '*' })).controllers([Api]));
+    const s = await startServer(createApp().use(cors({ origin: '*' })).route(Api));
     try {
       const res = await fetch(s.url + '/api/data', { headers: { origin: 'https://qualquer.com' } });
       assert.equal(res.headers.get('access-control-allow-origin'), '*');
@@ -139,7 +139,7 @@ describe('S-01 · CORS', () => {
 describe('S-06 · DoS', () => {
   it('rate limit responde 429 com Retry-After após exceder', async () => {
     const s = await startServer(
-      createApp().use(rateLimit({ max: 2, windowMs: 60_000, store: new MemoryRateLimitStore() })).controllers([Api]),
+      createApp().use(rateLimit({ max: 2, windowMs: 60_000, store: new MemoryRateLimitStore() })).route(Api),
     );
     try {
       const statuses = [];
@@ -154,7 +154,7 @@ describe('S-06 · DoS', () => {
   });
 
   it('B-12 · Content-Length acima do limite é rejeitado antes de ler o corpo e fecha a conexão', async () => {
-    const s = await startServer(createApp({ bodyLimit: 100 }).controllers([Api]));
+    const s = await startServer(createApp({ bodyLimit: 100 }).route(Api));
     try {
       const port = new URL(s.url).port;
       const raw = await new Promise<string>((resolve, reject) => {
@@ -188,20 +188,20 @@ describe('S-06 · DoS', () => {
 
 describe('S-07 · requireSchemas', () => {
   it('falha no registro de POST sem body schema', () => {
-    @Controller('/x') class NoBody { @Post('/') @Schema({ response: { 200: Type.Object({}) } }) a() {} }
-    assert.throws(() => createApp({ requireSchemas: true }).controllers([NoBody]), /no body schema/);
+    @Router('/x') class NoBody { @Post('/') @Schema({ response: { 200: Type.Object({}) } }) a() {} }
+    assert.throws(() => createApp({ requireSchemas: true }).route(NoBody), /no body schema/);
   });
 
   it('falha no registro de rota sem response schema', () => {
-    @Controller('/x') class NoResp { @Get('/') b() {} }
-    assert.throws(() => createApp({ requireSchemas: true }).controllers([NoResp]), /no response schema/);
+    @Router('/x') class NoResp { @Get('/') b() {} }
+    assert.throws(() => createApp({ requireSchemas: true }).route(NoResp), /no response schema/);
   });
 
   it('aceita rotas com schemas completos', () => {
-    @Controller('/x') class Ok {
+    @Router('/x') class Ok {
       @Post('/') @Schema({ body: Type.Object({}), response: { 201: Type.Object({}) } }) c() {}
     }
-    assert.doesNotThrow(() => createApp({ requireSchemas: true }).controllers([Ok]));
+    assert.doesNotThrow(() => createApp({ requireSchemas: true }).route(Ok));
   });
 });
 

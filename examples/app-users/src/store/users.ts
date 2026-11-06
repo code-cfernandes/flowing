@@ -2,7 +2,7 @@ import type { User } from "../types/user.ts";
 
 /**
  * Repositório em memória. Em produção seria um adapter de banco com a mesma interface;
- * os controllers recebem a instância pelo construtor (B-10), o que facilita trocar e testar.
+ * as classes de rotas recebem a instância pelo construtor (B-10), o que facilita trocar e testar.
  */
 export class UserRepository {
   private readonly users = new Map<string, User>();
