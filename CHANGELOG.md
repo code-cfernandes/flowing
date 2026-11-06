@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.5.0] - 2026-11-06
+
 ### Adicionado
 - `Type`, `Static` e `TSchema` do TypeBox re-exportados por `sashiko`, e `@sinclair/typebox` passou a ser
   dependência de runtime. Não é mais preciso instalá-lo à parte: `import { Type } from 'sashiko'`.
@@ -192,7 +194,8 @@ Primeira versão pública.
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 
-[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...HEAD
+[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/code-cfernandes/sashiko/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/code-cfernandes/sashiko/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/code-cfernandes/sashiko/compare/v0.2.0...v0.3.0
