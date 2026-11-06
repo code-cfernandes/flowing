@@ -327,7 +327,9 @@ export class SashikoApp {
   openapi(opts: OpenAPIOptions = {}): this {
     const path = opts.path ?? '/openapi.json';
     const docs = opts.docs === true ? '/docs' : opts.docs || false;
-    if (docs === path) throw new Error(`[sashiko] openapi(): "docs" and "path" cannot both be "${path}".`);
+    if (docs && canonicalPath(docs) === canonicalPath(path))
+      throw new Error(`[sashiko] openapi(): "docs" and "path" cannot both be "${path}".`);
+    this.assertFreePaths('app.openapi()', docs ? [canonicalPath(path), canonicalPath(docs)] : [canonicalPath(path)], 'openapi');
     const pipeline: Middleware[] = [...(opts.middlewares ?? [])];
     if (opts.guards?.length) pipeline.push(guardsMiddleware(opts.guards));
     this.openapiConfig = { opts, path, docs, pipeline, cache: new Map() };
@@ -344,8 +346,37 @@ export class SashikoApp {
    * consumir rate limit); use `guards`/`middlewares` aqui para restringir.
    */
   health(opts: HealthOptions = {}): this {
-    this.healthConfig = compileHealth(opts, this.log);
+    const config = compileHealth(opts, this.log);
+    this.assertFreePaths('app.health()', config.paths, 'health');
+    this.healthConfig = config;
     return this;
+  }
+
+  /** Paths servidos pelo próprio app (`health()`, `openapi()`), que encobririam uma rota GET do usuário. */
+  private reservedPaths(except?: 'health' | 'openapi'): Map<string, string> {
+    const out = new Map<string, string>();
+    if (except !== 'health') for (const p of this.healthConfig?.paths ?? []) out.set(p, 'app.health()');
+    const cfg = this.openapiConfig;
+    if (cfg && except !== 'openapi') {
+      out.set(canonicalPath(cfg.path), 'app.openapi()');
+      if (cfg.docs) out.set(canonicalPath(cfg.docs), 'app.openapi({ docs })');
+    }
+    return out;
+  }
+
+  /** Um path do framework não pode coincidir com uma rota GET/HEAD registrada nem com outro do framework. */
+  private assertFreePaths(where: string, paths: readonly string[], kind: 'health' | 'openapi'): void {
+    const reserved = this.reservedPaths(kind);
+    for (const path of paths) {
+      const other = reserved.get(path);
+      if (other) throw new Error(`[sashiko] ${where}: path "${path}" is already used by ${other}.`);
+      const route = this.routes.find((r) => (r.method === 'GET' || r.method === 'HEAD') && canonicalPath(r.path) === path);
+      if (route) {
+        throw new Error(
+          `[sashiko] ${where}: path "${path}" would shadow ${route.owner}.${route.handlerName} (GET ${route.path}); choose another path.`,
+        );
+      }
+    }
   }
 
   /**
@@ -386,8 +417,9 @@ export class SashikoApp {
   private async serveOpenAPI(ctx: Context): Promise<boolean> {
     const cfg = this.openapiConfig;
     if (!cfg || (ctx.method !== 'GET' && ctx.method !== 'HEAD')) return false;
-    const isSpec = ctx.path === cfg.path;
-    if (!isSpec && !(cfg.docs && ctx.path === cfg.docs)) return false;
+    const path = canonicalPath(ctx.path);
+    const isSpec = path === canonicalPath(cfg.path);
+    if (!isSpec && !(cfg.docs && path === canonicalPath(cfg.docs))) return false;
 
     await compose(ctx, [
       ...cfg.pipeline,
@@ -427,6 +459,14 @@ export class SashikoApp {
     try {
       for (const route of routes) {
         if (this.opts.requireSchemas) assertSchemas(owner, route);
+        if (route.method === 'GET' || route.method === 'HEAD') {
+          const reservedBy = this.reservedPaths().get(canonicalPath(route.path));
+          if (reservedBy) {
+            throw new Error(
+              `[sashiko] app.mount(${owner}): GET ${route.path} is served by ${reservedBy} and would never be reached; choose another path.`,
+            );
+          }
+        }
         this.checkReachableHosts(owner, route);
         for (const host of route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined]) {
           const taken =
@@ -610,7 +650,9 @@ export class SashikoApp {
           onSend: this.onSendHooks,
         });
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
-        if (!ctx.host || (this.allowedHosts && !this.allowedHosts(ctx.hostname, ctx.host))) {
+        // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
+        const healthProbe = this.healthConfig?.bypassesHostCheck(ctx.method, ctx.path) ?? false;
+        if (!ctx.host || (this.allowedHosts && !healthProbe && !this.allowedHosts(ctx.hostname, ctx.host))) {
           this.applySecurityHeaders?.(res);
           sendProblem(ctx, problem(400, 'Invalid Host header', { code: 'INVALID_HOST' }), this.opts.formatError);
           return;

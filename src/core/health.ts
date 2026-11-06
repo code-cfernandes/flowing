@@ -3,6 +3,7 @@ import { compose, type Middleware } from './compose.ts';
 import { kRawSend } from './context.ts';
 import { guardsMiddleware, type Guard } from './guard.ts';
 import type { Logger } from './logger.ts';
+import { canonicalPath } from '../utils/path.ts';
 
 /** Uma verificação de prontidão: lance um erro ou devolva `false` para indicar falha. */
 export type HealthCheck = () => unknown | Promise<unknown>;
@@ -19,12 +20,21 @@ export interface HealthOptions {
   /** Rodam antes de responder (os middlewares globais não rodam nestas rotas). */
   middlewares?: readonly Middleware[];
   guards?: readonly Guard[];
+  /**
+   * Responde mesmo com um `Host` fora do `allowedHosts`. Sondas de orquestradores chegam com o IP do pod
+   * no `Host` (Kubernetes, ECS). Um `Host` malformado continua recebendo 400. Padrão: `true`.
+   */
+  anyHost?: boolean;
 }
 
 /** @internal */
 export interface HealthConfig {
   /** Responde se a requisição for para uma das rotas; devolve `true` nesse caso. */
   serve(ctx: Context, shuttingDown: boolean): Promise<boolean>;
+  /** Paths das rotas ligadas, na forma canônica. */
+  readonly paths: readonly string[];
+  /** A requisição é para um healthcheck que aceita qualquer host? */
+  bypassesHostCheck(method: string, path: string): boolean;
 }
 
 type CheckResult = 'ok' | 'error' | 'timeout';
@@ -43,7 +53,14 @@ function withTimeout(check: HealthCheck, ms: number): Promise<CheckResult> {
 export function compileHealth(opts: HealthOptions, log: Logger): HealthConfig {
   const live = opts.live === undefined ? '/livez' : opts.live;
   const ready = opts.ready === undefined ? '/readyz' : opts.ready;
-  if (live && live === ready) throw new Error(`[sashiko] health(): "live" and "ready" cannot both be "${live}".`);
+  if (live && ready && canonicalPath(live) === canonicalPath(ready)) {
+    throw new Error(`[sashiko] health(): "live" and "ready" cannot both be "${live}".`);
+  }
+  const livePath = live === false ? undefined : canonicalPath(live);
+  const readyPath = ready === false ? undefined : canonicalPath(ready);
+  const anyHost = opts.anyHost ?? true;
+  const isHealth = (method: string, path: string) =>
+    (method === 'GET' || method === 'HEAD') && (canonicalPath(path) === livePath || canonicalPath(path) === readyPath);
   const checks = Object.entries(opts.checks ?? {});
   const timeoutMs = opts.timeoutMs ?? 2000;
   const pipeline: Middleware[] = [...(opts.middlewares ?? [])];
@@ -56,11 +73,11 @@ export function compileHealth(opts: HealthOptions, log: Logger): HealthConfig {
   };
 
   return {
+    paths: [livePath, readyPath].filter((p): p is string => p !== undefined),
+    bypassesHostCheck: (method, path) => anyHost && isHealth(method, path),
     async serve(ctx, shuttingDown) {
-      if (ctx.method !== 'GET' && ctx.method !== 'HEAD') return false;
-      const isLive = live !== false && ctx.path === live;
-      const isReady = ready !== false && ctx.path === ready;
-      if (!isLive && !isReady) return false;
+      if (!isHealth(ctx.method, ctx.path)) return false;
+      const isLive = canonicalPath(ctx.path) === livePath;
 
       await compose(ctx, [
         ...pipeline,
