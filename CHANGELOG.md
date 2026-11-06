@@ -12,6 +12,7 @@ e a _patch_ só com correções.
 ## [0.12.2] - 2026-11-06
 
 ### Corrigido
+
 - `ctx.sse()` aberto depois de uma desconexão já ocorrida (num `await` anterior) ficava aberto: o heartbeat
   continuava e o `onClose` nunca era chamado. Agora o stream fecha na hora.
 - `inject()` de uma resposta bem-sucedida cancelava o `ctx.signal`. A troca para `writableEnded` anunciada na
