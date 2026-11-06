@@ -366,6 +366,11 @@ export class SashikoApp {
 
   /** Um path do framework não pode coincidir com uma rota GET/HEAD registrada nem com outro do framework. */
   private assertFreePaths(where: string, paths: readonly string[], kind: 'health' | 'openapi'): void {
+    // `health()`/`openapi()` configuram o app, não o grupo: dentro de um `group()` em andamento, a
+    // configuração sobreviveria a um grupo desfeito e não enxergaria as rotas ainda pendentes.
+    if (this.pending !== undefined) {
+      throw new Error(`[sashiko] ${where}: cannot be called inside an app.group() callback; call it on the app, outside the group.`);
+    }
     const reserved = this.reservedPaths(kind);
     for (const path of paths) {
       const other = reserved.get(path);

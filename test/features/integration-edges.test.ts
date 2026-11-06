@@ -113,3 +113,60 @@ describe('0.11.3 · reloadTLS() adicionando sni', () => {
     }
   });
 });
+
+describe('0.11.4 · health() e openapi() dentro de um group()', () => {
+  it('são recusados dentro do callback, e o grupo é desfeito', async () => {
+    const app = createApp({ logger: false });
+    assert.throws(
+      () =>
+        app.group({}, (g) => {
+          g.mount(Ready);
+          app.health();
+        }),
+      /cannot be called inside an app\.group\(\) callback/,
+    );
+    assert.throws(
+      () =>
+        app.group({}, (g) => {
+          g.mount(Plain);
+          app.openapi();
+        }),
+      /cannot be called inside/,
+    );
+    assert.equal((await app.inject('/readyz')).status, 404, 'nem a rota nem o healthcheck ficaram');
+    assert.equal((await app.inject('/x')).status, 404);
+    assert.equal((await app.inject('/openapi.json')).status, 404);
+  });
+
+  it('um grupo que falha não deixa configuração parcial', async () => {
+    const app = createApp({ logger: false });
+    assert.throws(
+      () =>
+        app.group({}, (g) => {
+          g.mount(Plain);
+          throw new Error('falhou');
+        }),
+      /falhou/,
+    );
+    app.health();
+    assert.equal((await app.inject('/x')).status, 404);
+    assert.equal((await app.inject('/livez')).status, 200);
+  });
+
+  it('fora do grupo, as duas ordens continuam detectando o conflito com a rota do grupo', () => {
+    assert.throws(
+      () =>
+        createApp()
+          .group({}, (g) => g.mount(Ready))
+          .health(),
+      /would shadow Ready\.r/,
+    );
+    assert.throws(
+      () =>
+        createApp()
+          .health()
+          .group({}, (g) => g.mount(Ready)),
+      /served by app\.health\(\)/,
+    );
+  });
+});

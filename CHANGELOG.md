@@ -9,6 +9,14 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.4] - 2026-11-06
+
+### Corrigido
+
+- `health()` ou `openapi()` chamados dentro do callback de um `group()` não enxergavam as rotas ainda pendentes do
+  grupo e podiam encobri-las. Se o grupo falhasse, a configuração ficava aplicada mesmo assim. Agora as duas
+  chamadas são recusadas enquanto um `group()` está em andamento, porque configuram o app e não o grupo.
+
 ## [0.11.3] - 2026-11-06
 
 ### Corrigido

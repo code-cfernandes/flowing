@@ -685,8 +685,8 @@ app.health({
 
 - **Os checks rodam em paralelo.** O motivo da falha vai só para o log, nunca para a resposta, porque pode conter host, usuário ou URL do banco.
 - **As rotas são servidas antes dos middlewares globais,** já que sondas não têm credenciais nem devem consumir rate limit. Para restringir, use `guards`/`middlewares` no próprio `health()`.
-- **Qualquer host válido:** sondas de orquestradores chegam com o IP do pod no `Host` (Kubernetes, ECS), então o `/livez` e o `/readyz` respondem mesmo fora do `allowedHosts`. Um `Host` malformado continua recebendo 400, e as demais rotas seguem a lista normalmente. `health({ anyHost: false })` volta ao comportamento estrito.
-- **Paths reservados:** um path do `health()` ou do `openapi()` que coincida com uma rota GET sua gera erro no registro, em qualquer ordem, porque a rota nunca seria alcançada. A barra final é tratada como nas rotas normais (`/readyz/` responde).
+- **Qualquer host válido:** sondas de orquestradores chegam com o IP do pod no `Host` (Kubernetes, ECS), então o `/livez` e o `/readyz` respondem mesmo fora do `allowedHosts`. Um `Host` malformado continua recebendo 400, e as demais rotas seguem a lista normalmente. `health({ anyHost: false })` volta ao comportamento estrito. O `anyHost` não é autenticação: se o `/readyz` não deve ser público (os checks revelam o nome das dependências), restrinja com `guards` no próprio `health()` ou na rede.
+- **Paths reservados:** um path do `health()` ou do `openapi()` que coincida com uma rota GET sua gera erro no registro, em qualquer ordem, porque a rota nunca seria alcançada. A barra final é tratada como nas rotas normais (`/readyz/` responde). `health()` e `openapi()` configuram o app inteiro, então não podem ser chamados dentro do callback de um `group()`.
 - **Opções:** `live: '/health'` muda o path, e `ready: false` desliga a rota.
 
 **Testes sem rede.** `app.inject()` executa a requisição em memória:
