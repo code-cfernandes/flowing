@@ -7,6 +7,7 @@ import type { Logger } from './logger.ts';
 import type { Middleware } from './compose.ts';
 import type { Context, OnSendHook } from './context.ts';
 import type { OnCloseHook, OnResponseHook } from './app.ts';
+import type { OpenAPIOptions } from '../openapi/generate.ts';
 
 /**
  * Retorno de `app.mount()` (F-30): permite mapear manualmente métodos do grupo e continuar
@@ -54,6 +55,8 @@ export class MountedGroup<T extends object> {
     return (this.app.mount as (r: object, o?: MountOptions<object>) => MountedGroup<object>)(ref, options);
   }
   use(mw: Middleware): SashikoApp { return this.app.use(mw); }
+  openapi(opts?: OpenAPIOptions): SashikoApp { return this.app.openapi(opts); }
+  openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> { return this.app.openapiDocument(opts); }
   onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp { return this.app.onError(h); }
   onSend(hook: OnSendHook): SashikoApp { return this.app.onSend(hook); }
   onResponse(hook: OnResponseHook): SashikoApp { return this.app.onResponse(hook); }

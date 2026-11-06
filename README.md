@@ -38,6 +38,7 @@ await app.listen({ port: 3000 });
 - [Middlewares e guards](#middlewares-e-guards)
 - [Hooks de ciclo de vida](#hooks-de-ciclo-de-vida)
 - [Erros](#erros)
+- [OpenAPI e `/docs`](#openapi-e-docs)
 - [Segurança](#segurança)
 - [Logs e request id](#logs-e-request-id)
 - [Ciclo de vida e testes](#ciclo-de-vida-e-testes)
@@ -404,6 +405,32 @@ Todos os erros, inclusive 404, 405, validação e `Host` inválido, saem no form
 - **`formatError`:** para outro formato (legado, um envelope próprio, o request id no corpo), passe `createApp({ formatError: (problem, ctx) => ({ error: problem.detail ?? problem.title, code: problem.code }) })`. O retorno sai como `application/json`. Se a função lançar, o erro é logado e o problema padrão é enviado.
 - **`app.onError(handler)`:** roda antes da resposta padrão, para enviar o erro a um APM, por exemplo. Se o próprio handler falhar, o app não cai: o erro é logado e a resposta padrão é enviada.
 
+## OpenAPI e `/docs`
+
+```ts
+createApp()
+  .use(auth)                                   // middlewares globais também protegem a documentação
+  .mount(UserRoutes)
+  .openapi({ info: { title: 'Minha API', version: '1.0.0' }, servers: [{ url: 'https://api.exemplo.dev' }] });
+```
+
+- **`GET /openapi.json`:** documento OpenAPI 3.1 gerado das rotas registradas. É montado na primeira requisição, então pode chamar `openapi()` antes ou depois dos `mount()`.
+- **`GET /docs`:** Swagger UI. A versão é fixada e carregada do CDN com SRI (o navegador confere o hash do arquivo), e a página tem CSP própria, com `nonce` no script.
+- **Opções:** `path` muda o endereço do documento; `docs: '/ref'` muda o da página e `docs: false` a desliga.
+- **`app.openapiDocument()`:** devolve o objeto, para gravar em arquivo, gerar clientes ou testar no CI.
+- **O que entra no documento:**
+
+  | Origem | Vira |
+  |---|---|
+  | Path (`/:id(^\\d+)`) | `/{id}` |
+  | `params`, `query`, `headers` | `parameters`, com `required` |
+  | `body` | `requestBody` em JSON |
+  | `response` | uma resposta por status, com os `contentType` declarados |
+  | Erros | resposta `default` com o schema `ProblemDetails`; com `formatError`, só a descrição |
+  | Classe e método | `tags` e `operationId` (`UserRoutes.getUser`) |
+
+- **Limites:** só schemas JSON Schema (TypeBox) entram como estão. Rotas sem schema de resposta aparecem com um `200` genérico. Em produção, proteja `/docs` e `/openapi.json` com um middleware ou use `docs: false`.
+
 ## Segurança
 
 Ligado por padrão:
@@ -525,7 +552,7 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `mount()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
+Métodos do app: `use()`, `mount()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 

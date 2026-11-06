@@ -1,10 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context, kBindResponse, type OnSendHook } from './context.ts';
+import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
+import { docsPage, generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
@@ -115,6 +116,8 @@ export class SashikoApp {
   private readonly onSendHooks: OnSendHook[] = [];
   private readonly onResponseHooks: OnResponseHook[] = [];
   private readonly onCloseHooks: OnCloseHook[] = [];
+  private readonly routes: CompiledRoute[] = [];
+  private openapiConfig: { opts: OpenAPIOptions; path: string; docs: string | false; cache?: string } | undefined;
   private closeHooksPending = true;
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
@@ -202,10 +205,49 @@ export class SashikoApp {
     );
   }
 
+  /**
+   * Serve o documento OpenAPI 3.1 gerado das rotas (`/openapi.json`) e o Swagger UI (`/docs`) (F-16).
+   * As rotas passam pelos middlewares globais, então um `use(auth)` antes protege também a documentação.
+   * O documento é gerado na primeira requisição, depois de todos os `mount()`.
+   */
+  openapi(opts: OpenAPIOptions = {}): this {
+    const path = opts.path ?? '/openapi.json';
+    const docs = opts.docs === undefined ? '/docs' : opts.docs;
+    this.openapiConfig = { opts, path, docs };
+    return this;
+  }
+
+  /** Documento OpenAPI 3.1 das rotas registradas até agora, para gravar em arquivo ou testar (F-16). */
+  openapiDocument(opts: OpenAPIOptions = this.openapiConfig?.opts ?? {}): Record<string, unknown> {
+    return generateOpenAPI(this.routes, opts, !this.opts.formatError);
+  }
+
+  /** Responde `/openapi.json` e `/docs`, quando ligados. Devolve `true` se respondeu. */
+  private serveOpenAPI(ctx: Context): boolean {
+    const cfg = this.openapiConfig;
+    if (!cfg || (ctx.method !== 'GET' && ctx.method !== 'HEAD')) return false;
+    if (ctx.path === cfg.path) {
+      cfg.cache ??= JSON.stringify(this.openapiDocument(cfg.opts));
+      ctx[kRawSend](cfg.cache, 'application/json; charset=utf-8');
+      return true;
+    }
+    if (cfg.docs && ctx.path === cfg.docs) {
+      const nonce = randomBytes(16).toString('base64');
+      const { html, csp } = docsPage(cfg.path, cfg.opts.info?.title ?? 'API', nonce);
+      ctx.res.setHeader('Content-Security-Policy', csp);
+      ctx.res.setHeader('Cache-Control', 'no-store');
+      ctx[kRawSend](html, 'text/html; charset=utf-8');
+      return true;
+    }
+    return false;
+  }
+
   private addRoute(owner: string, route: CompiledRoute): void {
     if (this.opts.requireSchemas) assertSchemas(owner, route);
     try {
       this.router.on(route.method, route.path, route);
+      this.routes.push(route);
+      if (this.openapiConfig) delete this.openapiConfig.cache;
     } catch (err) {
       throw new Error(
         `[sashiko] app.mount(${owner}): ${route.method} ${route.path} is already registered. ` +
@@ -222,7 +264,7 @@ export class SashikoApp {
     this.applySecurityHeaders?.(ctx.res);
     try {
       await compose(ctx, this.middlewares);
-      if (ctx.sent) return;
+      if (ctx.sent || this.serveOpenAPI(ctx)) return;
 
       const match = this.router.find(ctx.method, ctx.path);
       if (!match) {

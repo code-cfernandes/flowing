@@ -27,6 +27,9 @@ e a _patch_ só com correções.
   erro de tipo. No `app.mount()`, path x schema são conferidos nos dois sentidos, com o prefixo, e paths
   malformados (`/:`, nome repetido, regex aberta, `*` no meio) falham com a rota na mensagem.
 - `Context<'/:org/users/:id'>` tipa `ctx.params` pelo path; tipos `PathParams`, `ParamsOf` e `CheckParams`.
+- OpenAPI 3.1: `app.openapi({ info, servers, path, docs })` serve `/openapi.json`, gerado das rotas e dos
+  schemas (parâmetros, body, respostas por status e content type, erros como `ProblemDetails`), e o Swagger
+  UI em `/docs` (versão fixada, SRI e CSP com nonce). `app.openapiDocument()` devolve o documento.
 
 ## [0.6.0] - 2026-11-06
 

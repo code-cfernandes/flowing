@@ -8,6 +8,9 @@ import { joinPaths, pathParams } from '../utils/path.ts';
 export interface CompiledRoute extends RouteDefinition {
   method: string;
   path: string;
+  /** Classe e método de origem, para mensagens e para o OpenAPI (F-16). */
+  owner: string;
+  handlerName: string;
 }
 
 /** Classe com construtor sem argumentos **ou** instância já construída (B-10). */
@@ -118,6 +121,8 @@ function buildRoute(
   return {
     method: httpMethod,
     path: fullPath,
+    owner: group.name,
+    handlerName: String(name),
     handler: (ctx: Context) => fn.call(instance, ctx),
     schemas: methodMeta.schemas,
     // Ordem: mount → classe → método → rota manual (F-01, F-28, F-30)
