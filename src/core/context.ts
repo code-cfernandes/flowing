@@ -4,8 +4,36 @@ import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
 import { parseQuery, type ParsedQuery } from '../utils/query.ts';
 import { silentLogger, type Logger } from './logger.ts';
-import type { InferBody, InferParams, InferQuery } from './infer.ts';
+import type { InferBody, InferParams, InferQuery, InferResponse } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
+import { sendResult, type SendMode, type Serializer } from './response.ts';
+
+/** @internal Envio cru, sem pipeline: usado pelo próprio pipeline, por erros e por 404/405. */
+export const kRawSend = Symbol('sashiko.rawSend');
+/** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
+export const kBindResponse = Symbol('sashiko.bindResponse');
+
+type RawBody = string | Uint8Array | Readable;
+
+/** Status aceitos por `ctx.status()`: os declarados no schema de resposta, ou qualquer um sem schema (F-32). */
+export type DeclaredStatus<S extends RouteSchemas> =
+  S['response'] extends Record<number, unknown> ? keyof S['response'] & number : number;
+
+/** Corpo esperado para o status `St`: o do schema, ou qualquer valor sem schema (F-32). */
+export type BodyFor<S extends RouteSchemas, St extends number> =
+  S['response'] extends Record<number, unknown> ? InferResponse<S, St> : unknown;
+
+/**
+ * Contexto depois de `ctx.status(St)`: `json()` e `send()` exigem o corpo do status escolhido (F-32).
+ *
+ * ```ts
+ * return ctx.status(202).json({ jobId });   // o TypeScript confere o corpo contra o schema do 202
+ * ```
+ */
+export type StatusContext<S extends RouteSchemas, St extends number> = Omit<Context<S>, 'json' | 'send'> & {
+  json(body: BodyFor<S, St>): Context<S>;
+  send(body: BodyFor<S, St> | RawBody, contentType?: string): Context<S>;
+};
 
 /**
  * Estado por requisição, compartilhado entre middlewares, guards e handlers.
@@ -61,6 +89,7 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
   statusExplicit = false;
 
   private streaming = false;
+  private bound: { response: RouteSchemas['response']; serializers: ReadonlyMap<string, Serializer> } | undefined;
 
   constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}) {
     this.req = req;
@@ -78,10 +107,14 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
     return this.req.socket.remoteAddress ?? '';
   }
 
-  status(code: number): this {
+  /**
+   * Define o status. Com schemas de resposta, aceita só os status declarados e o encadeamento tipa o
+   * corpo: `ctx.status(202).json({ jobId })` (F-32).
+   */
+  status<const St extends DeclaredStatus<S>>(code: St): StatusContext<S, St> {
     this.res.statusCode = code;
     this.statusExplicit = true;
-    return this;
+    return this as unknown as StatusContext<S, St>;
   }
 
   /**
@@ -104,24 +137,44 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
     return this;
   }
 
+  /**
+   * Envia JSON. No handler, passa pelo mesmo pipeline do `return`: schema do status, remoção de
+   * campos não declarados e status padrão (F-32).
+   */
   json(data: unknown): this {
-    if (this.sent) return this;
-    this.res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    this.res.end(JSON.stringify(data));
-    return this;
+    return this.dispatch(data, 'json');
   }
 
-  /** Resposta em texto puro (`text/plain; charset=utf-8`). */
+  /** Resposta em texto puro (`text/plain; charset=utf-8`), pelo mesmo pipeline do `return`. */
   text(data: string): this {
-    return this.send(data, 'text/plain; charset=utf-8');
+    return this.dispatch(data, 'text');
   }
 
   /**
-   * Envia string, Buffer/Uint8Array ou stream (`Readable`). O `Content-Type` padrão é
-   * `application/octet-stream`; passe o tipo correto. Para HTML, faça o escape do conteúdo
-   * dinâmico antes: o framework não faz isso por você (S-02).
+   * Envia o corpo pelo mesmo pipeline do `return` (F-32): com `contentType` informado, usa esse tipo;
+   * senão, a negociação do `Accept` ou o tipo do valor (string, Buffer, stream, objeto → JSON).
+   * Para HTML, faça o escape do conteúdo dinâmico antes: o framework não faz isso por você (S-02).
    */
-  send(body: string | Uint8Array | Readable, contentType?: string): this {
+  send(body: unknown, contentType?: string): this {
+    if (this.sent) return this;
+    if (contentType) this.res.setHeader('Content-Type', contentType);
+    return this.dispatch(body, 'auto');
+  }
+
+  private dispatch(body: unknown, mode: SendMode): this {
+    if (this.sent) return this;
+    // Antes do handler (middlewares, guards) não há schema ligado: vale só o tipo do conteúdo.
+    sendResult(this, this.bound?.response, body, this.bound?.serializers, mode);
+    return this;
+  }
+
+  /** @internal Liga os schemas de resposta da rota (o app chama antes do handler). */
+  [kBindResponse](response: RouteSchemas['response'], serializers: ReadonlyMap<string, Serializer>): void {
+    this.bound = { response, serializers };
+  }
+
+  /** @internal Envio cru, sem schema: string, bytes ou stream. */
+  [kRawSend](body: RawBody, contentType?: string): this {
     if (this.sent) return this;
     if (contentType) this.res.setHeader('Content-Type', contentType);
     else if (!this.res.hasHeader('Content-Type')) this.res.setHeader('Content-Type', 'application/octet-stream');
@@ -144,7 +197,8 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
    */
   redirect(url: string, status: 301 | 302 | 303 | 307 | 308 = 302): this {
     if (this.sent) return this;
-    this.status(status);
+    this.res.statusCode = status;
+    this.statusExplicit = true;
     this.res.setHeader('Location', url);
     this.res.end();
     return this;

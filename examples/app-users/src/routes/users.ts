@@ -9,7 +9,11 @@ import type { UserRepository } from "../store/users.ts";
 import type { User } from "../types/user.ts";
 
 // Schemas de cada rota num objeto: o mesmo valor vai no verbo (@Get(path, schemas)) e no Context<typeof ...> (F-02)
-const list = { query: ListUsersQuery, response: { 200: Type.Array(UserSchema) } } satisfies RouteSchemas;
+// Lista negociável pelo Accept: JSON (padrão) ou CSV, com o serializador registrado no server.ts (F-31)
+const list = {
+  query: ListUsersQuery,
+  response: { 200: { contentType: ['application/json', 'text/csv'], schema: Type.Array(UserSchema) } },
+} satisfies RouteSchemas;
 const byId = { params: UserIdParams, response: { 200: UserSchema } } satisfies RouteSchemas;
 const create = { body: CreateUserSchema, response: { 201: UserSchema } } satisfies RouteSchemas;
 const update = { params: UserIdParams, body: UpdateUserSchema, response: { 200: UserSchema } } satisfies RouteSchemas;
@@ -73,10 +77,11 @@ export class UserRoutes {
 
   // Sem verbo: a classe não expõe este método sozinha. Quem decide o path é o server.ts,
   // com app.mount(...).get('/export.csv', (r) => r.exportCsv) (F-30).
-  @Schema({ response: { 200: Type.String() } })
-  exportCsv(ctx: Context) {
+  // O contentType no schema faz o `return` de uma string sair como CSV cru, sem ctx.send() (F-31).
+  @Schema({ response: { 200: { contentType: 'text/csv', schema: Type.String() } } })
+  exportCsv() {
     const rows = this.users.list(0, 1000).map((u) => `${u.id},${JSON.stringify(u.name)},${u.email}`);
-    ctx.send(['id,name,email', ...rows].join('\n') + '\n', 'text/csv; charset=utf-8');
+    return ['id,name,email', ...rows].join('\n') + '\n';
   }
 
   // Forma verbosa, com @Schema separado: equivale ao segundo argumento do verbo.

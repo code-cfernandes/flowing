@@ -4,16 +4,18 @@ import { performance } from 'node:perf_hooks';
 import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context } from './context.ts';
+import { Context, kBindResponse, kRawSend } from './context.ts';
 import '../shims/symbol-metadata.ts';
 import { bodyParser } from './body-parser.ts';
 import { assertSchemas, validateRequest } from './request-validation.ts';
-import { sendError, sendResult } from './response.ts';
+import { sendError, sendResult, type Serializer } from './response.ts';
 import { RouteTable } from './route-table.ts';
+import { mediaType } from '../utils/content-type.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
+import { shutdownCoordinator, type ShutdownOptions, type ShutdownTarget } from './shutdown.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
-import { buildSecurityHeaders, type SecurityHeadersOptions } from '../middlewares/security-headers.ts';
+import { buildSecurityHeaders, type SecurityHeadersOptions, type SecurityPreset } from '../middlewares/security-headers.ts';
 
 export interface ListenOptions {
   /** Padrão: 3000. Use 0 para uma porta livre aleatória. */
@@ -34,8 +36,16 @@ export interface ServerTimeouts {
 export interface AppOptions {
   /** Tamanho máximo do body JSON em bytes. Padrão: 1 MiB. */
   bodyLimit?: number;
-  /** Headers de segurança aplicados a toda resposta (S-04). Ligado por padrão; `false` desliga. */
-  securityHeaders?: SecurityHeadersOptions | false;
+  /**
+   * Headers de segurança aplicados a toda resposta (S-04). Padrão: `'api'`.
+   * `'web'` libera recursos do próprio site (CSP `'self'`) para quem serve páginas; `false` desliga.
+   */
+  securityHeaders?: SecurityHeadersOptions | SecurityPreset | false;
+  /**
+   * Serializadores por content type, para responder em outros formatos (F-31):
+   * `{ 'application/yaml': (data) => YAML.stringify(data) }`. JSON e valores crus já são nativos.
+   */
+  serializers?: Record<string, Serializer>;
   /** Timeouts do servidor HTTP (S-06). */
   timeouts?: ServerTimeouts;
   /**
@@ -51,6 +61,11 @@ export interface AppOptions {
   logRequests?: boolean;
   /** Request id (F-06). */
   requestId?: RequestIdOptions;
+  /**
+   * Encerramento gracioso nos sinais do processo, ativado pelo `listen()` (F-07).
+   * Ligado por padrão (SIGINT/SIGTERM, 10s); `false` desliga.
+   */
+  shutdown?: ShutdownOptions | false;
 }
 
 export interface RequestIdOptions {
@@ -73,13 +88,24 @@ export class SashikoApp {
   private errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[] = [];
   private applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
   private readonly opts: AppOptions;
+  private readonly serializers: ReadonlyMap<string, Serializer>;
   private server: http.Server | undefined;
+  /** Respostas em andamento, para o encerramento gracioso não travar em conexões keep-alive. */
+  private readonly inflight = new Set<http.ServerResponse>();
+  private closing: http.Server | undefined;
   /** Logger do app (F-06). Use para logs fora de uma requisição. */
   readonly log: Logger;
 
   constructor(opts: AppOptions = {}) {
     this.opts = opts;
+    this.serializers = new Map(Object.entries(opts.serializers ?? {}).map(([type, fn]) => [mediaType(type), fn]));
     this.log = opts.logger === false ? silentLogger : (opts.logger ?? consoleLogger());
+    const sd = opts.shutdown || {};
+    Object.assign(this.shutdownTarget, {
+      log: this.log,
+      signals: sd.signals ?? ['SIGINT', 'SIGTERM'],
+      exitOnShutdown: sd.exit ?? true,
+    });
     if (opts.securityHeaders !== false) this.applySecurityHeaders = buildSecurityHeaders(opts.securityHeaders);
     this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024));
   }
@@ -144,9 +170,11 @@ export class SashikoApp {
           ctx.res.setHeader('Allow', allowed.join(', '));
           // F-08: OPTIONS automático para qualquer path com rotas.
           if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
-          return void ctx.status(405).json({ error: 'Method Not Allowed', allowed });
+          ctx.res.statusCode = 405;
+          return void ctx[kRawSend](JSON.stringify({ error: 'Method Not Allowed', allowed }), 'application/json; charset=utf-8');
         }
-        return void ctx.status(404).json({ error: 'Not Found' });
+        ctx.res.statusCode = 404;
+        return void ctx[kRawSend](JSON.stringify({ error: 'Not Found' }), 'application/json; charset=utf-8');
       }
 
       ctx.params = match.params;
@@ -158,8 +186,10 @@ export class SashikoApp {
       if (route.guards.length > 0) pipeline.push(guardsMiddleware(route.guards));
       pipeline.push(async () => {
         validateRequest(ctx, route.schemas);
+        // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
+        ctx[kBindResponse](route.schemas.response, this.serializers);
         const result = await route.handler(ctx);
-        if (!ctx.sent) sendResult(ctx, route.schemas.response, result);
+        if (!ctx.sent) sendResult(ctx, route.schemas.response, result, this.serializers);
       });
       await compose(ctx, pipeline);
     } catch (err) {
@@ -196,6 +226,13 @@ export class SashikoApp {
 
     return (req, res) => {
       const started = performance.now();
+      this.inflight.add(res);
+      if (this.closing) res.setHeader('Connection', 'close');
+      res.once('close', () => {
+        this.inflight.delete(res);
+        // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
+        this.closing?.closeIdleConnections();
+      });
       const incoming = header ? req.headers[header] : undefined;
       const id = trust && typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming) ? incoming : generate();
       if (header) res.setHeader(header, id);
@@ -240,8 +277,27 @@ export class SashikoApp {
       });
     });
     this.server = server;
+    if (this.opts.shutdown !== false) shutdownCoordinator.register(this.shutdownTarget);
     return server;
   }
+
+  /** Ponte entre este app e o coordenador de sinais (F-07). */
+  private readonly shutdownTarget: ShutdownTarget = {
+    log: undefined as unknown as Logger, // definido no construtor
+    signals: [],
+    exitOnShutdown: true,
+    shutdown: async (signal) => {
+      const opts = this.opts.shutdown || {};
+      try {
+        await this.close(opts.timeoutMs ?? 10_000);
+        await opts.onShutdown?.(signal);
+        return true;
+      } catch (err) {
+        this.log.error({ err, signal }, 'error during graceful shutdown');
+        return false;
+      }
+    },
+  };
 
   /**
    * Para de aceitar conexões, encerra as ociosas e espera as requisições em andamento terminarem.
@@ -251,6 +307,9 @@ export class SashikoApp {
     const server = this.server;
     if (!server) return;
     this.server = undefined;
+    this.closing = server;
+    // Respostas que ainda não enviaram headers avisam o cliente para não reusar a conexão.
+    for (const res of this.inflight) if (!res.headersSent) res.setHeader('Connection', 'close');
     const force = setTimeout(() => server.closeAllConnections(), graceMs);
     force.unref();
     try {
@@ -260,6 +319,8 @@ export class SashikoApp {
       });
     } finally {
       clearTimeout(force);
+      this.closing = undefined;
+      shutdownCoordinator.unregister(this.shutdownTarget);
     }
   }
 

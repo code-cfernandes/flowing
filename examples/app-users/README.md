@@ -29,6 +29,7 @@ src/routes/users.ts        CRUD /users
 src/routes/admin.ts        /health (base) e /admin (herda /health)
 src/guards/api-key.ts      guard que exige o header x-api-key (aplicado no server.ts)
 src/schema/                schemas TypeBox
+src/serializers/csv.ts     serializador CSV plugável (registrado no server.ts)
 src/types/                 tipos derivados dos schemas
 src/store/                 UserRepository em memória, injetado nas classes de rotas
 ```
@@ -37,7 +38,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 
 | Método | Rota | Demonstra |
 |---|---|---|
-| GET | `/users?limit&offset` | Query com coerção e defaults |
+| GET | `/users?limit&offset` | Query com coerção e defaults; JSON ou CSV pelo `Accept` |
 | GET/HEAD | `/users/:id` | Params com `format: uuid`; HEAD automático |
 | POST | `/users` | Body estrito, `additionalProperties: false`, 201 |
 | PATCH | `/users/:id` | `Type.Partial` com `minProperties: 1` |
@@ -46,7 +47,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | GET | `/health`, `/admin/health` | Herança entre classes de rotas |
 | GET | `/admin/stats` | Guard `apiKeyGuard` aplicado no `server.ts` (401) e header documentado por schema |
 | GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`) |
-| GET | `/users/export.csv` | Mapeamento manual de um método sem verbo, com guard só nessa rota |
+| GET | `/users/export.csv` | Mapeamento manual de um método sem verbo, com guard só nessa rota; `return` de string com `contentType: 'text/csv'` |
 | GET | `/users/by-id/:id` | Mapeamento manual: alias de `GET /users/:id` |
 | GET | `/admin/boom` | Erro interno sem vazar detalhes ao cliente |
 
@@ -62,8 +63,9 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | Mapeamento manual | `/users/export.csv` só com a API key (401 sem ela); `/users/by-id/:id` como alias |
 | Composição | Guard de `/admin` aplicado em `app.mount(…, { guards })`: sem chave → 401, inclusive na rota herdada `/admin/health`; `/public/users` é a mesma `UserRoutes` com `prefix` e `only`, e `POST` nela → 405 |
 | Segurança | Headers de segurança em toda resposta; preflight CORS de origem permitida e de origem desconhecida |
+| Formatos | `GET /users` com `Accept: text/csv` responde em CSV, sem campos extras; `Accept: application/xml` → 406 |
 | Logs | `X-Request-Id` em toda resposta, reaproveitado quando enviado; logs com `reqId` no terminal do servidor |
 
-Outros recursos aparecem no código: `Context<typeof schemas>` sem casts, `UserRepository` injetado pelo construtor, `requireSchemas: true` e `await app.listen()` / `app.close()` no shutdown.
+Outros recursos aparecem no código: `Context<typeof schemas>` sem casts, `UserRepository` injetado pelo construtor, `requireSchemas: true` e o encerramento gracioso nos sinais do processo, sem código manual (`shutdown` no `createApp`).
 
 > Rotas POST exigem schema de body por causa do `requireSchemas`, por isso o `/greet` espera `{}` no corpo.

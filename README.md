@@ -197,16 +197,80 @@ list(ctx: Context<typeof list>) {
 
 ## Respostas e o `ctx`
 
-O valor retornado pelo handler vira a resposta JSON. Para outros formatos:
+O valor retornado pelo handler vira a resposta. Sem schema de resposta, o formato vem do tipo do valor:
+
+| Retorno | Resposta |
+|---|---|
+| objeto, array, número, booleano, `null` | `application/json` |
+| `string` | `text/plain; charset=utf-8`, sem aspas |
+| `Buffer` / `Uint8Array` | `application/octet-stream` |
+| `Readable` (stream) | enviado em stream |
+| `undefined` | sem corpo |
+
+Um `Content-Type` definido no handler (`ctx.header('Content-Type', ...)`) sempre prevalece.
+
+### Outros formatos: `contentType`, serializadores e `Accept`
+
+Uma entrada de `response` pode declarar o tipo de conteúdo. Um schema sem `contentType` continua sendo JSON:
+
+```ts
+// CSV cru: o `return` de uma string sai como está
+@Get('/export.csv', { response: { 200: { contentType: 'text/csv', schema: Type.String() } } })
+exportCsv() { return 'id,name\n1,Ana\n'; }
+
+// Vários formatos: o cliente escolhe pelo Accept (q-values e curingas); sem Accept, vale o primeiro
+@Get('/', { response: { 200: { contentType: ['application/json', 'application/yaml'], schema: Type.Array(User) } } })
+list() { return users; }
+```
+
+Objetos em formatos que não são JSON passam por um **serializador** registrado no app. A biblioteca é escolha sua:
+
+```ts
+import YAML from 'yaml';
+createApp({ serializers: { 'application/yaml': (data) => YAML.stringify(data) } });
+```
+
+- **Campos não declarados nunca saem, em nenhum formato.** Antes do serializador, a saída é validada contra o schema e os campos extras são removidos (sobre uma cópia). Se não bater com o schema, a resposta é 500, com o motivo no log.
+- **Sem formato aceitável:** a resposta é `406 Not Acceptable`, com os tipos disponíveis. Rotas com mais de um tipo enviam `Vary: Accept`.
+- **Sem serializador:** um objeto num tipo sem serializador registrado gera 500, com a instrução no log.
+- **Erros:** continuam em JSON.
+
+### Dois estilos, um pipeline
+
+Dá para responder com `return` ou com envio imperativo (`ctx.json()`, `ctx.send()`, `ctx.text()`). Os dois passam pelo **mesmo** pipeline: schema do status, remoção de campos não declarados, status padrão, negociação e serializadores. A resposta é idêntica.
+
+```ts
+const job = {
+  body: Type.Object({ async: Type.Boolean() }),
+  response: { 200: Type.Object({ result: Type.String() }), 202: Type.Object({ jobId: Type.String() }) },
+} satisfies RouteSchemas;
+
+@Post('/jobs', job)
+run(ctx: Context<typeof job>) {
+  if (ctx.body.async) return ctx.status(202).json({ jobId: enqueue() });  // status decidido em runtime
+  return { result: process() };                                           // status padrão
+}
+```
+
+**O `status()` tipa o corpo.** Com schemas de resposta, `ctx.status()` só aceita os status declarados, e o `json()`/`send()` seguinte exige o corpo daquele status. `ctx.status(202).json({ result })` e `ctx.status(201)` são erros de compilação no exemplo acima.
+
+Estilo recomendado:
+- `return` para o caso comum;
+- `ctx.status(x).json(body)` quando o status é decidido em runtime;
+- `throw` para erros.
+
+Os schemas de resposta valem para o que o **handler** envia. Middlewares e guards que respondem antes dele (manutenção, cache, 401), as respostas de erro e os 404/405 do framework não passam pelo schema da rota.
+
+### Helpers do `ctx`
 
 | Método | Uso |
 |---|---|
 | `ctx.status(code)` | Define o status |
 | `ctx.header(name, value)` | Define um header da resposta |
 | `ctx.get(name)` | Lê um header da requisição |
-| `ctx.json(data)` | JSON explícito |
-| `ctx.text(str)` | `text/plain; charset=utf-8` |
-| `ctx.send(body, contentType?)` | `string`, `Buffer`/`Uint8Array` ou `Readable` (stream) |
+| `ctx.json(data)` | Envia JSON pelo pipeline (schema, filtro, status padrão) |
+| `ctx.text(str)` | `text/plain; charset=utf-8`, pelo pipeline |
+| `ctx.send(body, contentType?)` | Qualquer corpo pelo pipeline: string, bytes, stream ou objeto (negociado pelo `Accept`) |
 | `ctx.redirect(url, status?)` | 302 por padrão; aceita 301, 303, 307, 308 |
 | `ctx.throw(status, message)` | Lança um `HttpError` |
 
@@ -280,7 +344,7 @@ Ligado por padrão:
 
 | Proteção | Detalhe |
 |---|---|
-| Headers de segurança | `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin`. HSTS é opt-in. |
+| Headers de segurança | `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin`. HSTS é opt-in. Para servir páginas, use `securityHeaders: 'web'` (CSP `default-src 'self'`, `X-Frame-Options: SAMEORIGIN`). |
 | Limite de body | 1 MiB (`bodyLimit`). Recusado já pelo `Content-Length`, com a conexão fechada. |
 | Timeouts | `requestTimeout` 30s, `headersTimeout` 10s, `keepAliveTimeout` 5s (contra Slowloris). |
 | Query | Até 1000 pares (`queryMaxKeys`); `__proto__`, `constructor` e `prototype` são descartados. |
@@ -324,16 +388,27 @@ createApp({ logger: pino(), logRequests: true });
 ```ts
 const app = createApp().mount(UserRoutes);
 
-const server = await app.listen({ port: 3000, host: '0.0.0.0' }); // resolve quando está ouvindo
+await app.listen({ port: 3000, host: '0.0.0.0' }); // resolve quando está ouvindo; SIGINT/SIGTERM já tratados
 
-process.on('SIGTERM', async () => {
-  await app.close(); // para de aceitar conexões e espera as requisições em andamento
-  process.exit(0);
-});
-
-// Servidor próprio (HTTPS, http2 em modo compat…)
+// Servidor próprio (HTTPS, http2 em modo compat…): aqui o ciclo de vida é seu
 https.createServer(tlsOptions, app.callback()).listen(443);
 ```
+
+**Encerramento gracioso, sem código.** Com `listen()`, um SIGINT ou SIGTERM faz o app parar de aceitar conexões, esperar as requisições em andamento (com prazo) e sair com código 0:
+
+```ts
+createApp({
+  shutdown: {
+    timeoutMs: 10_000,                        // prazo para as requisições em andamento (padrão)
+    onShutdown: async () => { await db.close(); }, // depois que o servidor fecha
+  },
+});
+```
+
+- **Segundo sinal:** força a saída com código 1 (o Ctrl+C duplo). Um erro no `onShutdown` também sai com 1.
+- **Vários apps no mesmo processo:** compartilham um único listener por sinal e fecham todos juntos.
+- **Limpeza:** os listeners são removidos no `close()`, então testes com vários `listen(0)` não acumulam listeners. O `inject()` e o `callback()` não registram nada.
+- **Opções:** `signals` muda os sinais tratados, `exit: false` fecha sem chamar `process.exit`, e `shutdown: false` desliga tudo (por exemplo, se outra ferramenta controla o processo).
 
 **Testes sem rede.** `app.inject()` executa a requisição em memória:
 
@@ -350,7 +425,9 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `bodyLimit` | `1048576` | Tamanho máximo do body JSON, em bytes |
 | `queryMaxKeys` | `1000` | Máximo de pares lidos da query string |
 | `requireSchemas` | `false` | Exige schemas de body e de resposta no registro das rotas |
-| `securityHeaders` | ligado | Opções dos headers de segurança; `false` desliga |
+| `securityHeaders` | `'api'` | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar |
+| `serializers` | — | Serializadores por content type, para responder em outros formatos |
+| `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `onShutdown`, `exit`; `false` desliga |
 | `timeouts` | 30s / 10s / 5s | `requestTimeout`, `headersTimeout`, `keepAliveTimeout` |
 | `logger` | `consoleLogger()` | Logger compatível com pino; `false` desliga |
 | `logRequests` | `false` | Log de cada requisição concluída |

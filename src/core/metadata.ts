@@ -3,12 +3,35 @@ import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
 export const ROUTER_METADATA = Symbol.for('sashiko:router');
 
+/**
+ * Resposta com tipo de conteúdo declarado (F-31). Sem `contentType`, a entrada é um schema JSON.
+ *
+ * ```ts
+ * response: { 200: { contentType: ['application/json', 'text/csv'], schema: Users } }
+ * ```
+ */
+export interface ResponseContent {
+  /** Um tipo ou a lista de tipos oferecidos; com vários, o cliente escolhe pelo `Accept`. */
+  contentType: string | readonly string[];
+  /** Schema dos dados. Em formatos não JSON, valida e remove campos antes do serializador. */
+  schema?: object;
+}
+
+/** Schema JSON (como sempre) ou `{ contentType, schema? }`. */
+export type ResponseEntry = object | ResponseContent;
+
 export interface RouteSchemas {
   params?: object;
   body?: object;
   query?: object;
   headers?: object;
-  response?: Record<number, object>;
+  response?: Record<number, ResponseEntry>;
+}
+
+export function isResponseContent(entry: unknown): entry is ResponseContent {
+  if (typeof entry !== 'object' || entry === null || !('contentType' in entry)) return false;
+  const ct = (entry as { contentType: unknown }).contentType;
+  return typeof ct === 'string' || Array.isArray(ct);
 }
 
 export interface MethodMetadata {
