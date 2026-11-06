@@ -9,13 +9,52 @@ import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type SendMode, type Serializer } from './response.ts';
+import { sendFile, type SendFileOptions } from '../server/static.ts';
 
 /** @internal Envio cru, sem pipeline: usado pelo próprio pipeline, por erros e por 404/405. */
 export const kRawSend = Symbol('sashiko.rawSend');
+/** @internal Cancela o `ctx.signal` (encerramento do app) (F-13). */
+export const kAbort = Symbol('sashiko.abort');
 /** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
 export const kBindResponse = Symbol('sashiko.bindResponse');
 
 type RawBody = string | Uint8Array | Readable;
+
+/** Um evento de Server-Sent Events (F-13). `data` em objeto vira JSON; strings com várias linhas são divididas. */
+export interface SseEvent {
+  data: unknown;
+  event?: string;
+  id?: string;
+  /** Sugestão de espera para o navegador reconectar, em ms. */
+  retry?: number;
+}
+
+/** Conexão SSE aberta por `ctx.sse()`. */
+export interface SseStream {
+  send(event: SseEvent | string): void;
+  /** Comentário (`: texto`), ignorado pelo navegador; útil como keep-alive. */
+  comment(text: string): void;
+  /** Encerra a resposta. */
+  close(): void;
+  /** Chamado quando a conexão termina: o cliente desconectou, `close()` ou encerramento do app. */
+  onClose(listener: () => void): void;
+  readonly closed: boolean;
+  /** `Last-Event-ID` enviado pelo navegador ao reconectar. */
+  readonly lastEventId: string | undefined;
+}
+
+export interface SseOptions {
+  /** Comentário periódico para proxies não derrubarem a conexão ociosa. Padrão: 15000 ms; `0` desliga. */
+  heartbeatMs?: number;
+  /** `retry:` enviado na abertura. */
+  retry?: number;
+}
+
+/** Campos de uma linha SSE não podem ter quebra de linha: seria injeção de evento. */
+const sseField = (name: string, value: string) => {
+  if (/[\r\n]/.test(value)) throw new Error(`[sashiko] ctx.sse(): "${name}" cannot contain line breaks.`);
+  return `${name}: ${value}\n`;
+};
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
 export interface SendPayload {
@@ -113,6 +152,117 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   statusExplicit = false;
 
   private streaming = false;
+  private abortController: AbortController | undefined;
+
+  /**
+   * Cancelado quando o cliente desconecta antes do fim da resposta, ou quando o app está encerrando
+   * (F-13). Passe para consultas e `fetch` longos: `db.query(sql, { signal: ctx.signal })`.
+   */
+  get signal(): AbortSignal {
+    if (!this.abortController) {
+      const controller = new AbortController();
+      this.abortController = controller;
+      if (this.res.writableFinished) return controller.signal;
+      this.res.once('close', () => {
+        if (!this.res.writableFinished) controller.abort(new Error('client disconnected'));
+      });
+    }
+    return this.abortController.signal;
+  }
+
+  /** @internal `true` em respostas de streaming (SSE, NDJSON, `Readable`) já iniciadas. */
+  get streamingResponse(): boolean {
+    return this.streaming;
+  }
+
+  /** @internal */
+  [kAbort](reason: string): void {
+    void this.signal;
+    this.abortController?.abort(new Error(reason));
+  }
+
+  /**
+   * Abre uma conexão de Server-Sent Events (F-13). A resposta fica aberta até `close()`, a desconexão do
+   * cliente ou o encerramento do app, que fecha estas conexões primeiro para o shutdown não esperar por elas.
+   *
+   * ```ts
+   * const stream = ctx.sse();
+   * const off = bus.on('order', (o) => stream.send({ event: 'order', id: o.id, data: o }));
+   * stream.onClose(off);
+   * ```
+   */
+  sse(opts: SseOptions = {}): SseStream {
+    if (this.sent) throw new Error('[sashiko] ctx.sse(): the response was already sent.');
+    const res = this.res;
+    this.streaming = true;
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.removeHeader('Content-Length');
+    res.flushHeaders();
+
+    const listeners: (() => void)[] = [];
+    let closed = false;
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      for (const l of listeners.splice(0)) {
+        try {
+          l();
+        } catch (err) {
+          this.log.error({ err }, 'sse onClose listener failed');
+        }
+      }
+    };
+    const write = (chunk: string) => {
+      if (!closed && !res.writableEnded) res.write(chunk);
+    };
+    const heartbeatMs = opts.heartbeatMs ?? 15_000;
+    const heartbeat = setInterval(() => write(': ping\n\n'), heartbeatMs || 2 ** 31 - 1);
+    heartbeat.unref();
+    if (!heartbeatMs) clearInterval(heartbeat);
+    res.once('close', finish);
+    this.signal.addEventListener('abort', () => stream.close(), { once: true });
+    if (opts.retry !== undefined) write(`retry: ${Math.floor(opts.retry)}\n\n`);
+
+    const stream: SseStream = {
+      send: (event) => {
+        const e: SseEvent = typeof event === 'string' ? { data: event } : event;
+        let out = '';
+        if (e.event !== undefined) out += sseField('event', e.event);
+        if (e.id !== undefined) out += sseField('id', e.id);
+        if (e.retry !== undefined) out += `retry: ${Math.floor(e.retry)}\n`;
+        const text = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
+        for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
+        write(`${out}\n`);
+      },
+      comment: (text) => write(`: ${text.replace(/[\r\n]+/g, ' ')}\n\n`),
+      close: () => {
+        if (!res.writableEnded) res.end();
+        finish();
+      },
+      onClose: (listener) => {
+        if (closed) listener();
+        else listeners.push(listener);
+      },
+      get closed() {
+        return closed;
+      },
+      lastEventId: this.get('last-event-id'),
+    };
+    return stream;
+  }
+
+  /**
+   * Envia um arquivo com `Content-Type`, `ETag`/`Last-Modified` (304) e `Range` (206), em stream (F-13).
+   * Com `root`, o path é relativo e não pode sair dela; sem `root`, precisa ser absoluto.
+   * Arquivo inexistente responde 404.
+   */
+  async sendFile(path: string, opts?: SendFileOptions): Promise<void> {
+    await sendFile(this as unknown as Context, path, opts);
+  }
   private readonly onSendHooks: readonly OnSendHook[];
 
   /**

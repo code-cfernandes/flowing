@@ -9,6 +9,23 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.12.0] - 2026-11-06
+
+### Adicionado
+
+- Arquivos estáticos: `app.static(prefix, root, opts)` e `g.static()` dentro de `group()`, como rotas `GET`/`HEAD`.
+  - Proteção contra path traversal: `..` codificado, symlinks para fora da raiz, barra invertida e byte nulo.
+  - Arquivos ocultos negados por padrão e diretórios nunca listados (com `index` opcional).
+  - `ETag`/`Last-Modified` com 304, `Range` com 206/416 e `If-Range`, `Cache-Control` (`maxAge`, `immutable`).
+  - Tabela de tipos sem dependência e `fallback` para SPA. Ficam fora do OpenAPI.
+- `ctx.sendFile(path, { root, download, ... })`, com `Content-Disposition` em UTF-8.
+- `ctx.sse()`: Server-Sent Events, com heartbeat, `retry`, `Last-Event-ID`, `onClose`, eventos multilinha e
+  recusa de quebra de linha em `event`/`id`.
+- Async iterables como retorno do handler viram NDJSON (`application/x-ndjson`), com schema por item.
+- `ctx.signal`: um `AbortSignal` cancelado quando o cliente desconecta. No shutdown, os streams já iniciados
+  (SSE, NDJSON) são cancelados e fecham na hora, sem segurar o encerramento até o prazo.
+- Tipos `StaticOptions`, `SendFileOptions`, `FileOptions`, `SseStream`, `SseEvent` e `SseOptions`.
+
 ## [0.11.4] - 2026-11-06
 
 ### Corrigido

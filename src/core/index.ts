@@ -31,6 +31,7 @@ export type { HealthCheck, HealthOptions } from './health.ts';
 export type { Serializer } from './response.ts';
 export type { CookieOptions } from '../utils/cookie.ts';
 export type { TlsCertificate, TlsOptions } from '../server/tls.ts';
+export type { FileOptions, SendFileOptions, StaticOptions } from '../server/static.ts';
 export {
   consoleLogger,
   DEFAULT_REDACT_KEYS,
@@ -50,6 +51,9 @@ export {
   type DeclaredStatus,
   type ParamsFor,
   type SchemasOf,
+  type SseEvent,
+  type SseOptions,
+  type SseStream,
   type StatusContext,
 } from './context.ts';
 export {

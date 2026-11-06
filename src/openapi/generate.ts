@@ -107,6 +107,7 @@ export function generateOpenAPI(routes: readonly CompiledRoute[], opts: OpenAPIO
   const paths: Record<string, Json> = {};
   const ids = new Map<string, number>();
   for (const route of routes) {
+    if (route.internal) continue;
     const path = toOpenAPIPath(route.path);
     const op = operation(route, problemErrors);
     // A mesma classe montada em dois prefixos gera o mesmo id; o OpenAPI exige ids únicos.

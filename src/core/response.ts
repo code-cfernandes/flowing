@@ -80,10 +80,31 @@ export function sendResult(
   write(ctx, type, result, schema, mode === 'json' || (jsonSchemaDeclared && !explicit), serializers);
 }
 
+const NDJSON = 'application/x-ndjson';
+
+/** Async iterable que não é um stream (async generator, cursor de banco…) (F-13). */
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return typeof value === 'object' && value !== null && !(value instanceof Readable) && Symbol.asyncIterator in value;
+}
+
 function inferType(value: unknown): string {
   if (typeof value === 'string') return 'text/plain';
   if (value instanceof Uint8Array || value instanceof Readable) return 'application/octet-stream';
+  if (isAsyncIterable(value)) return NDJSON;
   return JSON_TYPE;
+}
+
+/** Cada item vira uma linha JSON (NDJSON). Com schema, cada item é validado e filtrado como uma resposta. */
+function ndjson(ctx: Context, items: AsyncIterable<unknown>, schema: object | undefined): Readable {
+  const signal = ctx.signal;
+  return Readable.from(
+    (async function* () {
+      for await (const item of items) {
+        if (signal.aborted) return; // cliente desconectou: para de consumir a fonte
+        yield `${schema ? serialize(schema, item) : JSON.stringify(item)}\n`;
+      }
+    })(),
+  );
 }
 
 function write(
@@ -99,6 +120,16 @@ function write(
   const json = isJsonContentType(base);
 
   if (value instanceof Readable) return void ctx[kRawSend](value, header);
+
+  if (isAsyncIterable(value)) {
+    if (base !== NDJSON) {
+      throw new Error(
+        `[sashiko] ${ctx.method} ${ctx.path}: an async iterable is streamed as NDJSON; declare ` +
+          `response: { 200: { contentType: '${NDJSON}', schema: Item } } (the schema of each item), or return a Readable.`,
+      );
+    }
+    return void ctx[kRawSend](ndjson(ctx, value, schema), header);
+  }
 
   // Valores crus (string/Buffer) vão como estão, exceto quando a rota declarou um schema JSON:
   // nesse caso `"olá"` continua sendo serializado como JSON, como sempre.
