@@ -29,7 +29,7 @@ import { problem, sendError, sendProblem, sendResult, type Serializer } from './
 import type { ErrorFormatter } from './errors.ts';
 import { RouteTable } from './route-table.ts';
 import { mediaType } from '../utils/content-type.ts';
-import { compileHostMatcher } from '../utils/origin-match.ts';
+import { compileHostMatcher, hostRank, hostReachability, NO_HOST_RANK } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
 import { shutdownCoordinator, type ShutdownOptions, type ShutdownTarget } from './shutdown.ts';
@@ -138,6 +138,15 @@ export interface RequestIdOptions {
   generate?: () => string;
 }
 
+interface PendingRoute {
+  owner: string;
+  route: CompiledRoute;
+  hosts: (string | undefined)[];
+}
+
+const isThenable = (v: unknown): boolean =>
+  (typeof v === 'object' || typeof v === 'function') && v !== null && typeof (v as { then?: unknown }).then === 'function';
+
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export class SashikoApp {
@@ -148,6 +157,9 @@ export class SashikoApp {
   private readonly onResponseHooks: OnResponseHook[] = [];
   private readonly onCloseHooks: OnCloseHook[] = [];
   private readonly routes: CompiledRoute[] = [];
+  /** Registros pendentes de um `group()` em andamento (duas fases). */
+  private pending: PendingRoute[] | undefined;
+  private readonly warnedHosts = new Set<string>();
   private draining = false;
   private healthConfig: HealthConfig | undefined;
   private openapiConfig:
@@ -255,20 +267,30 @@ export class SashikoApp {
 
   /** @internal */
   groupIn(parent: RouteScope, options: GroupOptions, define: (group: RouteGroupScope) => unknown): void {
-    const result = define(new RouteGroupScope(this, childScope(parent, options)));
-    if (result instanceof Promise) {
-      throw new Error('[sashiko] app.group(): the callback must be synchronous; do async work before registering routes.');
+    const scope = childScope(parent, options);
+    // Registro em duas fases: o que o callback registrar fica pendente e só é efetivado se ele terminar
+    // de forma síncrona e sem erro. Grupos aninhados entram no lote do grupo mais externo.
+    const outermost = this.pending === undefined;
+    if (outermost) this.pending = [];
+    try {
+      const result = define(new RouteGroupScope(this, scope));
+      if (isThenable(result)) {
+        throw new Error('[sashiko] app.group(): the callback must be synchronous; do async work before registering routes.');
+      }
+      if (outermost) this.commit(this.pending!);
+    } finally {
+      if (outermost) this.pending = undefined;
     }
   }
 
   /** @internal */
   mountIn(scope: RouteScope, ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
     const group = createGroup(ref, options, scope);
-    for (const route of compileAutoRoutes(group)) this.addRoute(group.name, route);
+    this.stage(group.name, compileAutoRoutes(group));
     return new MountedGroup(
       this,
       group,
-      (g, method, path, select, opts) => this.addRoute(g.name, compileManualRoute(g, method, path, select, opts)),
+      (g, method, path, select, opts) => this.stage(g.name, [compileManualRoute(g, method, path, select, opts)]),
       scope,
     );
   }
@@ -311,9 +333,29 @@ export class SashikoApp {
     return generateOpenAPI(this.routesFor(opts.host?.toLowerCase()), opts, !this.opts.formatError);
   }
 
-  /** Rotas visíveis num host: as sem restrição e as cujo `host` casa. */
+  /**
+   * Rotas que o roteador **executaria** num host (F-35): para cada método e path, só a vencedora pela mesma
+   * prioridade do roteador (exato → curinga mais específico → RegExp → sem host). Assim o OpenAPI documenta
+   * exatamente o handler que responde. Sem `hostname`, só as rotas sem host.
+   */
   private routesFor(hostname: string | undefined): CompiledRoute[] {
-    return this.routes.filter((r) => r.hosts.length === 0 || (hostname !== undefined && r.hosts.some((h) => h.test(hostname))));
+    const best = new Map<string, { route: CompiledRoute; rank: number }>();
+    for (const [seq, route] of this.routes.entries()) {
+      let rank = route.hosts.length === 0 ? NO_HOST_RANK : -1;
+      if (rank === -1 && hostname !== undefined) {
+        for (const h of route.hosts) {
+          if (!h.test(hostname)) continue;
+          // Desempate pela ordem de registro, a mesma que o roteador usa em cada path.
+          const r = hostRank(h, seq);
+          if (rank === -1 || r < rank) rank = r;
+        }
+      }
+      if (rank === -1) continue;
+      const key = `${route.method} ${route.path}`;
+      const current = best.get(key);
+      if (!current || rank < current.rank) best.set(key, { route, rank });
+    }
+    return this.routes.filter((r) => best.get(`${r.method} ${r.path}`)?.route === r);
   }
 
   /** Se a requisição é para `/openapi.json` ou `/docs` (quando ligados), responde e devolve `true`. */
@@ -349,38 +391,86 @@ export class SashikoApp {
     return true;
   }
 
-  private addRoute(owner: string, route: CompiledRoute): void {
-    if (this.opts.requireSchemas) assertSchemas(owner, route);
-    this.checkReachableHosts(owner, route);
-    const hosts = route.hosts.length > 0 ? route.hosts : [undefined];
-    for (const host of hosts) {
-      try {
-        this.router.on(route.method, route.path, route, host?.value);
-      } catch (err) {
-        const where = host ? ` on host ${host.label}` : '';
-        throw new Error(
-          `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
-            `Use a different "prefix" or "host" to mount the same class twice.`,
-          { cause: err },
-        );
+  /**
+   * Primeira fase: valida as rotas (schemas obrigatórios, hosts alcançáveis, conflitos com o roteador e
+   * dentro do próprio lote). Dentro de um `group()`, acumula; fora, efetiva na hora.
+   */
+  private stage(owner: string, routes: readonly CompiledRoute[]): void {
+    const batch = this.pending ?? [];
+    for (const route of routes) {
+      if (this.opts.requireSchemas) assertSchemas(owner, route);
+      this.checkReachableHosts(owner, route);
+      for (const host of route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined]) {
+        const taken =
+          this.router.has(route.method, route.path, host) ||
+          batch.some((p) => p.route.method === route.method && p.route.path === route.path && p.hosts.includes(host));
+        if (taken) {
+          const where = host ? ` on host ${host}` : '';
+          throw new Error(
+            `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
+              `Use a different "prefix" or "host" to mount the same class twice.`,
+          );
+        }
       }
+      batch.push({ owner, route, hosts: route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined] });
     }
-    this.routes.push(route);
-    if (this.openapiConfig) this.openapiConfig.cache.clear();
+    if (this.pending === undefined) this.commit(batch);
   }
 
   /**
-   * Um host de rota fora do `allowedHosts` nunca seria alcançado: o app responde 400 antes do roteamento
-   * (F-35). Padrão: erro no registro; `unreachableHosts: 'warn' | 'off'` relaxa. Regras RegExp não são conferidas.
+   * Segunda fase: registra o lote no roteador. Se algo ainda falhar (um conflito que o `has()` não prevê),
+   * desfaz o que já entrou, e nenhuma rota do lote fica registrada.
+   */
+  private commit(batch: readonly PendingRoute[]): void {
+    const done: { method: string; path: string; host: string | undefined }[] = [];
+    try {
+      for (const { owner, route, hosts } of batch) {
+        for (const host of hosts) {
+          try {
+            this.router.on(route.method, route.path, route, host);
+          } catch (err) {
+            throw new Error(`[sashiko] app.mount(${owner}): ${route.method} ${route.path} conflicts with a registered route.`, {
+              cause: err,
+            });
+          }
+          done.push({ method: route.method, path: route.path, host });
+        }
+      }
+    } catch (err) {
+      for (const r of done.reverse()) this.router.off(r.method, r.path, r.host);
+      throw err;
+    }
+    for (const { route } of batch) this.routes.push(route);
+    if (this.openapiConfig && batch.length > 0) this.openapiConfig.cache.clear();
+  }
+
+  /**
+   * Um host de rota sem interseção com o `allowedHosts` nunca seria alcançado: o app responde 400 antes do
+   * roteamento (F-35). Comprovado: erro (ou aviso, com `unreachableHosts: 'warn'`). Sem como provar
+   * (RegExp em algum dos lados): aviso.
    */
   private checkReachableHosts(owner: string, route: CompiledRoute): void {
     const mode = this.opts.unreachableHosts ?? 'error';
-    if (mode === 'off' || !this.allowedHosts) return;
+    const allowed = this.opts.allowedHosts;
+    if (mode === 'off' || !allowed) return;
     for (const host of route.hosts) {
-      if (host.probe === undefined || this.allowedHosts(host.probe, host.probe)) continue;
-      const msg = `[sashiko] app.mount(${owner}): ${route.method} ${route.path} uses host ${host.label}, which is not in allowedHosts; the route is unreachable.`;
-      if (mode === 'error') throw new Error(`${msg} Add it to allowedHosts, or set unreachableHosts: 'warn'.`);
-      this.log.warn({ host: host.label, method: route.method, path: route.path }, msg);
+      const verdict = hostReachability(host, allowed);
+      if (verdict === 'yes') continue;
+      const where = `app.mount(${owner}): ${route.method} ${route.path} uses host ${host.label}`;
+      if (verdict === 'no' && mode === 'error') {
+        throw new Error(
+          `[sashiko] ${where}, which no allowedHosts rule accepts; the route is unreachable. Add it to allowedHosts, or set unreachableHosts: 'warn'.`,
+        );
+      }
+      const key = `${owner} ${host.key}`;
+      if (this.warnedHosts.has(key)) continue;
+      this.warnedHosts.add(key);
+      this.log.warn(
+        { host: host.label },
+        verdict === 'no'
+          ? `[sashiko] ${where}, which no allowedHosts rule accepts; the route is unreachable.`
+          : `[sashiko] ${where}; could not verify it against allowedHosts (RegExp).`,
+      );
     }
   }
 

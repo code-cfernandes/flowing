@@ -9,6 +9,24 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.1] - 2026-11-06
+
+### Corrigido
+
+- OpenAPI por host documentava, em alguns casos, uma rota diferente da executada. Quando uma rota global e uma
+  com host tinham o mesmo método e path, o documento podia mostrar a global, conforme a ordem de registro.
+  Agora o documento usa a mesma seleção do roteador.
+- Prioridade entre curingas sobrepostos: `*.api.exemplo.com` vence `*.exemplo.com` independentemente da ordem
+  de registro, por uma estratégia de host própria no roteador. A ordem é exato → curinga mais específico →
+  RegExp (na ordem de registro) → sem host.
+- Registro atômico: um conflito no `mount()`, numa lista de hosts ou num `group()` não deixa rotas parciais
+  registradas. A validação vem antes do registro, e um conflito tardio desfaz o que já tinha entrado.
+- `group()` com callback assíncrono, que devolve um thenable, ou que lança erro não deixa rotas registradas.
+- `unreachableHosts` deixou de recusar configurações válidas: um curinga com um host permitido dentro dele, e um
+  host exato com `allowedHosts` com porta. Quando não dá para provar a interseção (RegExp), só avisa no log, uma
+  vez por `mount` e host.
+- A conferência de rota duplicada considera `/x` e `/x/` como a mesma rota, como o roteador.
+
 ## [0.11.0] - 2026-11-06
 
 ### Adicionado

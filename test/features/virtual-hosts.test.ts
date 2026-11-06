@@ -145,7 +145,7 @@ describe('F-35 · registro', () => {
     assert.doesNotThrow(() => app.mount(ApiUsers, { host: 'api.exemplo.com' }).mount(Tenant, { host: '*.clientes.exemplo.com' }));
     assert.throws(
       () => app.mount(AdminUsers, { host: 'admin.exemplo.com' }),
-      /admin\.exemplo\.com, which is not in allowedHosts.*unreachableHosts: 'warn'/,
+      /admin\.exemplo\.com, which no allowedHosts rule accepts.*unreachableHosts: 'warn'/,
     );
     assert.doesNotThrow(() => app.mount(Reports, { host: /qualquer/ }), 'RegExp não é conferida');
   });
@@ -164,7 +164,7 @@ describe('F-35 · registro', () => {
     createApp({ logger: log, allowedHosts: ['api.exemplo.com'], unreachableHosts: 'warn' }).mount(AdminUsers, {
       host: 'admin.exemplo.com',
     });
-    assert.equal(warn.mock.callCount(), 2, 'um aviso por rota');
+    assert.equal(warn.mock.callCount(), 1, 'um aviso por mount e host, não por rota');
     assert.doesNotThrow(() =>
       createApp({ allowedHosts: ['api.exemplo.com'], unreachableHosts: 'off' }).mount(AdminUsers, { host: 'admin.exemplo.com' }),
     );
@@ -194,8 +194,8 @@ describe('F-35 · OpenAPI por host', () => {
 
 describe('compileRouteHost', () => {
   it('normaliza maiúsculas e IDN', () => {
-    assert.equal(compileRouteHost('API.Exemplo.com').value, 'api.exemplo.com');
-    assert.equal(compileRouteHost('café.exemplo.com').value, 'xn--caf-dma.exemplo.com');
+    assert.equal(compileRouteHost('API.Exemplo.com').key, 'api.exemplo.com');
+    assert.equal(compileRouteHost('café.exemplo.com').key, 'xn--caf-dma.exemplo.com');
     assert.equal(compileRouteHost('*.Exemplo.com').test('a.exemplo.com'), true);
   });
 });

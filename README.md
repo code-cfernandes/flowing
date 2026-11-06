@@ -119,7 +119,7 @@ app
 | `middlewares`     | Valem para todas as rotas do grupo; rodam antes dos `@Middlewares` da classe                                                                            |
 | `guards`          | Valem para todas as rotas do grupo; rodam antes dos `@Guards` da classe                                                                                 |
 
-Erros de registro aparecem na inicialização, com mensagem clara:
+Erros de registro aparecem na inicialização, com mensagem clara, e **não deixam registros parciais**: se uma rota do `mount()` conflita, nenhuma das outras fica registrada.
 
 - classe sem `@Router`;
 - seletor em `only`/`except` que não aponta para um método de rota;
@@ -139,7 +139,7 @@ app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g)
 - **Prefixos se somam:** grupo, depois o prefixo do `mount()` ou do `@Router`, depois o path do método. O prefixo pode ter parâmetros (`'/orgs/:org'`), conferidos contra o schema de `params`.
 - **Ordem de execução:** grupos (de fora para dentro) → `mount()` → classe → método → rota manual. Vale para middlewares e para guards.
 - **Encadeamento:** dentro do callback, `g.mount(A).mount(B)` e `.get(...)` continuam no grupo. Grupos podem ser aninhados (`g.group(...)`).
-- **O callback é síncrono.** Faça o trabalho assíncrono antes (`const db = await connect()`).
+- **O callback é síncrono, e o registro é atômico.** As rotas do grupo só entram se o callback terminar sem erro. Um callback `async`, ou um erro no meio dele, não deixa nenhuma rota registrada. Faça o trabalho assíncrono antes (`const db = await connect()`).
 - **Fora do escopo:** middlewares globais (`app.use()`) e hooks (`onError`, `onSend`…) continuam no app.
 
 ### Virtual hosts
@@ -156,10 +156,10 @@ createApp({ allowedHosts: ['api.exemplo.com', 'admin.exemplo.com', '*.clientes.e
 
 - **Regras:** as mesmas do `allowedHosts`. Uma string casa com o hostname exato, sem porta e sem diferenciar maiúsculas. `'*.dominio'` vale para subdomínios de qualquer profundidade, nunca para o domínio em si. Uma RegExp precisa casar o hostname inteiro. Também é possível passar uma lista: `host: ['api.exemplo.com', 'api.exemplo.dev']`.
 - **O host usado é o validado** (`ctx.hostname`). Com `trustProxy`, vem do `X-Forwarded-Host` confiável, nunca do header cru.
-- **Prioridade:** host exato → curinga ou RegExp → rota sem host, que serve de fallback para qualquer domínio.
+- **Prioridade, independente da ordem de registro:** host exato → curinga mais específico (`*.api.exemplo.com` antes de `*.exemplo.com`) → RegExp, na ordem de registro → rota sem host, que serve de fallback para qualquer domínio.
 - **Isolamento:** as rotas de um host não respondem em outro. O 404 e o 405 (com o `Allow`) são calculados por host.
 - **Onde declarar:** no `mount()` ou no `group()`, e não no `@Router`, porque o domínio é uma decisão de deploy. Declarar `host` num grupo e de novo dentro dele gera erro.
-- **Alcançável:** se o app tem `allowedHosts`, um `host` de rota fora da lista falha no registro, porque essa rota nunca seria alcançada. `createApp({ unreachableHosts: 'warn' })` só avisa no log, e `'off'` não confere. Regras RegExp não são conferidas.
+- **Alcançável:** se o app tem `allowedHosts`, um `host` de rota sem nenhuma interseção com a lista falha no registro, porque essa rota nunca seria alcançada. `*.clientes.exemplo.com` com `allowedHosts: ['acme.clientes.exemplo.com']` passa, e `allowedHosts: ['api.exemplo.com:8443']` cobre `host: 'api.exemplo.com'`. Quando não dá para provar (RegExp em algum dos lados), o app só avisa no log. `createApp({ unreachableHosts: 'warn' })` transforma o erro em aviso, e `'off'` não confere.
 - **OpenAPI por host:** o `/openapi.json` documenta as rotas do host da requisição mais as rotas sem host, sem misturar domínios. Para gerar o arquivo, use `app.openapiDocument({ host: 'api.exemplo.com' })`; sem `host`, saem só as rotas sem host.
 - **Com HTTPS:** o `tls.sni` escolhe o certificado no handshake, e o `host` escolhe as rotas na requisição. As duas configurações se complementam.
 
