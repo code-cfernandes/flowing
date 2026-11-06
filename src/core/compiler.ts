@@ -47,6 +47,41 @@ export interface ManualRouteOptions {
   guards?: readonly Guard[];
 }
 
+/** Opções de `app.group()`: valem para todos os `mount()` do grupo, inclusive de grupos aninhados. */
+export interface GroupOptions {
+  /** Somado antes do prefixo de cada classe: `group({ prefix: '/v2' })` + `@Router('/users')` → `/v2/users`. */
+  prefix?: string;
+  /** Rodam antes dos middlewares do `mount()`. */
+  middlewares?: readonly Middleware[];
+  /** Rodam antes dos guards do `mount()`. */
+  guards?: readonly Guard[];
+}
+
+/** Escopo acumulado dos grupos em volta de um `mount()`. */
+export interface RouteScope {
+  prefix: string;
+  middlewares: readonly Middleware[];
+  guards: readonly Guard[];
+}
+
+export const ROOT_SCOPE: RouteScope = { prefix: '', middlewares: [], guards: [] };
+
+/** Prefixo de um grupo dentro de outro, sem barras duplicadas; vazio não altera nada. */
+export function joinPrefix(outer: string, inner: string): string {
+  if (!outer) return inner;
+  if (!inner) return outer;
+  return joinPaths(outer, inner);
+}
+
+/** Escopo de um grupo aninhado em `parent`. */
+export function childScope(parent: RouteScope, opts: GroupOptions): RouteScope {
+  return {
+    prefix: joinPrefix(parent.prefix, opts.prefix ?? ''),
+    middlewares: [...parent.middlewares, ...(opts.middlewares ?? [])],
+    guards: [...parent.guards, ...(opts.guards ?? [])],
+  };
+}
+
 /** Um grupo montado: a instância, sua metadata e as opções do `mount`. */
 export interface RouteGroup {
   name: string;
@@ -54,9 +89,10 @@ export interface RouteGroup {
   meta: RouterMetadata;
   prefix: string;
   options: MountOptions;
+  scope: RouteScope;
 }
 
-export function createGroup(ref: RouterRef, options: MountOptions = {}): RouteGroup {
+export function createGroup(ref: RouterRef, options: MountOptions = {}, scope: RouteScope = ROOT_SCOPE): RouteGroup {
   const isClass = typeof ref === 'function';
   const Class = (isClass ? ref : ref.constructor) as new () => object;
   const meta = readOwnMetadata(Class);
@@ -71,7 +107,7 @@ export function createGroup(ref: RouterRef, options: MountOptions = {}): RouteGr
   }
   // Instâncias permitem injetar dependências pelo construtor: app.mount(new UserRoutes(repo))
   const instance = isClass ? new Class() : ref;
-  return { name: Class.name, instance, meta, prefix: options.prefix ?? meta.prefix, options };
+  return { name: Class.name, instance, meta, prefix: joinPrefix(scope.prefix, options.prefix ?? meta.prefix), options, scope };
 }
 
 /** Rotas declaradas na classe (`@Get`, `@Post`…), filtradas por `only`/`except` e `auto`. */
@@ -115,7 +151,7 @@ function buildRoute(
   manual: ManualRouteOptions = {},
 ): CompiledRoute {
   const fn = (group.instance as Record<string | symbol, unknown>)[name] as (ctx: Context) => unknown;
-  const { meta, options, instance } = group;
+  const { meta, options, instance, scope } = group;
   const fullPath = joinPaths(group.prefix, path);
   checkPath(`${group.name}.${String(name)}`, httpMethod, fullPath, methodMeta.schemas.params);
   return {
@@ -125,9 +161,9 @@ function buildRoute(
     handlerName: String(name),
     handler: (ctx: Context) => fn.call(instance, ctx),
     schemas: methodMeta.schemas,
-    // Ordem: mount → classe → método → rota manual (F-01, F-28, F-30)
-    middlewares: [...(options.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares, ...(manual.middlewares ?? [])],
-    guards: [...(options.guards ?? []), ...meta.guards, ...methodMeta.guards, ...(manual.guards ?? [])],
+    // Ordem: grupos → mount → classe → método → rota manual (F-01, F-28, F-30)
+    middlewares: [...scope.middlewares, ...(options.middlewares ?? []), ...meta.middlewares, ...methodMeta.middlewares, ...(manual.middlewares ?? [])],
+    guards: [...scope.guards, ...(options.guards ?? []), ...meta.guards, ...methodMeta.guards, ...(manual.guards ?? [])],
   };
 }
 

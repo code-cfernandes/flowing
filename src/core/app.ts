@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { compileAutoRoutes, compileManualRoute, createGroup, type CompiledRoute, type MountOptions, type RouterRef } from './compiler.ts';
+import { childScope, compileAutoRoutes, compileManualRoute, createGroup, ROOT_SCOPE, type CompiledRoute, type GroupOptions, type MountOptions, type RouteScope, type RouterRef } from './compiler.ts';
+import { RouteGroupScope } from './mounted-group.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
@@ -198,11 +199,40 @@ export class SashikoApp {
   mount<T extends object>(ref: new () => T, options?: MountOptions<T>): MountedGroup<T>;
   mount<T extends object>(ref: T extends abstract new (...args: never) => unknown ? never : T, options?: MountOptions<T>): MountedGroup<T>;
   mount(ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
-    const group = createGroup(ref, options);
+    return this.mountIn(ROOT_SCOPE, ref, options);
+  }
+
+  /**
+   * Agrupa `mount()`s sob um prefixo, middlewares e guards comuns. Não é um container: é só composição,
+   * com a mesma semântica do `mount()`. Grupos podem ser aninhados.
+   *
+   * ```ts
+   * app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g) =>
+   *   g.mount(UserRoutes).mount(new OrderRoutes(db)),
+   * );
+   * ```
+   * Ordem de execução: middlewares dos grupos (de fora para dentro) → do `mount()` → da classe → do método.
+   */
+  group(options: GroupOptions, define: (group: RouteGroupScope) => unknown): this {
+    this.groupIn(ROOT_SCOPE, options, define);
+    return this;
+  }
+
+  /** @internal */
+  groupIn(parent: RouteScope, options: GroupOptions, define: (group: RouteGroupScope) => unknown): void {
+    const result = define(new RouteGroupScope(this, childScope(parent, options)));
+    if (result instanceof Promise) {
+      throw new Error('[sashiko] app.group(): the callback must be synchronous; do async work before registering routes.');
+    }
+  }
+
+  /** @internal */
+  mountIn(scope: RouteScope, ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
+    const group = createGroup(ref, options, scope);
     for (const route of compileAutoRoutes(group)) this.addRoute(group.name, route);
     return new MountedGroup(this, group, (g, method, path, select, opts) =>
       this.addRoute(g.name, compileManualRoute(g, method, path, select, opts)),
-    );
+    scope);
   }
 
   /**

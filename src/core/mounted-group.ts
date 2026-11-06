@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import type { SashikoApp } from './app.ts';
-import type { ManualRouteOptions, MethodSelector, MountOptions, RouteGroup } from './compiler.ts';
+import { ROOT_SCOPE, type GroupOptions, type ManualRouteOptions, type MethodSelector, type MountOptions, type RouteGroup, type RouteScope } from './compiler.ts';
 import type { InjectOptions, InjectResponse } from './inject.ts';
 import type { ListenOptions } from './app.ts';
 import type { Logger } from './logger.ts';
@@ -30,11 +30,15 @@ export class MountedGroup<T extends object> {
     app: SashikoApp,
     group: RouteGroup,
     register: (group: RouteGroup, method: string, path: string, select: MethodSelector<object>, opts?: ManualRouteOptions) => void,
+    scope: RouteScope = ROOT_SCOPE,
   ) {
     this.app = app;
     this.#group = group;
     this.#register = register;
+    this.#scope = scope;
   }
+
+  readonly #scope: RouteScope;
 
   #map(method: string, path: string, select: MethodSelector<T>, opts?: ManualRouteOptions): this {
     this.#register(this.#group, method, path, select as MethodSelector<object>, opts);
@@ -52,7 +56,13 @@ export class MountedGroup<T extends object> {
   mount<U extends object>(ref: new () => U, options?: MountOptions<U>): MountedGroup<U>;
   mount<U extends object>(ref: U extends abstract new (...args: never) => unknown ? never : U, options?: MountOptions<U>): MountedGroup<U>;
   mount(ref: object, options?: MountOptions<object>): MountedGroup<object> {
-    return (this.app.mount as (r: object, o?: MountOptions<object>) => MountedGroup<object>)(ref, options);
+    // Dentro de um `group()`, o próximo `mount()` continua no mesmo grupo.
+    return this.app.mountIn(this.#scope, ref, options);
+  }
+  /** Grupo aninhado no grupo atual (ou no app, fora de um grupo). */
+  group(options: GroupOptions, define: (group: RouteGroupScope) => unknown): this {
+    this.app.groupIn(this.#scope, options, define);
+    return this;
   }
   use(mw: Middleware): SashikoApp { return this.app.use(mw); }
   openapi(opts?: OpenAPIOptions): SashikoApp { return this.app.openapi(opts); }
@@ -66,4 +76,31 @@ export class MountedGroup<T extends object> {
   callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void { return this.app.callback(); }
   inject(opts: InjectOptions | string): Promise<InjectResponse> { return this.app.inject(opts); }
   get log(): Logger { return this.app.log; }
+}
+
+/**
+ * O `g` de `app.group(opts, (g) => …)`: só registra rotas, todas com o prefixo, os middlewares e os guards
+ * do grupo. Middlewares globais e hooks continuam no app (`app.use()`, `app.onError()`…).
+ */
+export class RouteGroupScope {
+  readonly #app: SashikoApp;
+  readonly #scope: RouteScope;
+
+  /** @internal Criado por `app.group()`. */
+  constructor(app: SashikoApp, scope: RouteScope) {
+    this.#app = app;
+    this.#scope = scope;
+  }
+
+  mount<U extends object>(ref: new () => U, options?: MountOptions<U>): MountedGroup<U>;
+  mount<U extends object>(ref: U extends abstract new (...args: never) => unknown ? never : U, options?: MountOptions<U>): MountedGroup<U>;
+  mount(ref: object, options?: MountOptions<object>): MountedGroup<object> {
+    return this.#app.mountIn(this.#scope, ref, options);
+  }
+
+  /** Grupo aninhado: prefixos se somam, middlewares e guards se acumulam de fora para dentro. */
+  group(options: GroupOptions, define: (group: RouteGroupScope) => unknown): this {
+    this.#app.groupIn(this.#scope, options, define);
+    return this;
+  }
 }
