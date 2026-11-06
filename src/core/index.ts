@@ -9,6 +9,7 @@ export type { Guard } from './guard.ts';
 export type { InferBody, InferHeaders, InferParams, InferQuery, InferResponse, InferSchema } from './infer.ts';
 export type { ShutdownOptions } from './shutdown.ts';
 export type { Serializer } from './response.ts';
+export type { CookieOptions } from '../utils/cookie.ts';
 export { consoleLogger, silentLogger, type ConsoleLoggerOptions, type Logger, type LogLevel } from './logger.ts';
 export { Context, type BodyFor, type OnSendHook, type SendPayload, type ContextOptions, type ContextState, type DeclaredStatus, type StatusContext } from './context.ts';
 export { badRequest, forbidden, HttpError, internal, isHttpError, notFound, unauthorized, type HttpErrorOptions } from './errors.ts';

@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
 import { parseQuery, type ParsedQuery } from '../utils/query.ts';
+import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
 import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse } from './infer.ts';
@@ -188,6 +189,27 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
   get(name: string): string | undefined {
     const value = this.req.headers[name.toLowerCase()];
     return Array.isArray(value) ? value.join(', ') : value;
+  }
+
+  private parsedCookies: Record<string, string> | undefined;
+
+  /** Cookies da requisição (objeto sem protótipo; em nomes repetidos vale o primeiro). */
+  get cookies(): Readonly<Record<string, string>> {
+    return (this.parsedCookies ??= parseCookies(this.get('cookie')));
+  }
+
+  /**
+   * Adiciona um `Set-Cookie`. Padrões: `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/`.
+   * Se usar cookies para autenticar, ative também o middleware `csrf()`.
+   */
+  setCookie(name: string, value: string, opts?: CookieOptions): this {
+    this.res.appendHeader('Set-Cookie', serializeCookie(name, value, opts));
+    return this;
+  }
+
+  /** Remove um cookie. Informe o mesmo `path` e `domain` usados ao criá-lo. */
+  clearCookie(name: string, opts: Omit<CookieOptions, 'maxAge' | 'expires'> = {}): this {
+    return this.setCookie(name, '', { ...opts, maxAge: 0, expires: new Date(0) });
   }
 
   /** Define um header da resposta. */
