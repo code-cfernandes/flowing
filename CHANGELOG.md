@@ -9,6 +9,13 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.3] - 2026-11-06
+
+### Corrigido
+- Atomicidade de cada `mount()` dentro de um `group()`: quando um `mount()` falhava no meio (por exemplo, um
+  conflito na segunda rota) e o callback capturava o erro, as rotas anteriores desse `mount()` eram efetivadas
+  com o grupo. Agora cada `mount()` e cada rota manual restauram o lote ao estado anterior quando falham.
+
 ## [0.11.2] - 2026-11-06
 
 ### Corrigido

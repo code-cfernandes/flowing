@@ -421,24 +421,32 @@ export class SashikoApp {
    */
   private stage(owner: string, routes: readonly CompiledRoute[]): void {
     const batch = this.pending ?? [];
-    for (const route of routes) {
-      if (this.opts.requireSchemas) assertSchemas(owner, route);
-      this.checkReachableHosts(owner, route);
-      for (const host of route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined]) {
-        const taken =
-          this.router.has(route.method, route.path, host) ||
-          batch.some(
-            (p) => p.route.method === route.method && canonicalPath(p.route.path) === canonicalPath(route.path) && p.hosts.includes(host),
-          );
-        if (taken) {
-          const where = host ? ` on host ${host}` : '';
-          throw new Error(
-            `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
-              `Use a different "prefix" or "host" to mount the same class twice.`,
-          );
+    // Checkpoint: dentro de um group(), um mount() que falha no meio não deixa parte dele no lote,
+    // mesmo que o callback capture o erro e siga em frente.
+    const mark = batch.length;
+    try {
+      for (const route of routes) {
+        if (this.opts.requireSchemas) assertSchemas(owner, route);
+        this.checkReachableHosts(owner, route);
+        for (const host of route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined]) {
+          const taken =
+            this.router.has(route.method, route.path, host) ||
+            batch.some(
+              (p) => p.route.method === route.method && canonicalPath(p.route.path) === canonicalPath(route.path) && p.hosts.includes(host),
+            );
+          if (taken) {
+            const where = host ? ` on host ${host}` : '';
+            throw new Error(
+              `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
+                `Use a different "prefix" or "host" to mount the same class twice.`,
+            );
+          }
         }
+        batch.push({ owner, route, hosts: route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined] });
       }
-      batch.push({ owner, route, hosts: route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined] });
+    } catch (err) {
+      batch.length = mark;
+      throw err;
     }
     if (this.pending === undefined) this.commit(batch);
   }
