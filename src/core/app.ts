@@ -5,6 +5,7 @@ import { compileTls, type SniTable, type TlsOptions } from '../server/tls.ts';
 import { performance } from 'node:perf_hooks';
 import {
   childScope,
+  joinPrefix,
   compileAutoRoutes,
   compileManualRoute,
   createGroup,
@@ -18,7 +19,9 @@ import {
 import { RouteGroupScope } from './mounted-group.ts';
 import { MountedGroup } from './mounted-group.ts';
 import { compose, type Middleware } from './compose.ts';
-import { Context, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
+import { Context, kAbort, kBindResponse, kRawSend, type OnSendHook } from './context.ts';
+import { staticHandler, type StaticOptions } from '../server/static.ts';
+import { joinPaths } from '../utils/path.ts';
 import { docsPage, generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
 import { compileHealth, type HealthConfig, type HealthOptions } from './health.ts';
 import '../shims/symbol-metadata.ts';
@@ -182,6 +185,8 @@ export class SashikoApp {
   private tlsState: { sni: { current: SniTable } } | undefined;
   /** Respostas em andamento, para o encerramento gracioso não travar em conexões keep-alive. */
   private readonly inflight = new Set<http.ServerResponse>();
+  /** Contexto de cada resposta em andamento, para o shutdown encerrar os streams (F-13). */
+  private readonly contexts = new WeakMap<http.ServerResponse, Context>();
   private closing: http.Server | https.Server | undefined;
   /** Logger do app (F-06). Use para logs fora de uma requisição. */
   readonly log: Logger;
@@ -301,6 +306,44 @@ export class SashikoApp {
       (scope.token as { open: boolean }).open = false;
       if (outermost) this.pending = undefined;
     }
+  }
+
+  /**
+   * Serve os arquivos de `root` em `GET prefix/*` (F-13). É uma rota como as outras: vale `group()`
+   * (host, guards, middlewares), 404/405 e a checagem de conflitos. Não entra no OpenAPI.
+   *
+   * ```ts
+   * app.static('/assets', './public', { maxAge: '7d', immutable: true });
+   * app.static('/', './dist', { fallback: 'index.html' }); // SPA
+   * ```
+   * Caminhos que saem da raiz (`..`, symlinks), arquivos ocultos e diretórios sem índice respondem 404.
+   */
+  static(prefix: string, root: string, opts: StaticOptions = {}): this {
+    this.staticIn(ROOT_SCOPE, prefix, root, opts);
+    return this;
+  }
+
+  /** @internal */
+  staticIn(scope: RouteScope, prefix: string, root: string, opts: StaticOptions): void {
+    assertOpen(scope);
+    const handler = staticHandler(root, opts);
+    const base = joinPrefix(scope.prefix, prefix) || '/';
+    const route = (path: string): CompiledRoute => ({
+      method: 'GET',
+      path,
+      handler: (ctx) => handler(ctx),
+      schemas: {},
+      middlewares: [...scope.middlewares],
+      guards: [...scope.guards],
+      owner: 'static',
+      handlerName: `static('${prefix}')`,
+      hosts: scope.hosts,
+      internal: true,
+    });
+    // `prefix/*` cobre os arquivos; o próprio prefixo (`/assets`, `/assets/`) serve o índice.
+    const routes = [route(joinPaths(base, '*'))];
+    if (base !== '/') routes.push(route(base));
+    this.stage(`static('${prefix}')`, routes);
   }
 
   /** @internal */
@@ -654,6 +697,7 @@ export class SashikoApp {
           trustProxy: this.opts.trustProxy,
           onSend: this.onSendHooks,
         });
+        this.contexts.set(res, ctx);
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
         const healthProbe = this.healthConfig?.bypassesHostCheck(ctx.method, ctx.path) ?? false;
@@ -767,6 +811,12 @@ export class SashikoApp {
     this.closing = server;
     // Respostas que ainda não enviaram headers avisam o cliente para não reusar a conexão.
     for (const res of this.inflight) if (!res.headersSent) res.setHeader('Connection', 'close');
+    // Streams longos (SSE, NDJSON) não terminam sozinhos: o `ctx.signal` é cancelado para eles fecharem
+    // já, em vez de segurar o encerramento até o prazo. Requisições comuns seguem até terminar.
+    for (const res of this.inflight) {
+      const ctx = this.contexts.get(res);
+      if (ctx?.streamingResponse) ctx[kAbort]('server shutting down');
+    }
     const force = setTimeout(() => server.closeAllConnections(), graceMs);
     force.unref();
     try {

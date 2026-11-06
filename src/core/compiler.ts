@@ -14,6 +14,8 @@ export interface CompiledRoute extends RouteDefinition {
   handlerName: string;
   /** Virtual hosts da rota (F-35); vazio = qualquer host. */
   hosts: readonly RouteHostRule[];
+  /** Rota criada pelo framework (`static()`): fica fora do OpenAPI. */
+  internal?: boolean;
 }
 
 /** Um host, ou uma lista: `'api.exemplo.com'`, `'*.exemplo.dev'`, `/^tenant-\d+\.exemplo\.com$/`. */

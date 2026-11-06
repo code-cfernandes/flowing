@@ -19,6 +19,7 @@ import type { Context, OnSendHook } from './context.ts';
 import type { OnCloseHook, OnResponseHook } from './app.ts';
 import type { OpenAPIOptions } from '../openapi/generate.ts';
 import type { HealthOptions } from './health.ts';
+import type { StaticOptions } from '../server/static.ts';
 
 /**
  * Retorno de `app.mount()` (F-30): permite mapear manualmente métodos do grupo e continuar
@@ -149,6 +150,12 @@ export class RouteGroupScope {
   mount<U extends object>(ref: U extends abstract new (...args: never) => unknown ? never : U, options?: MountOptions<U>): MountedGroup<U>;
   mount(ref: object, options?: MountOptions<object>): MountedGroup<object> {
     return this.#app.mountIn(this.#scope, ref, options);
+  }
+
+  /** Arquivos estáticos dentro do grupo: herdam prefixo, host, guards e middlewares. */
+  static(prefix: string, root: string, opts?: StaticOptions): this {
+    this.#app.staticIn(this.#scope, prefix, root, opts ?? {});
+    return this;
   }
 
   /** Grupo aninhado: prefixos se somam, middlewares e guards se acumulam de fora para dentro. */
