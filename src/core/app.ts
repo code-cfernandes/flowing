@@ -66,6 +66,17 @@ export interface AppOptions {
    * Ligado por padrão (SIGINT/SIGTERM, 10s); `false` desliga.
    */
   shutdown?: ShutdownOptions | false;
+  /**
+   * Confia nos headers `X-Forwarded-For`, `-Host` e `-Proto` para `ctx.ip`, `ctx.host` e `ctx.protocol`
+   * (S-09). Padrão: `false`. Use `true` para confiar em toda a cadeia, ou o número de proxies à frente
+   * do app (ex.: `1` para um load balancer). Só ligue atrás de um proxy que reescreve esses headers.
+   */
+  trustProxy?: boolean | number;
+  /**
+   * Hosts aceitos (S-09). Requisições com outro `Host` (ou `X-Forwarded-Host` confiável) recebem 400.
+   * Protege contra host header injection e DNS rebinding. Padrão: qualquer host válido.
+   */
+  allowedHosts?: readonly (string | RegExp)[];
 }
 
 export interface RequestIdOptions {
@@ -81,6 +92,13 @@ export interface RequestIdOptions {
 }
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/** Compara o host com a lista: strings casam com o hostname ou com `host:porta`, sem diferenciar maiúsculas. */
+function hostAllowed(hostname: string, host: string, allowed: readonly (string | RegExp)[]): boolean {
+  const h = hostname.toLowerCase();
+  const full = host.toLowerCase();
+  return allowed.some((rule) => (typeof rule === 'string' ? rule.toLowerCase() === h || rule.toLowerCase() === full : rule.test(h)));
+}
 
 export class SashikoApp {
   private middlewares: Middleware[] = [];
@@ -244,7 +262,14 @@ export class SashikoApp {
         if (!res.writableEnded) res.end();
       };
       try {
-        const ctx = new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log });
+        const ctx = new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys, id, logger: this.log, trustProxy: this.opts.trustProxy });
+        // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
+        if (!ctx.host || (this.opts.allowedHosts && !hostAllowed(ctx.hostname, ctx.host, this.opts.allowedHosts))) {
+          this.applySecurityHeaders?.(res);
+          res.statusCode = 400;
+          ctx[kRawSend](JSON.stringify({ error: 'Invalid Host header' }), 'application/json; charset=utf-8');
+          return;
+        }
         if (this.opts.logRequests) {
           res.once('finish', () => {
             const ms = Math.round((performance.now() - started) * 100) / 100;

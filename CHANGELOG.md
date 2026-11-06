@@ -8,6 +8,18 @@ Enquanto estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões _m
 
 ## [Não lançado]
 
+### Adicionado
+- `ctx.host`, `ctx.hostname` e `ctx.protocol`, com o host validado.
+- `createApp({ trustProxy })`: `true` ou o número de proxies à frente do app. Com isso, `ctx.ip`, `ctx.host`
+  e `ctx.protocol` usam os headers `X-Forwarded-*`.
+- `createApp({ allowedHosts })`: lista de hosts aceitos (string ou RegExp); os demais recebem 400.
+
+### Segurança
+- Um `Host` malformado respondia 500; agora responde 400 antes de qualquer middleware.
+- O path vinha do parsing da URL com o `Host` do cliente, e um request-target como `//evil.com/x` virava
+  o path `/x` com host `evil.com`. Isso permitia contornar regras de proxy baseadas em path. Agora o path é
+  o recebido (`//evil.com/x`), e o `ctx.url` usa só o host validado.
+
 ## [0.3.0] - 2026-11-06
 
 ### Adicionado

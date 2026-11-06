@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
 import { parseQuery, type ParsedQuery } from '../utils/query.ts';
+import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
@@ -55,6 +56,8 @@ export interface ContextOptions {
   id?: string | undefined;
   /** Logger do app; o contexto cria um filho com o `reqId`. */
   logger?: Logger | undefined;
+  /** Confiança nos headers `X-Forwarded-*` (S-09). Padrão: `false`. */
+  trustProxy?: boolean | number | undefined;
 }
 
 /**
@@ -95,16 +98,48 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
     this.req = req;
     this.res = res;
     this.method = req.method ?? 'GET';
-    this.url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    this.path = this.url.pathname;
-    this.query = parseQuery(this.url.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<S>;
+    this.trustProxy = opts.trustProxy ?? false;
+    // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
+    const target = parseRequestTarget(req.url);
+    this.path = target.pathname;
+    this.query = parseQuery(target.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<S>;
+    this.url = new URL(`${this.protocol}://${this.host || 'localhost'}${target.pathname}${target.search}`);
     this.id = opts.id ?? '';
     this.log = (opts.logger ?? silentLogger).child({ reqId: this.id });
   }
 
-  /** IP do cliente conforme o socket. Sem `trustProxy`, `X-Forwarded-For` é ignorado (S-09). */
+  private readonly trustProxy: boolean | number;
+
+  /**
+   * IP do cliente. Por padrão, o do socket. Com `trustProxy`, vem do `X-Forwarded-For`, que só deve
+   * ser ligado atrás de um proxy que reescreve esse header (S-09).
+   */
   get ip(): string {
-    return this.req.socket.remoteAddress ?? '';
+    return pickForwarded(this.req.headers['x-forwarded-for'], this.trustProxy) ?? this.req.socket.remoteAddress ?? '';
+  }
+
+  /**
+   * Host da requisição (`api.exemplo.com:8080`), **validado**: um valor inválido vira `''`.
+   * Com `trustProxy`, vem do `X-Forwarded-Host`. Para links absolutos, prefira uma URL base
+   * configurada em vez do host pedido pelo cliente (S-09).
+   */
+  get host(): string {
+    const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
+    if (forwarded !== undefined) return isValidHost(forwarded) ? forwarded : '';
+    const host = this.req.headers.host;
+    return isValidHost(host) ? host : '';
+  }
+
+  /** `host` sem a porta. */
+  get hostname(): string {
+    return this.host ? hostnameOf(this.host) : '';
+  }
+
+  /** `https` se a conexão for TLS ou, com `trustProxy`, se o `X-Forwarded-Proto` disser; senão `http`. */
+  get protocol(): 'http' | 'https' {
+    const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
+    if (forwarded === 'https' || forwarded === 'http') return forwarded;
+    return (this.req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http';
   }
 
   /**
