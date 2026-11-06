@@ -28,6 +28,7 @@ import { assertSchemas, validateRequest } from './request-validation.ts';
 import { problem, sendError, sendProblem, sendResult, type Serializer } from './response.ts';
 import type { ErrorFormatter } from './errors.ts';
 import { RouteTable } from './route-table.ts';
+import { canonicalPath } from '../utils/path.ts';
 import { mediaType } from '../utils/content-type.ts';
 import { compileHostMatcher, hostRank, hostReachability, NO_HOST_RANK } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
@@ -142,6 +143,13 @@ interface PendingRoute {
   owner: string;
   route: CompiledRoute;
   hosts: (string | undefined)[];
+}
+
+/** Registrar num grupo cujo callback já terminou é erro: o registro estaria fora da transação do grupo. */
+function assertOpen(scope: RouteScope): void {
+  if (scope.token && !scope.token.open) {
+    throw new Error('[sashiko] app.group(): this group has already finished; register its routes inside the callback, synchronously.');
+  }
 }
 
 const isThenable = (v: unknown): boolean =>
@@ -267,30 +275,46 @@ export class SashikoApp {
 
   /** @internal */
   groupIn(parent: RouteScope, options: GroupOptions, define: (group: RouteGroupScope) => unknown): void {
+    assertOpen(parent);
     const scope = childScope(parent, options);
     // Registro em duas fases: o que o callback registrar fica pendente e só é efetivado se ele terminar
-    // de forma síncrona e sem erro. Grupos aninhados entram no lote do grupo mais externo.
+    // de forma síncrona e sem erro. Grupos aninhados entram no lote do grupo mais externo; se um aninhado
+    // falhar (mesmo com o erro capturado pelo externo), só a parte dele é descartada.
     const outermost = this.pending === undefined;
     if (outermost) this.pending = [];
+    const mark = this.pending!.length;
     try {
       const result = define(new RouteGroupScope(this, scope));
       if (isThenable(result)) {
+        // O callback continua rodando depois do `await`; o escopo fechado abaixo rejeita registros
+        // tardios, e este handler evita um unhandledRejection.
+        (result as PromiseLike<unknown>).then(undefined, (err: unknown) =>
+          this.log.error({ err }, 'async app.group() callback failed after the group was rejected'),
+        );
         throw new Error('[sashiko] app.group(): the callback must be synchronous; do async work before registering routes.');
       }
       if (outermost) this.commit(this.pending!);
+    } catch (err) {
+      this.pending!.length = mark;
+      throw err;
     } finally {
+      (scope.token as { open: boolean }).open = false;
       if (outermost) this.pending = undefined;
     }
   }
 
   /** @internal */
   mountIn(scope: RouteScope, ref: RouterRef, options: MountOptions = {}): MountedGroup<object> {
+    assertOpen(scope);
     const group = createGroup(ref, options, scope);
     this.stage(group.name, compileAutoRoutes(group));
     return new MountedGroup(
       this,
       group,
-      (g, method, path, select, opts) => this.stage(g.name, [compileManualRoute(g, method, path, select, opts)]),
+      (g, method, path, select, opts) => {
+        assertOpen(scope);
+        this.stage(g.name, [compileManualRoute(g, method, path, select, opts)]);
+      },
       scope,
     );
   }
@@ -351,11 +375,11 @@ export class SashikoApp {
         }
       }
       if (rank === -1) continue;
-      const key = `${route.method} ${route.path}`;
+      const key = `${route.method} ${canonicalPath(route.path)}`;
       const current = best.get(key);
       if (!current || rank < current.rank) best.set(key, { route, rank });
     }
-    return this.routes.filter((r) => best.get(`${r.method} ${r.path}`)?.route === r);
+    return this.routes.filter((r) => best.get(`${r.method} ${canonicalPath(r.path)}`)?.route === r);
   }
 
   /** Se a requisição é para `/openapi.json` ou `/docs` (quando ligados), responde e devolve `true`. */
@@ -403,7 +427,9 @@ export class SashikoApp {
       for (const host of route.hosts.length > 0 ? route.hosts.map((h) => h.key) : [undefined]) {
         const taken =
           this.router.has(route.method, route.path, host) ||
-          batch.some((p) => p.route.method === route.method && p.route.path === route.path && p.hosts.includes(host));
+          batch.some(
+            (p) => p.route.method === route.method && canonicalPath(p.route.path) === canonicalPath(route.path) && p.hosts.includes(host),
+          );
         if (taken) {
           const where = host ? ` on host ${host}` : '';
           throw new Error(

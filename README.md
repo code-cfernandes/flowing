@@ -139,7 +139,7 @@ app.group({ prefix: '/v2', middlewares: [authenticate], guards: [isAdmin] }, (g)
 - **Prefixos se somam:** grupo, depois o prefixo do `mount()` ou do `@Router`, depois o path do método. O prefixo pode ter parâmetros (`'/orgs/:org'`), conferidos contra o schema de `params`.
 - **Ordem de execução:** grupos (de fora para dentro) → `mount()` → classe → método → rota manual. Vale para middlewares e para guards.
 - **Encadeamento:** dentro do callback, `g.mount(A).mount(B)` e `.get(...)` continuam no grupo. Grupos podem ser aninhados (`g.group(...)`).
-- **O callback é síncrono, e o registro é atômico.** As rotas do grupo só entram se o callback terminar sem erro. Um callback `async`, ou um erro no meio dele, não deixa nenhuma rota registrada. Faça o trabalho assíncrono antes (`const db = await connect()`).
+- **O callback é síncrono, e o registro é atômico.** As rotas do grupo só entram se o callback terminar sem erro. Um callback `async`, ou um erro no meio dele, não deixa nenhuma rota registrada. Depois que o callback termina, o `g` (e os `mount()` feitos com ele) não registram mais nada: uma tentativa, por exemplo depois de um `await`, gera erro. Se um grupo aninhado falhar e o externo capturar o erro, só as rotas do aninhado são descartadas. Faça o trabalho assíncrono antes (`const db = await connect()`).
 - **Fora do escopo:** middlewares globais (`app.use()`) e hooks (`onError`, `onSend`…) continuam no app.
 
 ### Virtual hosts
