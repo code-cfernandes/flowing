@@ -1,3 +1,4 @@
+import type { CheckParams } from '../core/infer.ts';
 import { getOrCreateMethod, mergeSchemas, metadataFor, type RouteSchemas } from '../core/metadata.ts';
 
 function methodDecorator(httpMethod: string, path: string, schemas?: RouteSchemas) {
@@ -23,8 +24,16 @@ function methodDecorator(httpMethod: string, path: string, schemas?: RouteSchema
  * getUser(ctx: Context<typeof byId>) {}
  * ```
  */
-export const Get = (path = '/', schemas?: RouteSchemas) => methodDecorator('GET', path, schemas);
-export const Post = (path = '/', schemas?: RouteSchemas) => methodDecorator('POST', path, schemas);
-export const Put = (path = '/', schemas?: RouteSchemas) => methodDecorator('PUT', path, schemas);
-export const Patch = (path = '/', schemas?: RouteSchemas) => methodDecorator('PATCH', path, schemas);
-export const Delete = (path = '/', schemas?: RouteSchemas) => methodDecorator('DELETE', path, schemas);
+type Verb = <const P extends string = '/', const S extends RouteSchemas = {}>(
+  path?: P,
+  schemas?: S & CheckParams<P, S>,
+) => ReturnType<typeof methodDecorator>;
+
+const verb = (httpMethod: string): Verb => (path, schemas) => methodDecorator(httpMethod, path ?? '/', schemas);
+
+/** Com schema de `params`, as chaves precisam ser exatamente as do path, ou o TypeScript acusa (F-29). */
+export const Get = verb('GET');
+export const Post = verb('POST');
+export const Put = verb('PUT');
+export const Patch = verb('PATCH');
+export const Delete = verb('DELETE');

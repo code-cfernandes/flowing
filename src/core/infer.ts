@@ -35,3 +35,45 @@ type UnwrapResponse<E> =
   E extends { contentType: unknown; schema: infer S } ? S
   : E extends { contentType: unknown } ? undefined
   : E;
+
+// ---------- Parâmetros do path (F-29) ----------
+
+/** Corta o nome de um parâmetro no primeiro delimitador do find-my-way (`/`, `-`, `.`, `(`). */
+type ParamHead<R extends string, Acc extends string = ''> =
+  R extends `${infer C}${infer T}`
+    ? C extends '/' | '-' | '.' | '(' ? [Acc, R] : ParamHead<T, `${Acc}${C}`>
+    : [Acc, ''];
+
+/** Descarta a regex de um parâmetro (`(^\\d+)…` → `…`). */
+type SkipRegex<R extends string> = R extends `(${string})${infer Rest}` ? Rest : R;
+
+type ParamNames<P extends string> =
+  P extends `${string}:${infer R}`
+    ? R extends `:${infer Escaped}` ? ParamNames<Escaped>          // `::` é um ':' literal
+    : ParamHead<R> extends [infer N extends string, infer Rest extends string] ? N | ParamNames<SkipRegex<Rest>> : never
+    : never;
+
+/**
+ * Nomes dos parâmetros de um path: `PathParams<'/:orgId/users/:id'>` → `'orgId' | 'id'`.
+ * Regex (`/:id(^\\d+)`) é ignorada, e o curinga final (`/files/*`) vira `'*'`.
+ * Com um `string` não literal, resulta em `string`.
+ */
+export type PathParams<P extends string> =
+  string extends P ? string : ParamNames<P> | (P extends `${string}*` ? '*' : never);
+
+/** `ctx.params` a partir só do path: `{ orgId: string; id: string }`. */
+export type ParamsOf<P extends string> = string extends P ? Record<string, string> : { [K in PathParams<P>]: string };
+
+type SchemaKeys<T> = [T] extends [undefined] ? never : keyof InferSchema<T, Record<never, never>> & string;
+
+/**
+ * Confere, em compilação, que todo parâmetro do path está no schema de `params` (F-29). Chaves a mais
+ * no schema podem vir do prefixo do `@Router`/`mount`, que o decorator não enxerga: essas são
+ * conferidas no registro. Resulta em `unknown` quando está tudo certo (ou não dá para saber).
+ */
+export type CheckParams<P extends string, S> =
+  string extends P ? unknown
+  : S extends { params: infer T }
+    ? [Exclude<PathParams<P>, SchemaKeys<T>>] extends [never] ? unknown
+    : { params: `Missing in params schema: "${Exclude<PathParams<P>, SchemaKeys<T>>}"` }
+    : unknown;

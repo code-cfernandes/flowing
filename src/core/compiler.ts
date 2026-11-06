@@ -3,7 +3,7 @@ import type { Guard } from './guard.ts';
 import type { Middleware } from './compose.ts';
 import { readOwnMetadata, type MethodMetadata, type RouterMetadata } from './metadata.ts';
 import type { RouteDefinition } from './route-table.ts';
-import { joinPaths } from '../utils/path.ts';
+import { joinPaths, pathParams } from '../utils/path.ts';
 
 export interface CompiledRoute extends RouteDefinition {
   method: string;
@@ -113,9 +113,11 @@ function buildRoute(
 ): CompiledRoute {
   const fn = (group.instance as Record<string | symbol, unknown>)[name] as (ctx: Context) => unknown;
   const { meta, options, instance } = group;
+  const fullPath = joinPaths(group.prefix, path);
+  checkPath(`${group.name}.${String(name)}`, httpMethod, fullPath, methodMeta.schemas.params);
   return {
     method: httpMethod,
-    path: joinPaths(group.prefix, path),
+    path: fullPath,
     handler: (ctx: Context) => fn.call(instance, ctx),
     schemas: methodMeta.schemas,
     // Ordem: mount → classe → método → rota manual (F-01, F-28, F-30)
@@ -150,4 +152,28 @@ function resolveMethod(
       : `${label} is not a method of ${group.name}`;
   const at = where.startsWith('.') ? where : ` ${where}`;
   throw new Error(`[sashiko] app.mount(${group.name})${at}: ${reason}. Available: ${available}.`);
+}
+
+/**
+ * Valida o path no registro e confere as chaves do schema de `params` contra os parâmetros do path,
+ * já com o prefixo do `@Router`/`mount` (F-29). Schemas sem `properties` (não JSON Schema) não são conferidos.
+ */
+function checkPath(where: string, method: string, path: string, params: object | undefined): void {
+  let names: string[];
+  try {
+    names = pathParams(path);
+  } catch (err) {
+    throw new Error(`[sashiko] ${where} (${method} ${path}): ${(err as Error).message}.`);
+  }
+  const props = (params as { properties?: unknown } | undefined)?.properties;
+  if (!props || typeof props !== 'object') return;
+  const keys = Object.keys(props);
+  const missing = names.filter((n) => !keys.includes(n));
+  const extra = keys.filter((k) => !names.includes(k));
+  if (missing.length === 0 && extra.length === 0) return;
+  const parts = [
+    missing.length ? `missing in params schema: ${missing.map((n) => `"${n}"`).join(', ')}` : '',
+    extra.length ? `not in path: ${extra.map((n) => `"${n}"`).join(', ')}` : '',
+  ].filter(Boolean);
+  throw new Error(`[sashiko] ${where} (${method} ${path}): params schema does not match the path; ${parts.join('; ')}.`);
 }

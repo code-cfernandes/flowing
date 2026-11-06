@@ -23,6 +23,10 @@ e a _patch_ só com correções.
 - `AppOptions.formatError`, para personalizar o corpo de todos os erros.
 - Opção `type` no `HttpError` (URI do tipo do problema) e os tipos `ProblemDetails` e `ErrorFormatter`.
 - Códigos `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `METHOD_NOT_ALLOWED` e `INVALID_HOST` nos erros do framework.
+- Path e `params` conferidos. Em compilação, um parâmetro do path ausente no schema de `params` do verbo é
+  erro de tipo. No `app.mount()`, path x schema são conferidos nos dois sentidos, com o prefixo, e paths
+  malformados (`/:`, nome repetido, regex aberta, `*` no meio) falham com a rota na mensagem.
+- `Context<'/:org/users/:id'>` tipa `ctx.params` pelo path; tipos `PathParams`, `ParamsOf` e `CheckParams`.
 
 ## [0.6.0] - 2026-11-06
 
