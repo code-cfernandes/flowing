@@ -76,6 +76,8 @@ export interface GroupOptions {
 
 /** Escopo acumulado dos grupos em volta de um `mount()`. */
 export interface RouteScope {
+  /** Validade do grupo: depois que o callback do `group()` termina, registrar nele é erro. */
+  readonly token?: { open: boolean };
   prefix: string;
   middlewares: readonly Middleware[];
   guards: readonly Guard[];
@@ -106,6 +108,7 @@ export function joinPrefix(outer: string, inner: string): string {
 /** Escopo de um grupo aninhado em `parent`. */
 export function childScope(parent: RouteScope, opts: GroupOptions): RouteScope {
   return {
+    token: { open: true },
     hosts: scopedHosts('app.group()', parent.hosts, opts.host),
     prefix: joinPrefix(parent.prefix, opts.prefix ?? ''),
     middlewares: [...parent.middlewares, ...(opts.middlewares ?? [])],

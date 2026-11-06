@@ -9,6 +9,20 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.11.2] - 2026-11-06
+
+### Corrigido
+
+- `group()` assíncrono: um `g.mount()` chamado depois de um `await` registrava a rota fora da transação do
+  grupo. Agora o escopo do grupo é invalidado quando o callback termina, e qualquer `mount()`, `get()` ou
+  `group()` posterior gera erro, inclusive nos `MountedGroup` criados dentro dele. A Promise do callback
+  recebe um handler, então não há `unhandledRejection`, e o erro vai para o log.
+- Grupo aninhado que falha com o erro capturado pelo grupo externo: as rotas do aninhado eram efetivadas
+  junto com as do externo. Agora só a parte do aninhado é descartada.
+- OpenAPI por host: `/users` e `/users/` são tratados como o mesmo path na seleção da rota documentada, como no
+  roteador. Antes, a rota documentada podia ser outra. A conferência de duplicidade dentro de um `group()`
+  também usa a forma canônica.
+
 ## [0.11.1] - 2026-11-06
 
 ### Corrigido

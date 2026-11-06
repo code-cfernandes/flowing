@@ -47,3 +47,8 @@ export function pathParams(path: string): string[] {
   }
   return names;
 }
+
+/** Forma canônica de um path para comparar rotas: sem barra final, como o roteador (`ignoreTrailingSlash`). */
+export function canonicalPath(path: string): string {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}

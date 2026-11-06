@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, Post, Router, Type } from 'sashiko';
+import { type Context, createApp, Get, type MountedGroup, Post, type RouteGroupScope, Router, Type } from 'sashiko';
 import { compileRouteHost, hostReachability } from '../../src/utils/origin-match.ts';
 
 const at = (host: string, extra: Record<string, string> = {}) => ({ headers: { host, ...extra } });
@@ -294,5 +294,122 @@ describe('consolidação · OpenAPI documenta o handler executado', () => {
       }
     }
     assert.equal((await createApp({ logger: false }).mount(C).inject('/h')).body, 'localhost');
+  });
+});
+
+describe('0.11.2 · ciclo de vida dos grupos', () => {
+  @Router('/')
+  class L {
+    @Get('/late') late() {
+      return 'late';
+    }
+  }
+  @Router('/')
+  class N {
+    @Get('/n') n() {
+      return 'n';
+    }
+  }
+
+  it('registro depois de um await num group() assíncrono é rejeitado, sem unhandledRejection', async () => {
+    const error = mock.fn();
+    const log = {
+      debug() {},
+      info() {},
+      warn() {},
+      error,
+      child() {
+        return log;
+      },
+    };
+    const unhandled = mock.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const app = createApp({ logger: log });
+      assert.throws(
+        () =>
+          app.group({}, async (g) => {
+            await Promise.resolve();
+            g.mount(L);
+          }),
+        /must be synchronous/,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      assert.equal((await app.inject('/late')).status, 404);
+      assert.equal(unhandled.mock.callCount(), 0);
+      assert.match(String((error.mock.calls[0]!.arguments[0] as { err: Error }).err.message), /already finished/);
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
+  it('o escopo e os MountedGroup de um grupo encerrado não registram mais nada', () => {
+    const app = createApp({ logger: false });
+    let scope: RouteGroupScope | undefined;
+    let mounted: MountedGroup<N> | undefined;
+    app.group({ prefix: '/g' }, (g) => {
+      scope = g;
+      mounted = g.mount(N);
+    });
+    assert.throws(() => scope!.mount(L), /already finished/);
+    assert.throws(() => scope!.group({}, () => {}), /already finished/);
+    assert.throws(() => mounted!.mount(L), /already finished/);
+    assert.throws(() => mounted!.get('/x', (r) => r.n), /already finished/);
+  });
+
+  it('grupo aninhado que falha, com o erro capturado pelo externo, descarta só as rotas dele', async () => {
+    const app = createApp({ logger: false });
+    app.group({}, (g) => {
+      g.mount(L);
+      try {
+        g.group({ prefix: '/in' }, (inner) => {
+          inner.mount(N);
+          throw new Error('falhou');
+        });
+      } catch {}
+    });
+    assert.equal((await app.inject('/late')).status, 200, 'as rotas do externo entram');
+    assert.equal((await app.inject('/in/n')).status, 404, 'as do aninhado que falhou, não');
+  });
+
+  it('OpenAPI: /users e /users/ são o mesmo path na seleção por host', async () => {
+    const s = (p: string) => ({ response: { 200: Type.Object({ [p]: Type.String() }) } });
+    @Router('/users')
+    class G {
+      @Get('/', s('global')) l() {
+        return { global: 'x' };
+      }
+    }
+    @Router('/')
+    class A {
+      @Get('/users', s('admin')) l() {
+        return { admin: 'x' };
+      }
+    }
+    for (const swap of [false, true]) {
+      const app = createApp({ logger: false });
+      if (swap) app.mount(G).mount(A, { host: 'admin.ex.com' });
+      else app.mount(A, { host: 'admin.ex.com' }).mount(G);
+      const executed = Object.keys((await app.inject({ url: '/users', ...at('admin.ex.com') })).json() as object)[0];
+      const doc = app.openapiDocument({ host: 'admin.ex.com' }) as any;
+      assert.equal(executed, 'admin');
+      assert.equal(Object.keys(doc.paths['/users'].get.responses['200'].content['application/json'].schema.properties)[0], 'admin');
+    }
+  });
+
+  it('duplicidade dentro do lote considera /x e /x/', () => {
+    @Router('/u')
+    class A1 {
+      @Get('/') a() {
+        return 1;
+      }
+    }
+    @Router('/')
+    class A2 {
+      @Get('/u') a() {
+        return 2;
+      }
+    }
+    assert.throws(() => createApp().group({}, (g) => g.mount(A1).mount(A2)), /already registered/);
   });
 });
