@@ -84,9 +84,7 @@ export class PicoDecorApp {
         await h(err, ctx);
         if (ctx.res.writableEnded) return;
       }
-      const status = err instanceof HttpError ? err.status : 500;
-      const message = err instanceof Error ? err.message : 'Internal Server Error';
-      if (!ctx.res.writableEnded) ctx.status(status).json({ error: message });
+      sendError(ctx, err);
     }
   }
 
@@ -95,6 +93,24 @@ export class PicoDecorApp {
     server.listen(port, host);
     return server;
   }
+}
+
+const GENERIC_500 = 'Internal Server Error';
+
+/**
+ * Resposta de erro padrão. Só mensagens marcadas como `expose` chegam ao cliente;
+ * o resto vira 500 genérico e o erro original é logado no servidor (S-05).
+ */
+function sendError(ctx: Context, err: unknown): void {
+  const httpErr = err instanceof HttpError ? err : undefined;
+  const status = httpErr?.status ?? 500;
+  const exposed = httpErr?.expose === true;
+
+  if (!exposed) console.error(`[picodecor] ${ctx.method} ${ctx.path} → ${status}`, err);
+  if (ctx.res.writableEnded) return;
+  if (ctx.res.headersSent) return void ctx.res.end();
+
+  ctx.status(status).json({ error: exposed ? httpErr!.message : GENERIC_500 });
 }
 
 export function createApp(opts?: AppOptions): PicoDecorApp {

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { HttpError } from './errors.ts';
 
 export class Context {
   readonly req: IncomingMessage;
@@ -33,9 +34,7 @@ export class Context {
     return this;
   }
 
-  throw(status: number, message: string): never {
-    const err = new Error(message) as Error & { status: number };
-    err.status = status;
-    throw err;
+  throw(status: number, message: string, code?: string): never {
+    throw new HttpError(status, message, code);
   }
 }

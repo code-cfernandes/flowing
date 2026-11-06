@@ -1,8 +1,28 @@
+export interface HttpErrorOptions {
+  /**
+   * Se a mensagem pode ser enviada ao cliente.
+   * Padrão: `true` para 4xx e `false` para 5xx, para não vazar detalhes internos (S-05).
+   */
+  expose?: boolean;
+  cause?: unknown;
+}
+
 export class HttpError extends Error {
-  constructor(public status: number, message: string, public code?: string) {
-    super(message);
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly expose: boolean;
+
+  constructor(status: number, message: string, code?: string, options: HttpErrorOptions = {}) {
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'HttpError';
+    this.status = status;
+    this.code = code;
+    this.expose = options.expose ?? status < 500;
   }
+}
+
+export function isHttpError(err: unknown): err is HttpError {
+  return err instanceof HttpError;
 }
 
 export const notFound = (msg = 'Not Found') => new HttpError(404, msg, 'NOT_FOUND');
