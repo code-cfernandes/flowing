@@ -1,5 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import http from 'node:http';
+import https from 'node:https';
+import { compileTls, type SniTable, type TlsOptions } from '../server/tls.ts';
 import { performance } from 'node:perf_hooks';
 import { childScope, compileAutoRoutes, compileManualRoute, createGroup, ROOT_SCOPE, type CompiledRoute, type GroupOptions, type MountOptions, type RouteScope, type RouterRef } from './compiler.ts';
 import { RouteGroupScope } from './mounted-group.ts';
@@ -31,6 +33,11 @@ export interface ListenOptions {
   port?: number;
   /** Padrão: `127.0.0.1`. Use `0.0.0.0` para aceitar conexões externas (ex.: em containers). */
   host?: string;
+  /**
+   * Sobe em HTTPS, com os mesmos timeouts, encerramento gracioso e `close()` do HTTP. Atrás de um
+   * proxy que termina o TLS (Caddy, Nginx, load balancer), não use: fique em HTTP com `trustProxy`.
+   */
+  tls?: TlsOptions;
 }
 
 export interface ServerTimeouts {
@@ -124,10 +131,11 @@ export class SashikoApp {
   private readonly opts: AppOptions;
   private readonly allowedHosts: ((hostname: string, host: string) => boolean) | undefined;
   private readonly serializers: ReadonlyMap<string, Serializer>;
-  private server: http.Server | undefined;
+  private server: http.Server | https.Server | undefined;
+  private tlsState: { sni: { current: SniTable } } | undefined;
   /** Respostas em andamento, para o encerramento gracioso não travar em conexões keep-alive. */
   private readonly inflight = new Set<http.ServerResponse>();
-  private closing: http.Server | undefined;
+  private closing: http.Server | https.Server | undefined;
   /** Logger do app (F-06). Use para logs fora de uma requisição. */
   readonly log: Logger;
 
@@ -410,11 +418,22 @@ export class SashikoApp {
   }
 
   /** Sobe o servidor HTTP e resolve quando ele está aceitando conexões (F-09). */
-  async listen(options: number | ListenOptions = {}): Promise<http.Server> {
+  async listen(options: ListenOptions & { tls: TlsOptions }): Promise<https.Server>;
+  async listen(options?: number | ListenOptions): Promise<http.Server>;
+  async listen(options: number | ListenOptions = {}): Promise<http.Server | https.Server> {
     if (this.server) throw new Error('[sashiko] app is already listening; call app.close() first.');
-    const { port = 3000, host = '127.0.0.1' } = typeof options === 'number' ? { port: options } : options;
+    const { port = 3000, host = '127.0.0.1', tls } = typeof options === 'number' ? { port: options } : options;
 
-    const server = http.createServer(this.callback());
+    let server: http.Server | https.Server;
+    if (tls) {
+      const sni = { current: { find: () => undefined } as SniTable };
+      const compiled = compileTls(tls, sni);
+      server = https.createServer(compiled.options, this.callback());
+      this.tlsState = { sni };
+    } else {
+      server = http.createServer(this.callback());
+      this.tlsState = undefined;
+    }
     const t = this.opts.timeouts ?? {};
     server.requestTimeout = t.requestTimeout ?? 30_000;
     server.headersTimeout = Math.min(t.headersTimeout ?? 10_000, server.requestTimeout || Infinity);
@@ -431,6 +450,21 @@ export class SashikoApp {
     this.closeHooksPending = true;
     if (this.opts.shutdown !== false) shutdownCoordinator.register(this.shutdownTarget);
     return server;
+  }
+
+  /**
+   * Troca os certificados sem reiniciar nem derrubar conexões (renovação, ACME externo). Conexões novas
+   * usam os novos; as abertas seguem com os antigos. Um certificado inválido lança erro e mantém os atuais.
+   */
+  reloadTLS(tls: TlsOptions): void {
+    const server = this.server;
+    if (!server || !this.tlsState || !(server instanceof https.Server)) {
+      throw new Error('[sashiko] reloadTLS(): the app is not listening with { tls }.');
+    }
+    const next = { current: this.tlsState.sni.current };
+    const compiled = compileTls(tls, next); // valida tudo antes de trocar
+    if (compiled.main) server.setSecureContext(compiled.main);
+    this.tlsState.sni.current = next.current;
   }
 
   /** Ponte entre este app e o coordenador de sinais (F-07). */

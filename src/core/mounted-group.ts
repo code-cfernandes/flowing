@@ -1,4 +1,6 @@
 import type http from 'node:http';
+import type https from 'node:https';
+import type { TlsOptions } from '../server/tls.ts';
 import type { SashikoApp } from './app.ts';
 import { ROOT_SCOPE, type GroupOptions, type ManualRouteOptions, type MethodSelector, type MountOptions, type RouteGroup, type RouteScope } from './compiler.ts';
 import type { InjectOptions, InjectResponse } from './inject.ts';
@@ -71,7 +73,12 @@ export class MountedGroup<T extends object> {
   onSend(hook: OnSendHook): SashikoApp { return this.app.onSend(hook); }
   onResponse(hook: OnResponseHook): SashikoApp { return this.app.onResponse(hook); }
   onClose(hook: OnCloseHook): SashikoApp { return this.app.onClose(hook); }
-  listen(options?: number | ListenOptions): Promise<http.Server> { return this.app.listen(options); }
+  listen(options: ListenOptions & { tls: TlsOptions }): Promise<https.Server>;
+  listen(options?: number | ListenOptions): Promise<http.Server>;
+  listen(options?: number | ListenOptions): Promise<http.Server | https.Server> {
+    return (this.app.listen as (o?: number | ListenOptions) => Promise<http.Server | https.Server>)(options);
+  }
+  reloadTLS(tls: TlsOptions): void { this.app.reloadTLS(tls); }
   close(graceMs?: number): Promise<void> { return this.app.close(graceMs); }
   callback(): (req: http.IncomingMessage, res: http.ServerResponse) => void { return this.app.callback(); }
   inject(opts: InjectOptions | string): Promise<InjectResponse> { return this.app.inject(opts); }

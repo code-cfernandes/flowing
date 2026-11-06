@@ -541,9 +541,58 @@ const app = createApp().mount(UserRoutes);
 
 await app.listen({ port: 3000, host: '0.0.0.0' }); // resolve quando está ouvindo; SIGINT/SIGTERM já tratados
 
-// Servidor próprio (HTTPS, http2 em modo compat…): aqui o ciclo de vida é seu
+await app.listen({ port: 443, host: '0.0.0.0', tls: { key, cert } }); // HTTPS, com o mesmo ciclo de vida
+
+// Servidor próprio (http2 em modo compat, outro transporte…): aqui o ciclo de vida é seu
 https.createServer(tlsOptions, app.callback()).listen(443);
 ```
+
+### HTTPS
+
+```ts
+import { readFileSync } from 'node:fs';
+
+await app.listen({
+  port: 443,
+  host: '0.0.0.0',
+  tls: {
+    key: readFileSync('/etc/ssl/privkey.pem'),
+    cert: readFileSync('/etc/ssl/fullchain.pem'),
+    // pfx + passphrase também funcionam; minVersion: 'TLSv1.3' para exigir TLS 1.3
+  },
+});
+```
+
+- **Mesmo ciclo de vida do HTTP:** timeouts contra Slowloris, encerramento gracioso nos sinais, `close()` e `onClose`. `ctx.protocol` vira `https`, e os cookies `Secure` funcionam.
+- **TLS 1.2 é o mínimo.** SSLv3, TLS 1.0 e 1.1 não são aceitos, nem por configuração.
+- **Certificados inválidos falham no `listen()`,** e não no primeiro cliente.
+- **Vários domínios (SNI):** cada domínio recebe o seu certificado no handshake.
+
+  ```ts
+  tls: {
+    key, cert,                                         // principal: domínios sem entrada própria
+    sni: {
+      'api.exemplo.com': { key: apiKey, cert: apiCert },
+      '*.exemplo.dev':   { key: devKey, cert: devCert }, // um nível: a.exemplo.dev, não a.b.exemplo.dev
+    },
+  }
+  ```
+  Sem certificado principal, um domínio fora da lista não completa o handshake. Para recusar o domínio também na camada HTTP, combine com `allowedHosts`.
+- **Renovação sem reiniciar:** `app.reloadTLS({ key, cert, sni })` troca os certificados. As conexões novas usam os novos, e as abertas continuam com os antigos. Um certificado inválido lança erro e mantém os atuais. É o ponto de integração para um cliente ACME externo, como Let's Encrypt via certbot:
+
+  ```ts
+  watch('/etc/ssl/fullchain.pem', () => app.reloadTLS({ key: readFileSync(keyPath), cert: readFileSync(certPath) }));
+  ```
+
+**TLS no app ou no proxy?** Na maioria dos deploys, o TLS termina no proxy ou no load balancer (Caddy, Nginx, Traefik). Nesse caso, use `app.listen()` em HTTP na rede interna, com `trustProxy: 1` e `allowedHosts`. Use `listen({ tls })` quando não houver proxy à frente ou quando o TLS precisar ir até o processo.
+
+**Fora do core, por decisão:** emissão e renovação automática de certificados (ACME) e gerenciamento de DNS. São responsabilidades de ferramentas próprias, integradas pelo `reloadTLS()`.
+
+### Planos futuros
+
+- **HTTP/2** (com fallback para HTTP/1.1 via ALPN). Ainda não é suportado pelo `listen()`. O modo de compatibilidade do Node muda partes do ciclo de vida: o shutdown usa GOAWAY, e não `Connection: close`; não existem `requestTimeout` nem `headersTimeout`; os limites de streams precisam de padrão seguro. Por isso, entra numa versão própria. Até lá, o proxy à frente pode falar HTTP/2 com o cliente e HTTP/1.1 com o app.
+- **Virtual hosts:** `mount(X, { host })` e `group({ host })`, para servir domínios diferentes no mesmo app.
+- **mTLS:** certificado do cliente (`requestCert`) e `ctx.clientCertificate`.
 
 **Encerramento gracioso, sem código.** Com `listen()`, um SIGINT ou SIGTERM faz o app parar de aceitar conexões, esperar as requisições em andamento (com prazo) e sair com código 0:
 

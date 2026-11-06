@@ -9,6 +9,17 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.9.0] - 2026-11-06
+
+### Adicionado
+- HTTPS no `app.listen({ tls: { key, cert } })` (ou `pfx` + `passphrase`), com os mesmos timeouts, o mesmo
+  encerramento gracioso, o `close()` e o `onClose` do HTTP. TLS 1.2 é o mínimo (`minVersion: 'TLSv1.3'` é
+  opcional), e um certificado inválido falha no `listen()`.
+- SNI: `tls.sni` com um certificado por domínio e curinga de um nível (`'*.exemplo.dev'`).
+- `app.reloadTLS()` troca os certificados sem reiniciar, para renovação ou ACME externo. Um certificado
+  inválido mantém os atuais.
+- Tipos `TlsOptions` e `TlsCertificate`. O `listen()` com `tls` é tipado como `https.Server`.
+
 ## [0.8.0] - 2026-11-06
 
 ### Adicionado
