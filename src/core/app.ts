@@ -1,13 +1,12 @@
 import http from 'node:http';
-import { compileController } from './compiler.ts';
+import { compileController, type ControllerRef } from './compiler.ts';
 import { compose, type Middleware } from './compose.ts';
 import { Context } from './context.ts';
-import { HttpError } from './errors.ts';
 import '../shims/symbol-metadata.ts';
-import type { RouteSchemas } from './metadata.ts';
+import { bodyParser } from './body-parser.ts';
+import { assertSchemas, validateRequest } from './request-validation.ts';
+import { sendError, sendResult } from './response.ts';
 import { PicoDecorRouter } from './router.ts';
-import { serialize } from '../schema/serialization.ts';
-import { validate, type ValidationTarget } from '../schema/validation.ts';
 import { buildSecurityHeaders, type SecurityHeadersOptions } from '../middlewares/security-headers.ts';
 
 export interface ServerTimeouts {
@@ -31,6 +30,8 @@ export interface AppOptions {
    * em toda rota, falhando no registro do controller. Padrão: `false`.
    */
   requireSchemas?: boolean;
+  /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
+  queryMaxKeys?: number;
 }
 
 export class PicoDecorApp {
@@ -56,10 +57,12 @@ export class PicoDecorApp {
     return this;
   }
 
-  controllers(classes: (new () => any)[]): this {
-    for (const Class of classes) {
-      for (const route of compileController(Class)) {
-        if (this.opts.requireSchemas) assertSchemas(Class.name, route);
+  /** Registra controllers: classes (`new X()` sem argumentos) ou instâncias prontas (B-10). */
+  controllers(refs: ControllerRef[]): this {
+    for (const ref of refs) {
+      const name = typeof ref === 'function' ? ref.name : ref.constructor.name;
+      for (const route of compileController(ref)) {
+        if (this.opts.requireSchemas) assertSchemas(name, route);
         this.router.on(route.method, route.path, route.handler, route.schemas);
       }
     }
@@ -92,17 +95,7 @@ export class PicoDecorApp {
       const result = await match.handler(ctx);
       if (ctx.res.writableEnded) return;
 
-      const status = ctx.res.statusCode || 200;
-      const schema = match.schemas.response?.[status];
-
-      if (schema) {
-        ctx.res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        ctx.res.end(serialize(schema, result));
-      } else if (result !== undefined) {
-        ctx.json(result);
-      } else {
-        ctx.res.end();
-      }
+      sendResult(ctx, match.schemas.response, result);
     } catch (err) {
       await this.runErrorHandlers(err, ctx);
     }
@@ -134,7 +127,7 @@ export class PicoDecorApp {
         if (!res.writableEnded) res.end();
       };
       try {
-        this.handle(new Context(req, res)).catch(fail);
+        this.handle(new Context(req, res, { queryMaxKeys: this.opts.queryMaxKeys })).catch(fail);
       } catch (err) {
         fail(err);
       }
@@ -148,84 +141,6 @@ export class PicoDecorApp {
   }
 }
 
-const GENERIC_500 = 'Internal Server Error';
-
-/**
- * Resposta de erro padrão. Só mensagens marcadas como `expose` chegam ao cliente;
- * o resto vira 500 genérico e o erro original é logado no servidor (S-05).
- */
-function sendError(ctx: Context, err: unknown): void {
-  const httpErr = err instanceof HttpError ? err : undefined;
-  const status = httpErr?.status ?? 500;
-  const exposed = httpErr?.expose === true;
-
-  if (!exposed) console.error(`[picodecor] ${ctx.method} ${ctx.path} → ${status}`, err);
-  if (ctx.res.writableEnded) return;
-  if (ctx.res.headersSent) return void ctx.res.end();
-
-  const body: { error: string; details?: unknown } = { error: exposed ? httpErr!.message : GENERIC_500 };
-  if (exposed && httpErr!.details !== undefined) body.details = httpErr!.details;
-  ctx.status(status).json(body);
-}
-
-function assertSchemas(controller: string, route: { method: string; path: string; schemas: RouteSchemas }): void {
-  const where = `${controller}: ${route.method} ${route.path}`;
-  if (['POST', 'PUT', 'PATCH'].includes(route.method) && !route.schemas.body) {
-    throw new Error(`[picodecor] requireSchemas: ${where} has no body schema.`);
-  }
-  if (!route.schemas.response || Object.keys(route.schemas.response).length === 0) {
-    throw new Error(`[picodecor] requireSchemas: ${where} has no response schema.`);
-  }
-}
-
-const VALIDATION_ORDER: readonly ValidationTarget[] = ['headers', 'params', 'query', 'body'];
-const TARGET_LABEL: Record<ValidationTarget, string> = {
-  headers: 'Invalid headers', params: 'Invalid params', query: 'Invalid query', body: 'Invalid body',
-};
-
-/** Valida cada parte da requisição que tiver schema; o primeiro erro vira 400 com detalhes (B-02/B-03). */
-function validateRequest(ctx: Context, schemas: RouteSchemas): void {
-  for (const target of VALIDATION_ORDER) {
-    const schema = schemas[target];
-    if (!schema) continue;
-    // Headers: validamos uma cópia, para coerção/defaults não alterarem `req.headers`.
-    const data = target === 'headers' ? { ...ctx.req.headers } : ctx[target];
-    const issues = validate(schema, data, target);
-    if (issues) throw new HttpError(400, TARGET_LABEL[target], 'VALIDATION_ERROR', { details: issues });
-  }
-}
-
 export function createApp(opts?: AppOptions): PicoDecorApp {
   return new PicoDecorApp(opts);
-}
-
-function bodyParser(limit: number): Middleware {
-  return async (ctx, next) => {
-    if (ctx.method === 'GET' || ctx.method === 'HEAD') return next();
-    const ct = ctx.req.headers['content-type'] ?? '';
-    if (!ct.includes('application/json')) return next();
-
-    // B-12: rejeita cedo pelo Content-Length e fecha a conexão ao exceder,
-    // para o cliente não continuar enviando um corpo que será descartado.
-    const tooLarge = (): never => {
-      ctx.res.setHeader('Connection', 'close');
-      return ctx.throw(413, 'Payload too large');
-    };
-    const declared = Number(ctx.req.headers['content-length']);
-    if (Number.isFinite(declared) && declared > limit) tooLarge();
-
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for await (const chunk of ctx.req) {
-      size += chunk.length;
-      if (size > limit) tooLarge();
-      chunks.push(chunk);
-    }
-    const raw = Buffer.concat(chunks).toString('utf8');
-    if (raw) {
-      try { ctx.body = JSON.parse(raw); }
-      catch { ctx.throw(400, 'Invalid JSON'); }
-    }
-    await next();
-  };
 }

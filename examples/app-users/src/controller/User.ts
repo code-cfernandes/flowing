@@ -3,65 +3,67 @@ import { type Context, Controller, Delete, Get, Patch, Post, Schema, badRequest,
 import {
   CreateUserSchema, GreetingSchema, ListUsersQuery, UpdateUserSchema, UserIdParams, UserSchema,
 } from "../schema/UserSchema.ts";
-import { users } from "../store/users.ts";
+import type { UserRepository } from "../store/users.ts";
 import type { CreateUserInput, ListUsersParams, UpdateUserInput, User } from "../types/user.ts";
-
-function findOr404(id: string): User {
-  const user = users.get(id);
-  if (!user) throw notFound('user not found');
-  return user;
-}
-
-function assertEmailFree(email: string, exceptId?: string) {
-  for (const u of users.values()) {
-    if (u.email === email && u.id !== exceptId) throw badRequest('email already registered');
-  }
-}
 
 @Controller('/users')
 export class UserController {
-  // GET /users?limit=10&offset=0 — query com coerção e defaults
+  // Dependência injetada pelo construtor: app.controllers([new UserController(repo)]) (B-10)
+  constructor(private readonly users: UserRepository) {}
+
+  private findOr404(id: string): User {
+    const user = this.users.get(id);
+    if (!user) throw notFound('user not found');
+    return user;
+  }
+
+  private assertEmailFree(email: string, exceptId?: string) {
+    const existing = this.users.findByEmail(email);
+    if (existing && existing.id !== exceptId) throw badRequest('email already registered');
+  }
+
+  // GET /users?limit=10&offset=0 — query com coerção e defaults; ?tag=a&tag=b viraria array (B-07)
   @Get('/')
   @Schema({ query: ListUsersQuery, response: { 200: Type.Array(UserSchema) } })
   listUsers(ctx: Context) {
     const { limit, offset } = ctx.query as unknown as ListUsersParams;
-    return Array.from(users.values()).slice(offset, offset + limit);
+    return this.users.list(offset, limit);
   }
 
   // GET /users/:id — também responde HEAD automaticamente (F-08)
   @Get('/:id')
   @Schema({ params: UserIdParams, response: { 200: UserSchema } })
   getUser(ctx: Context) {
-    return findOr404(ctx.params.id!);
+    return this.findOr404(ctx.params.id!);
   }
 
   @Post('/')
   @Schema({ body: CreateUserSchema, response: { 201: UserSchema } })
   createUser(ctx: Context) {
     const body = ctx.body as CreateUserInput;
-    assertEmailFree(body.email);
+    this.assertEmailFree(body.email);
     const user: User = { id: crypto.randomUUID(), ...body };
-    users.set(user.id, user);
-    ctx.status(201);
+    this.users.save(user);
+    // Sem ctx.status(201): o único 2xx declarado no schema vira o status padrão (B-05)
     return user;
   }
 
   @Patch('/:id')
   @Schema({ params: UserIdParams, body: UpdateUserSchema, response: { 200: UserSchema } })
   updateUser(ctx: Context) {
-    const user = findOr404(ctx.params.id!);
+    const user = this.findOr404(ctx.params.id!);
     const changes = ctx.body as UpdateUserInput;
-    if (changes.email) assertEmailFree(changes.email, user.id);
+    if (changes.email) this.assertEmailFree(changes.email, user.id);
     const updated: User = { ...user, ...changes };
-    users.set(user.id, updated);
+    this.users.save(updated);
     return updated;
   }
 
   @Delete('/:id')
   @Schema({ params: UserIdParams, response: { 204: Type.Null() } })
   deleteUser(ctx: Context) {
-    findOr404(ctx.params.id!);
-    users.delete(ctx.params.id!);
+    this.findOr404(ctx.params.id!);
+    this.users.delete(ctx.params.id!);
     ctx.status(204);
   }
 
@@ -70,7 +72,7 @@ export class UserController {
   @Schema({ params: UserIdParams, body: Type.Object({}), response: { 200: GreetingSchema } })
   @timer()
   async greet(ctx: Context) {
-    const user = findOr404(ctx.params.id!);
+    const user = this.findOr404(ctx.params.id!);
     await new Promise((r) => setTimeout(r, 50));
     return { message: `Olá, ${user.name}!` };
   }

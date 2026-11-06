@@ -121,3 +121,16 @@ describe('tratamento de erros', () => {
     });
   });
 });
+
+describe('HttpError', () => {
+  it('guarda cause e details; isHttpError identifica', async () => {
+    const { isHttpError } = await import('picodecor');
+    const root = new Error('raiz');
+    const err = new HttpError(422, 'inválido', 'UNPROCESSABLE', { cause: root, details: [{ path: '/x' }] });
+    assert.equal(err.cause, root);
+    assert.deepEqual(err.details, [{ path: '/x' }]);
+    assert.equal(err.expose, true);
+    assert.equal(isHttpError(err), true);
+    assert.equal(isHttpError(new Error('x')), false);
+  });
+});

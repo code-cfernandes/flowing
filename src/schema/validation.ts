@@ -18,7 +18,7 @@ export interface ValidationIssue {
   message: string;
 }
 
-function createAjv(coerceTypes: boolean) {
+function createAjv(coerceTypes: boolean | 'array') {
   const ajv = new Ajv({ allErrors: true, coerceTypes, useDefaults: true, removeAdditional: false });
   addFormats(ajv);
   return ajv;
@@ -31,7 +31,8 @@ function createAjv(coerceTypes: boolean) {
  * - `strict`: o body já é JSON tipado; coerção mascararia erros do cliente
  *   (`"30"` virar `30`, `""` virar `0`).
  */
-const coercing = createAjv(true);
+// 'array' também converte valor único em array quando o schema pede array (`?tag=a` → `['a']`, B-07)
+const coercing = createAjv('array');
 const strict = createAjv(false);
 
 const caches = new Map([

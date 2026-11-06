@@ -1,7 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import { type Context, Controller, Get, Schema, unauthorized } from "picodecor";
 import { AdminHeaders, HealthSchema, StatsSchema } from "../schema/AdminSchema.ts";
-import { users } from "../store/users.ts";
+import type { UserRepository } from "../store/users.ts";
 
 const API_KEY = process.env.ADMIN_API_KEY ?? 'dev-admin-key';
 
@@ -17,12 +17,16 @@ export class HealthController {
 
 @Controller('/admin')
 export class AdminController extends HealthController {
+  constructor(private readonly users: UserRepository) {
+    super();
+  }
+
   // Header obrigatório validado por schema (B-03)
   @Get('/stats')
   @Schema({ headers: AdminHeaders, response: { 200: StatsSchema } })
   stats(ctx: Context) {
     if (ctx.req.headers['x-api-key'] !== API_KEY) throw unauthorized('invalid api key');
-    return { users: users.size, memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024) };
+    return { users: this.users.count(), memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024) };
   }
 
   // Erro inesperado: o cliente recebe 500 genérico, o detalhe só aparece no log do servidor (S-05)

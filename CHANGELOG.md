@@ -31,6 +31,10 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - `AppOptions.requireSchemas` para exigir schemas de body e de resposta no registro das rotas. (S-07)
 - `HEAD` automático para rotas `GET` e `OPTIONS` automático (204 + `Allow`). (F-08)
 - `ctx.ip`.
+- `AppOptions.queryMaxKeys` limita os pares lidos da query string (padrão 1000). (S-06)
+- `app.controllers()` aceita instâncias, para injetar dependências pelo construtor. (B-10)
+- Script `pnpm test:coverage` com limites mínimos de cobertura. (F-19)
+- O exemplo `app-users` passa a injetar um `UserRepository` nos controllers. (F-18)
 - Opção `--test-timeout` nos scripts de teste, para um request travado não segurar a suíte.
 
 ### Alterado
@@ -39,6 +43,9 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 - **Incompatível:** o decorator `cors` foi removido em favor do middleware `cors()`. (B-04)
 - **Incompatível:** `timer` virou uma fábrica: use `@timer()` em vez de `@timer`. (B-04)
 - O header `Allow` em respostas 405 passa a incluir `HEAD` e `OPTIONS`.
+- `src/core/app.ts` foi dividido por responsabilidade: `body-parser.ts`, `request-validation.ts` e
+  `response.ts`. Funções puras e genéricas foram para `src/utils/` (`query.ts`, `content-type.ts`,
+  `path.ts`), que é interno e não é exportado pela API pública.
 - `.gitignore` revisado (build, logs, `.env`, coverage, editores).
 
 ### Corrigido
@@ -48,6 +55,11 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
   e usam o próprio prefixo. Classes sem `@Controller` próprio são rejeitadas. (B-09)
 - O body não sofre mais coerção de tipos (`"30"` não vira `30`); params, query e headers
   continuam com coerção. A validação não remove mais campos do objeto em silêncio. (B-06)
+- Com um único 2xx declarado no schema, ele vira o status padrão sem `ctx.status()`. Um status sem
+  schema correspondente responde 500 em vez de enviar o objeto sem filtro. (B-05)
+- Query com chaves repetidas vira array, e um valor único é aceito por schemas de array. (B-07)
+- O body só é tratado como JSON para `application/json` e `application/*+json`, comparando o media type
+  em vez de procurar uma substring. (B-11)
 - `timer` mede corretamente handlers `async` e também quando o handler lança. (B-04)
 - Corpo acima do `bodyLimit` é rejeitado antes da leitura pelo `Content-Length`, e a conexão é
   fechada. (B-12)
@@ -57,6 +69,7 @@ Cada entrada cita a spec correspondente em [`SPECS/`](SPECS/README.md) quando ho
 ### Segurança
 - Erros 5xx e erros desconhecidos não expõem mais a mensagem original ao cliente; a resposta é
   `Internal Server Error` e o erro completo é logado no servidor. (S-05)
+- Chaves `__proto__`, `constructor` e `prototype` são descartadas da query. (S-08, parcial)
 
 ## [0.0.1] - 2026-11-05
 

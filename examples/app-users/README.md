@@ -28,7 +28,7 @@ src/controller/User.ts     CRUD /users
 src/controller/Admin.ts    /health (base) e /admin (herda /health)
 src/schema/                schemas TypeBox
 src/types/                 tipos derivados dos schemas
-src/store/                 "banco" em memória
+src/store/                 UserRepository em memória, injetado nos controllers
 ```
 
 ## Rotas
@@ -53,7 +53,9 @@ src/store/                 "banco" em memória
 | B-02 | Erros de validação com `details` por campo |
 | B-03 | Header obrigatório ausente → 400 |
 | B-06 | Body sem coerção de tipos; query com coerção |
+| B-05 | `POST /users` responde 201 sem `ctx.status()`, pelo único 2xx do schema |
 | B-09 | `/admin/health` herdado de `HealthController` |
+| B-10 | Controllers recebem o `UserRepository` pelo construtor (`server.ts`) |
 | B-12 | Body acima de 64KB → 413 + `Connection: close` |
 | F-08 | HEAD sem corpo e OPTIONS com `Allow` |
 | S-01 | Preflight CORS de origem permitida e de origem desconhecida |

@@ -1,6 +1,7 @@
 import { readOwnMetadata, type RouteSchemas } from './metadata.ts';
 import type { Context } from './context.ts';
 import type { Handler } from './router.ts';
+import { joinPaths } from '../utils/path.ts';
 
 export interface CompiledRoute {
   method: string;
@@ -9,7 +10,12 @@ export interface CompiledRoute {
   schemas: RouteSchemas;
 }
 
-export function compileController(Class: new () => any): CompiledRoute[] {
+/** Classe com construtor sem argumentos **ou** instância já construída (B-10). */
+export type ControllerRef = (new () => object) | object;
+
+export function compileController(ref: ControllerRef): CompiledRoute[] {
+  const isClass = typeof ref === 'function';
+  const Class = (isClass ? ref : ref.constructor) as new () => object;
   const meta = readOwnMetadata(Class);
   if (!meta?.isController) {
     throw new Error(
@@ -18,7 +24,8 @@ export function compileController(Class: new () => any): CompiledRoute[] {
     );
   }
 
-  const instance = new Class();
+  // Instâncias permitem injetar dependências pelo construtor: controllers([new UserController(repo)])
+  const instance = isClass ? new Class() : ref;
   const routes: CompiledRoute[] = [];
 
   for (const [name, methodMeta] of meta.methods) {
@@ -35,10 +42,4 @@ export function compileController(Class: new () => any): CompiledRoute[] {
   }
 
   return routes;
-}
-
-function joinPaths(prefix: string, path: string): string {
-  const p = prefix.replace(/\/$/, '');
-  const s = path.startsWith('/') ? path : `/${path}`;
-  return `${p}${s}` || '/';
 }

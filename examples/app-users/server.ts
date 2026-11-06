@@ -1,9 +1,13 @@
 import { cors, createApp, rateLimit } from "picodecor";
 import { AdminController, HealthController } from "./src/controller/Admin.ts";
 import { UserController } from "./src/controller/User.ts";
+import { UserRepository } from "./src/store/users.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173').split(',');
+
+// Dependências compartilhadas, montadas uma vez (injeção manual; um container fica para F-03)
+const users = new UserRepository();
 
 const app = createApp({
   bodyLimit: 64 * 1024,
@@ -24,7 +28,8 @@ app
     // Ponto para enviar a um APM; se este handler falhar, o app não cai (B-08)
     if (process.env.DEBUG_ERRORS) console.warn(`[onError] ${ctx.method} ${ctx.path}`, err);
   })
-  .controllers([HealthController, AdminController, UserController]);
+  // Classe sem dependências pode ir direto; com dependências, passe a instância (B-10)
+  .controllers([HealthController, new AdminController(users), new UserController(users)]);
 
 const server = app.listen(PORT);
 
