@@ -195,3 +195,52 @@ describe('ctx.sendFile()', () => {
     assert.equal((await app.inject('/bad')).status, 500);
   });
 });
+
+describe('0.12.1 · Range conforme a RFC 9110', () => {
+  const app = () => createApp({ logger: false }).static('/s', root);
+
+  it('If-Range com ETag (fraco) nunca autoriza resposta parcial; data só se for exata', async () => {
+    const a = app();
+    const full = await a.inject('/s/data.bin');
+    const weak = await a.inject({ url: '/s/data.bin', headers: { range: 'bytes=0-1', 'if-range': String(full.headers.etag) } });
+    assert.equal(weak.status, 200);
+    const exact = await a.inject({
+      url: '/s/data.bin',
+      headers: { range: 'bytes=0-1', 'if-range': String(full.headers['last-modified']) },
+    });
+    assert.equal(exact.status, 206);
+    const later = new Date(Date.parse(String(full.headers['last-modified'])) + 60_000).toUTCString();
+    assert.equal(
+      (await a.inject({ url: '/s/data.bin', headers: { range: 'bytes=0-1', 'if-range': later } })).status,
+      200,
+      'data posterior não vale',
+    );
+  });
+
+  it('Range é ignorado em HEAD e com unidade desconhecida', async () => {
+    const head = await app().inject({ method: 'HEAD', url: '/s/data.bin', headers: { range: 'bytes=0-1' } });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers['content-length'], '10');
+    for (const range of ['items=0-1', 'bytes=abc', 'bytes=0-1,4-5']) {
+      assert.equal((await app().inject({ url: '/s/data.bin', headers: { range } })).status, 200, range);
+    }
+    assert.equal(
+      (await app().inject({ url: '/s/data.bin', headers: { range: 'bytes=50-' } })).status,
+      416,
+      'bytes fora do arquivo continua 416',
+    );
+  });
+
+  it('static() a partir do retorno de mount() fica no mesmo escopo', async () => {
+    @Router('/')
+    class R {
+      @Get('/x') x() {
+        return 'x';
+      }
+    }
+    const a = createApp({ logger: false }).mount(R).static('/s', root);
+    assert.equal((await a.inject('/s/app.js')).status, 200);
+    const inGroup = createApp({ logger: false }).group({ prefix: '/g' }, (g) => g.mount(R).static('/s', root));
+    assert.equal((await inGroup.inject('/g/s/app.js')).status, 200);
+  });
+});

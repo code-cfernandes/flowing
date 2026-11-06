@@ -191,3 +191,59 @@ describe('async iterable → NDJSON', () => {
     assert.ok(Date.now() - started < 1_000);
   });
 });
+
+describe('0.12.1 · bordas do streaming', () => {
+  it('ctx.signal acessado depois de uma desconexão já ocorrida nasce cancelado', async () => {
+    let aborted: boolean | undefined;
+    @Router('/')
+    class Late {
+      @Get('/late') async late(ctx: Context) {
+        await tick(60); // o cliente desconecta durante este await
+        aborted = ctx.signal.aborted;
+        return 'x';
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false }).mount(Late);
+    const server = await app.listen(0);
+    try {
+      const c = open(`http://127.0.0.1:${(server.address() as AddressInfo).port}/late`);
+      await tick(15);
+      c.abort();
+      await tick(120);
+      assert.equal(aborted, true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('SSE: heartbeatMs e retry precisam ser inteiros não negativos; id sem U+0000; data obrigatório', async () => {
+    const outcomes: string[] = [];
+    @Router('/')
+    class Bad {
+      @Get('/s') s(ctx: Context) {
+        for (const opts of [{ heartbeatMs: -1 }, { heartbeatMs: 1.5 }, { retry: -100 }]) {
+          try {
+            ctx.sse(opts);
+            outcomes.push('aceito');
+          } catch (e) {
+            outcomes.push((e as Error).message.includes('non-negative integer') ? 'ok' : 'outro');
+          }
+        }
+        const stream = ctx.sse({ heartbeatMs: 0 });
+        for (const ev of [{ retry: -1, data: 'x' }, { id: 'a\0b', data: 'x' }, { data: undefined }]) {
+          try {
+            stream.send(ev);
+            outcomes.push('aceito');
+          } catch {
+            outcomes.push('ok');
+          }
+        }
+        stream.send({ data: '' });
+        stream.close();
+      }
+    }
+    const res = await createApp({ logger: false }).mount(Bad).inject('/s');
+    assert.deepEqual(outcomes, ['ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+    assert.equal(res.body, 'data: \n\n', 'só o evento válido foi escrito');
+  });
+});

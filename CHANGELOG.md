@@ -9,6 +9,22 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.12.1] - 2026-11-06
+
+### Corrigido
+- `ctx.signal` não era cancelado se o cliente desconectasse antes do primeiro acesso a ele (por exemplo,
+  durante um `await` anterior), porque o evento de fechamento já tinha passado. Agora nasce cancelado.
+- `If-Range` seguia regras mais frouxas que a RFC 9110. Um ETag (os nossos são fracos) autorizava resposta
+  parcial, e uma data posterior ao `Last-Modified` também. Agora só uma data exatamente igual autoriza o `Range`.
+- `Range` era processado em `HEAD`, que respondia 206, e uma unidade desconhecida (`items=0-1`) ou uma
+  sintaxe inválida recebia 416. Agora o `Range` só vale para `GET`, e o resto é ignorado (200 com o arquivo
+  inteiro).
+- `ctx.sse()`: `heartbeatMs` e `retry` negativos ou fracionários são recusados (um heartbeat negativo virava
+  envio contínuo). Um `id` com U+0000, que o navegador ignoraria, é recusado. `data` ausente gera um erro
+  claro, em vez de uma falha interna.
+- `static()` não existia no retorno de `mount()`: `app.mount(X).static(...)` falhava em JavaScript (em
+  TypeScript, nem compilava). Agora existe e respeita o escopo do grupo.
+
 ## [0.12.0] - 2026-11-06
 
 ### Adicionado

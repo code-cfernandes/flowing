@@ -50,10 +50,22 @@ export interface SseOptions {
   retry?: number;
 }
 
-/** Campos de uma linha SSE não podem ter quebra de linha: seria injeção de evento. */
+/**
+ * Campos de uma linha SSE não podem ter quebra de linha (seria injeção de evento); `id` também não pode
+ * ter U+0000, que faz o navegador ignorar o campo.
+ */
 const sseField = (name: string, value: string) => {
   if (/[\r\n]/.test(value)) throw new Error(`[sashiko] ctx.sse(): "${name}" cannot contain line breaks.`);
+  if (name === 'id' && value.includes('\0')) throw new Error('[sashiko] ctx.sse(): "id" cannot contain U+0000.');
   return `${name}: ${value}\n`;
+};
+
+/** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige. */
+const nonNegativeInt = (name: string, value: number): number => {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`[sashiko] ctx.sse(): "${name}" must be a non-negative integer (got ${value}).`);
+  }
+  return value;
 };
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
@@ -163,6 +175,12 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       const controller = new AbortController();
       this.abortController = controller;
       if (this.res.writableFinished) return controller.signal;
+      // O cliente pode ter desconectado antes do primeiro acesso ao signal (num `await` anterior):
+      // o evento 'close' já passou, então o estado precisa ser conferido agora.
+      if (this.res.destroyed || this.req.destroyed || this.req.socket?.destroyed) {
+        controller.abort(new Error('client disconnected'));
+        return controller.signal;
+      }
       this.res.once('close', () => {
         if (!this.res.writableFinished) controller.abort(new Error('client disconnected'));
       });
@@ -193,6 +211,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    */
   sse(opts: SseOptions = {}): SseStream {
     if (this.sent) throw new Error('[sashiko] ctx.sse(): the response was already sent.');
+    // Valida antes de abrir a resposta: um erro aqui ainda vira um 500 normal.
+    const heartbeatMs = nonNegativeInt('heartbeatMs', opts.heartbeatMs ?? 15_000);
+    if (opts.retry !== undefined) nonNegativeInt('retry', opts.retry);
     const res = this.res;
     this.streaming = true;
     res.statusCode = 200;
@@ -219,13 +240,12 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     const write = (chunk: string) => {
       if (!closed && !res.writableEnded) res.write(chunk);
     };
-    const heartbeatMs = opts.heartbeatMs ?? 15_000;
     const heartbeat = setInterval(() => write(': ping\n\n'), heartbeatMs || 2 ** 31 - 1);
     heartbeat.unref();
     if (!heartbeatMs) clearInterval(heartbeat);
     res.once('close', finish);
     this.signal.addEventListener('abort', () => stream.close(), { once: true });
-    if (opts.retry !== undefined) write(`retry: ${Math.floor(opts.retry)}\n\n`);
+    if (opts.retry !== undefined) write(`retry: ${opts.retry}\n\n`);
 
     const stream: SseStream = {
       send: (event) => {
@@ -233,7 +253,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
         let out = '';
         if (e.event !== undefined) out += sseField('event', e.event);
         if (e.id !== undefined) out += sseField('id', e.id);
-        if (e.retry !== undefined) out += `retry: ${Math.floor(e.retry)}\n`;
+        if (e.retry !== undefined) out += `retry: ${nonNegativeInt('retry', e.retry)}\n`;
+        if (e.data === undefined) throw new Error('[sashiko] ctx.sse(): "data" is required; use "" for an empty event.');
         const text = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
         for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
         write(`${out}\n`);

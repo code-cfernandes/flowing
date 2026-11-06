@@ -100,10 +100,15 @@ function contentDisposition(name: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
-/** `bytes=a-b`, `bytes=a-` ou `bytes=-n` sobre `size`; `undefined` se inválido, `null` se for de vários intervalos. */
+/**
+ * `bytes=a-b`, `bytes=a-` ou `bytes=-n` sobre `size`. `undefined` = não satisfazível (416); `null` = ignorar
+ * e enviar o arquivo inteiro (outra unidade, vários intervalos ou sintaxe que não entendemos, RFC 9110 §14.2).
+ */
 function parseRange(header: string, size: number): { start: number; end: number } | undefined | null {
-  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!m) return header.includes(',') ? null : undefined;
+  const value = header.trim();
+  if (!/^bytes=/i.test(value) || value.includes(',')) return null;
+  const m = /^bytes=(\d*)-(\d*)$/i.exec(value);
+  if (!m) return null;
   const [, a, b] = m;
   if (a === '' && b === '') return undefined;
   let start: number;
@@ -158,8 +163,12 @@ export async function sendResolvedFile(
   let end = s.size - 1;
   const rangeHeader = ctx.get('range');
   const ifRange = ctx.get('if-range');
-  const rangeApplies =
-    rangeHeader !== undefined && (!ifRange || ifRange === etag || (modified !== undefined && Date.parse(ifRange) >= modified.getTime()));
+  // Range só vale para GET. If-Range exige comparação forte: nossos ETags são fracos e nunca a satisfazem;
+  // uma data precisa ser exatamente o Last-Modified (RFC 9110 §13.1.5).
+  const ifRangeOk =
+    !ifRange ||
+    (!ifRange.startsWith('"') && !ifRange.startsWith('W/') && modified !== undefined && Date.parse(ifRange) === modified.getTime());
+  const rangeApplies = ctx.method === 'GET' && rangeHeader !== undefined && ifRangeOk;
   if (rangeApplies && s.size > 0) {
     const range = parseRange(rangeHeader, s.size);
     if (range === undefined) {
