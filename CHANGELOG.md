@@ -9,6 +9,30 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.7.0] - 2026-11-06
+
+### Alterado
+- **Incompatível:** todos os erros (`HttpError`, validação, JSON inválido, body grande demais, 404, 405, 406,
+  `Host` inválido, guards, CSRF e rate limit) saem no formato Problem Details (RFC 9457), com
+  `Content-Type: application/problem+json`: `{ type, title, status, detail?, code?, details? }`. A mensagem
+  passa de `error` para `detail`, e o `code` do `HttpError` agora chega ao cliente. No 405, `allowed` passa
+  para `details.allowed`. **Migração:** leia `detail` (ou `title`) no lugar de `error`, ou mantenha o formato
+  antigo com `createApp({ formatError: (p) => ({ error: p.detail ?? p.title, details: p.details }) })`.
+
+### Adicionado
+- `AppOptions.formatError`, para personalizar o corpo de todos os erros.
+- Opção `type` no `HttpError` (URI do tipo do problema) e os tipos `ProblemDetails` e `ErrorFormatter`.
+- Códigos `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `METHOD_NOT_ALLOWED` e `INVALID_HOST` nos erros do framework.
+- Path e `params` conferidos. Em compilação, um parâmetro do path ausente no schema de `params` do verbo é
+  erro de tipo. No `app.mount()`, path x schema são conferidos nos dois sentidos, com o prefixo, e paths
+  malformados (`/:`, nome repetido, regex aberta, `*` no meio) falham com a rota na mensagem.
+- `Context<'/:org/users/:id'>` tipa `ctx.params` pelo path; tipos `PathParams`, `ParamsOf` e `CheckParams`.
+- OpenAPI 3.1: `app.openapi({ info, servers, path, docs, middlewares, guards })` serve `/openapi.json`,
+  gerado das rotas e dos schemas (parâmetros, body, respostas por status e content type, erros como
+  `ProblemDetails`). Com `docs: true`, serve também o Swagger UI em `/docs` (versão fixada, SRI e CSP com
+  nonce). `middlewares` e `guards` protegem só essas rotas. `app.openapiDocument()` devolve o documento,
+  sem expor rota nenhuma.
+
 ## [0.6.0] - 2026-11-06
 
 ### Adicionado

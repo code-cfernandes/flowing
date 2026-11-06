@@ -89,7 +89,7 @@ describe('csrf() · origem', () => {
     assert.equal((await post({ 'sec-fetch-site': 'none' })).status, 200);
     const cross = await post({ 'sec-fetch-site': 'cross-site', origin: 'https://atacante.com' });
     assert.equal(cross.status, 403);
-    assert.deepEqual(cross.json(), { error: 'Cross-origin request blocked' });
+    assert.deepEqual(cross.json(), { type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Cross-origin request blocked', code: 'CSRF_ORIGIN' });
     assert.equal((await post({ 'sec-fetch-site': 'same-site', origin: 'https://irmao.localhost' })).status, 403);
     assert.equal((await post({ 'sec-fetch-site': 'cross-site' })).status, 403, 'cross-site sem Origin');
   });
@@ -140,7 +140,7 @@ describe('csrf() · double-submit token', () => {
     ]) {
       const res = await app.inject({ method: 'POST', url: '/c/write', headers });
       assert.equal(res.status, 403);
-      assert.deepEqual(res.json(), { error: 'Invalid CSRF token' });
+      assert.deepEqual(res.json(), { type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Invalid CSRF token', code: 'CSRF_TOKEN' });
     }
   });
 

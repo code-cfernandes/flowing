@@ -6,7 +6,7 @@ import { parseQuery, type ParsedQuery } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
 import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
-import type { InferBody, InferParams, InferQuery, InferResponse } from './infer.ts';
+import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type SendMode, type Serializer } from './response.ts';
 
@@ -44,10 +44,15 @@ export type BodyFor<S extends RouteSchemas, St extends number> =
  * return ctx.status(202).json({ jobId });   // o TypeScript confere o corpo contra o schema do 202
  * ```
  */
-export type StatusContext<S extends RouteSchemas, St extends number> = Omit<Context<S>, 'json' | 'send'> & {
-  json(body: BodyFor<S, St>): Context<S>;
-  send(body: BodyFor<S, St> | RawBody, contentType?: string): Context<S>;
+export type StatusContext<S extends RouteSchemas | string, St extends number> = Omit<Context<S>, 'json' | 'send'> & {
+  json(body: BodyFor<SchemasOf<S>, St>): Context<S>;
+  send(body: BodyFor<SchemasOf<S>, St> | RawBody, contentType?: string): Context<S>;
 };
+
+/** Um path no lugar dos schemas (`Context<'/:id'>`) equivale a uma rota sem schemas (F-29). */
+export type SchemasOf<S extends RouteSchemas | string> = S extends string ? {} : S;
+/** `ctx.params`: pelo path (`Context<'/:id'>`) ou pelo schema `params`. */
+export type ParamsFor<S extends RouteSchemas | string> = S extends string ? ParamsOf<S> : InferParams<SchemasOf<S>>;
 
 /**
  * Estado por requisição, compartilhado entre middlewares, guards e handlers.
@@ -82,9 +87,10 @@ export interface ContextOptions {
  * ```ts
  * const create = { body: CreateUserSchema, response: { 201: UserSchema } } satisfies RouteSchemas;
  * @Post('/') @Schema(create) createUser(ctx: Context<typeof create>) { ctx.body.name }
+ * @Get('/:id') get(ctx: Context<'/:id'>) { ctx.params.id }
  * ```
  */
-export class Context<S extends RouteSchemas = RouteSchemas> {
+export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly req: IncomingMessage;
   readonly res: ServerResponse;
   readonly method: string;
@@ -96,11 +102,11 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
   readonly log: Logger;
 
   /** Parâmetros de rota; tipados pelo schema `params` quando informado em `Context<S>`. */
-  params: InferParams<S> = {} as InferParams<S>;
+  params: ParamsFor<S> = {} as ParamsFor<S>;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). */
-  query: InferQuery<S>;
+  query: InferQuery<SchemasOf<S>>;
   /** Body; tipado pelo schema `body`. */
-  body: InferBody<S> = undefined as InferBody<S>;
+  body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
   state: ContextState = {};
 
   /** `true` quando o handler chamou `ctx.status()`. Usado para escolher o schema de resposta (B-05). */
@@ -127,7 +133,7 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
     const target = parseRequestTarget(req.url);
     this.path = target.pathname;
-    this.query = parseQuery(target.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<S>;
+    this.query = parseQuery(target.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<SchemasOf<S>>;
     this.url = new URL(`${this.protocol}://${this.host || 'localhost'}${target.pathname}${target.search}`);
     this.id = opts.id ?? '';
     this.log = (opts.logger ?? silentLogger).child({ reqId: this.id });
@@ -171,7 +177,7 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
    * Define o status. Com schemas de resposta, aceita só os status declarados e o encadeamento tipa o
    * corpo: `ctx.status(202).json({ jobId })` (F-32).
    */
-  status<const St extends DeclaredStatus<S>>(code: St): StatusContext<S, St> {
+  status<const St extends DeclaredStatus<SchemasOf<S>>>(code: St): StatusContext<S, St> {
     this.res.statusCode = code;
     this.statusExplicit = true;
     return this as unknown as StatusContext<S, St>;
@@ -245,7 +251,7 @@ export class Context<S extends RouteSchemas = RouteSchemas> {
   private dispatch(body: unknown, mode: SendMode): this {
     if (this.sent) return this;
     // Antes do handler (middlewares, guards) não há schema ligado: vale só o tipo do conteúdo.
-    sendResult(this, this.bound?.response, body, this.bound?.serializers, mode);
+    sendResult(this as unknown as Context, this.bound?.response, body, this.bound?.serializers, mode);
     return this;
   }
 

@@ -95,7 +95,7 @@ describe('F-09 · inject() sem rede', () => {
   it('body string/crua com content-type explícito', async () => {
     const res = await app.inject({ method: 'POST', url: '/l', body: '{oops', headers: { 'Content-Type': 'application/json' } });
     assert.equal(res.status, 400);
-    assert.deepEqual(res.json(), { error: 'Invalid JSON' });
+    assert.deepEqual(res.json(), { type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Invalid JSON', code: 'INVALID_JSON' });
   });
 
   it('HEAD não traz corpo', async () => {
@@ -107,6 +107,6 @@ describe('F-09 · inject() sem rede', () => {
   it('validação continua funcionando', async () => {
     const res = await app.inject({ method: 'POST', url: '/l', body: { n: 'x' } });
     assert.equal(res.status, 400);
-    assert.equal(res.json<{ error: string }>().error, 'Invalid body');
+    assert.equal(res.json<{ detail: string }>().detail, 'Invalid body');
   });
 });

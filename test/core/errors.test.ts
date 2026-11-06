@@ -64,20 +64,20 @@ describe('tratamento de erros', () => {
     it('ctx.throw(418) responde 418 com a mensagem', async () => {
       const res = await get('/t/throw-418');
       assert.equal(res.status, 418);
-      assert.deepEqual(await res.json(), { error: "I'm a teapot" });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: "I'm a Teapot", status: 418, detail: "I'm a teapot" });
     });
 
 
     it('JSON malformado responde 400', async () => {
       const res = await postJson('/t/echo', '{oops');
       assert.equal(res.status, 400);
-      assert.deepEqual(await res.json(), { error: 'Invalid JSON' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Invalid JSON', code: 'INVALID_JSON' });
     });
 
     it('payload acima do bodyLimit responde 413', async () => {
       const res = await postJson('/t/echo', JSON.stringify({ a: 'x'.repeat(2048) }));
       assert.equal(res.status, 413);
-      assert.deepEqual(await res.json(), { error: 'Payload too large' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Payload Too Large', status: 413, detail: 'Payload too large', code: 'PAYLOAD_TOO_LARGE' });
     });
   });
 
@@ -85,31 +85,31 @@ describe('tratamento de erros', () => {
     it('HttpError 4xx expõe a mensagem', async () => {
       const res = await get('/t/not-found');
       assert.equal(res.status, 404);
-      assert.deepEqual(await res.json(), { error: 'user not found' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Not Found', status: 404, detail: 'user not found', code: 'NOT_FOUND' });
     });
 
     it('Error comum vira 500 genérico', async () => {
       const res = await get('/t/plain-error');
       assert.equal(res.status, 500);
-      assert.deepEqual(await res.json(), { error: 'Internal Server Error' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Internal Server Error', status: 500 });
     });
 
     it('HttpError 5xx não expõe a mensagem por padrão', async () => {
       const res = await get('/t/internal');
       assert.equal(res.status, 500);
-      assert.deepEqual(await res.json(), { error: 'Internal Server Error' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Internal Server Error', status: 500 });
     });
 
     it('HttpError 5xx com expose: true mostra a mensagem', async () => {
       const res = await get('/t/http-500-exposed');
       assert.equal(res.status, 503);
-      assert.deepEqual(await res.json(), { error: 'Maintenance window' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Service Unavailable', status: 503, detail: 'Maintenance window', code: 'MAINTENANCE' });
     });
 
     it('valor lançado que não é Error vira 500 genérico', async () => {
       const res = await get('/t/non-error');
       assert.equal(res.status, 500);
-      assert.deepEqual(await res.json(), { error: 'Internal Server Error' });
+      assert.deepEqual(await res.json(), { type: 'about:blank', title: 'Internal Server Error', status: 500 });
     });
 
     it('erros não expostos são logados no servidor com o erro original', async () => {

@@ -46,6 +46,7 @@ src/store/                 UserRepository em memória, injetado nas classes de r
 | DELETE | `/users/:id` | 204 |
 | POST | `/users/:id/greet` | Handler async medido com `@timer()` |
 | GET | `/health`, `/admin/health` | Herança entre classes de rotas |
+| GET | `/openapi.json`, `/docs` | Documento OpenAPI 3.1 gerado das rotas e Swagger UI |
 | GET | `/admin/stats` | Guard `apiKeyGuard` aplicado no `server.ts` (401) e header documentado por schema |
 | GET | `/public/users`, `/public/users/:id` | A mesma classe montada de novo, só leitura (`only`), com cache (`X-Cache: MISS/HIT`) |
 | GET | `/users/export.csv` | Mapeamento manual de um método sem verbo, com guard só nessa rota; `return` de string com `contentType: 'text/csv'` |

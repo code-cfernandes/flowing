@@ -1,12 +1,12 @@
 import { type Context, kRawSend } from './context.ts';
-import { HttpError } from './errors.ts';
+import { STATUS_CODES } from 'node:http';
+import { HttpError, type ErrorFormatter, type ProblemDetails } from './errors.ts';
 import { isResponseContent, type RouteSchemas } from './metadata.ts';
 import { Readable } from 'node:stream';
 import { serialize } from '../schema/serialization.ts';
 import { stripToSchema } from '../schema/validation.ts';
 import { isJsonContentType, mediaType, negotiate, withCharset } from '../utils/content-type.ts';
 
-const GENERIC_500 = 'Internal Server Error';
 
 /** Converte dados num corpo de resposta para um content type (F-31). */
 export type Serializer = (data: unknown) => string | Uint8Array;
@@ -136,11 +136,36 @@ function ensureValid(ctx: Context, schema: object, value: unknown): unknown {
   return checked.value;
 }
 
+/** Monta um Problem Details (RFC 9457). Sem `type`, usa `about:blank` e a frase do status como título. */
+export function problem(status: number, detail?: string, extra: { code?: string | undefined; details?: unknown; type?: string | undefined } = {}): ProblemDetails {
+  const out: ProblemDetails = { type: extra.type ?? 'about:blank', title: STATUS_CODES[status] ?? 'Error', status };
+  if (detail !== undefined && detail !== out.title) out.detail = detail;
+  if (extra.code !== undefined) out.code = extra.code;
+  if (extra.details !== undefined) out.details = extra.details;
+  return out;
+}
+
+/** Escreve um problema (status + corpo), sem passar pelo schema da rota (F-32). */
+export function sendProblem(ctx: Context, body: ProblemDetails, format?: ErrorFormatter): void {
+  ctx.res.statusCode = body.status;
+  if (format) {
+    let custom: unknown;
+    try {
+      custom = format(body, ctx);
+    } catch (err) {
+      ctx.log.error({ err, method: ctx.method, path: ctx.path }, 'formatError failed; sending the default problem');
+      return void ctx[kRawSend](JSON.stringify(body), 'application/problem+json; charset=utf-8');
+    }
+    return void ctx[kRawSend](JSON.stringify(custom), 'application/json; charset=utf-8');
+  }
+  ctx[kRawSend](JSON.stringify(body), 'application/problem+json; charset=utf-8');
+}
+
 /**
- * Resposta de erro padrão. Só mensagens marcadas como `expose` chegam ao cliente;
- * o resto vira 500 genérico e o erro original é logado no servidor (S-05).
+ * Resposta de erro padrão, no formato Problem Details (F-15). Só mensagens marcadas como `expose`
+ * chegam ao cliente; o resto vira 500 genérico e o erro original é logado no servidor (S-05).
  */
-export function sendError(ctx: Context, err: unknown): void {
+export function sendError(ctx: Context, err: unknown, format?: ErrorFormatter): void {
   const httpErr = err instanceof HttpError ? err : undefined;
   const status = httpErr?.status ?? 500;
   const exposed = httpErr?.expose === true;
@@ -149,9 +174,8 @@ export function sendError(ctx: Context, err: unknown): void {
   if (ctx.res.writableEnded) return;
   if (ctx.res.headersSent) return void ctx.res.end();
 
-  const body: { error: string; details?: unknown } = { error: exposed ? httpErr!.message : GENERIC_500 };
-  if (exposed && httpErr!.details !== undefined) body.details = httpErr!.details;
-  // Erros nunca passam pelo schema da rota (F-32): envio cru.
-  ctx.res.statusCode = status;
-  ctx[kRawSend](JSON.stringify(body), 'application/json; charset=utf-8');
+  const body = exposed
+    ? problem(status, httpErr!.message, { code: httpErr!.code, details: httpErr!.details, type: httpErr!.type })
+    : problem(status);
+  sendProblem(ctx, body, format);
 }

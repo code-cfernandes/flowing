@@ -38,6 +38,7 @@ await app.listen({ port: 3000 });
 - [Middlewares e guards](#middlewares-e-guards)
 - [Hooks de ciclo de vida](#hooks-de-ciclo-de-vida)
 - [Erros](#erros)
+- [OpenAPI e `/docs`](#openapi-e-docs)
 - [Segurança](#segurança)
 - [Logs e request id](#logs-e-request-id)
 - [Ciclo de vida e testes](#ciclo-de-vida-e-testes)
@@ -176,6 +177,11 @@ list(ctx: Context<typeof list>) {
 }
 ```
 
+**Path e `params` conferidos**
+- **Em compilação:** com schema de `params` no verbo, todo parâmetro do path precisa estar no schema. `@Get('/:userId', { params: Type.Object({ id: Type.String() }) })` é erro de tipo (`Missing in params schema: "userId"`).
+- **No registro:** o `app.mount()` confere path x schema nos dois sentidos, já com o prefixo do `@Router`/`mount` (que pode ter parâmetros, como `'/orgs/:org'`), também para `@Schema` separado e rotas manuais. Também recusa path malformado: `/:`, nome repetido, regex sem fechamento, `*` fora do fim.
+- **Sem schema:** `Context<'/:org/users/:id'>` tipa `ctx.params` pelo path (`{ org: string; id: string }`). O utilitário `PathParams<'/:a/:b'>` dá `'a' | 'b'`.
+
 **Validação**
 - **Tipagem:** com `Context<typeof schemas>`, `ctx.params`, `ctx.query` e `ctx.body` são tipados a partir do schema. Sem o genérico, `Context` usa tipos genéricos.
 - **Coerção:** params, query e headers chegam como texto e são convertidos para o tipo declarado. O **body não sofre coerção**: `"30"` não vira `30`.
@@ -183,7 +189,11 @@ list(ctx: Context<typeof list>) {
 - **Ordem:** headers → params → query → body. O primeiro erro gera um 400 com os detalhes:
 
   ```json
-  { "error": "Invalid body", "details": [{ "path": "/email", "message": "must match format \"email\"" }] }
+  {
+    "type": "about:blank", "title": "Bad Request", "status": 400,
+    "detail": "Invalid body", "code": "VALIDATION_ERROR",
+    "details": [{ "path": "/email", "message": "must match format \"email\"" }]
+  }
   ```
 
 - **Campos extras:** use `additionalProperties: false` nos bodies para rejeitar campos não previstos. É a proteção contra mass assignment.
@@ -369,14 +379,63 @@ app.mount(products, { middlewares: [cache(60_000)] });
 ```ts
 import { badRequest, forbidden, HttpError, internal, notFound, unauthorized } from 'sashiko';
 
-throw notFound('user not found');                       // 404 { "error": "user not found" }
+throw notFound('user not found');
 throw new HttpError(409, 'email taken', 'CONFLICT');
+throw new HttpError(402, 'Saldo insuficiente', 'NO_FUNDS', { type: 'https://exemplo.dev/problems/no-funds', details: { balance: 3 } });
 throw new HttpError(503, 'Maintenance', 'MAINT', { expose: true });
 ```
 
+Todos os erros, inclusive 404, 405, validação e `Host` inválido, saem no formato **Problem Details** ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)), com `Content-Type: application/problem+json`:
+
+```json
+{ "type": "about:blank", "title": "Not Found", "status": 404, "detail": "user not found", "code": "NOT_FOUND" }
+```
+
+| Campo | Conteúdo |
+|---|---|
+| `type` | URI do tipo do problema (opção `type` do `HttpError`); `about:blank` por padrão |
+| `title` | Frase do status (`Not Found`) |
+| `status` | Status HTTP |
+| `detail` | A mensagem do erro; omitido quando igual ao título ou em 5xx não expostos |
+| `code` | Código estável para o cliente tratar: `VALIDATION_ERROR`, `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `NOT_ACCEPTABLE`, `INVALID_HOST`, `FORBIDDEN`, `RATE_LIMITED`, `CSRF_ORIGIN`, `CSRF_TOKEN`… |
+| `details` | Dados extras: os erros de validação, `allowed` no 405, `available` no 406 |
+
 - **Erros 4xx:** a mensagem vai para o cliente.
-- **Erros 5xx e erros comuns** (`throw new Error(...)`): a resposta é sempre `{"error":"Internal Server Error"}`. O erro completo vai para o log, com `reqId`. Para mostrar uma mensagem de 5xx ao cliente, use `expose: true`.
+- **Erros 5xx e erros comuns** (`throw new Error(...)`): a resposta é sempre `{ "type": "about:blank", "title": "Internal Server Error", "status": 500 }`. O erro completo vai para o log, com `reqId`. Para mostrar uma mensagem de 5xx ao cliente, use `expose: true`.
+- **`formatError`:** para outro formato (legado, um envelope próprio, o request id no corpo), passe `createApp({ formatError: (problem, ctx) => ({ error: problem.detail ?? problem.title, code: problem.code }) })`. O retorno sai como `application/json`. Se a função lançar, o erro é logado e o problema padrão é enviado.
 - **`app.onError(handler)`:** roda antes da resposta padrão, para enviar o erro a um APM, por exemplo. Se o próprio handler falhar, o app não cai: o erro é logado e a resposta padrão é enviada.
+
+## OpenAPI e `/docs`
+
+```ts
+createApp()
+  .mount(UserRoutes)
+  .openapi({
+    info: { title: 'Minha API', version: '1.0.0' },
+    servers: [{ url: 'https://api.exemplo.dev' }],
+    docs: true,               // Swagger UI em /docs (desligado por padrão)
+    guards: [isAdmin],        // só para /openapi.json e /docs
+  });
+```
+
+- **Nada é exposto sem `app.openapi()`.** Para só gerar o arquivo, sem rota, use `app.openapiDocument()`.
+- **`GET /openapi.json`:** documento OpenAPI 3.1 gerado das rotas registradas. É montado na primeira requisição, então pode chamar `openapi()` antes ou depois dos `mount()`.
+- **`GET /docs`:** Swagger UI, **opt-in** com `docs: true` (ou `docs: '/ref'` para outro path). A versão é fixada e carregada do CDN com SRI (o navegador confere o hash do arquivo), e a página tem CSP própria, com `nonce` no script.
+- **Acesso:** `middlewares` e `guards` funcionam como no `mount()` e valem só para o documento e a página, no path que estiver configurado. As duas rotas também passam pelos middlewares globais (`app.use()`).
+- **Opções:** `path` muda o endereço do documento.
+- **`app.openapiDocument()`:** devolve o objeto, para gravar em arquivo, gerar clientes ou testar no CI.
+- **O que entra no documento:**
+
+  | Origem | Vira |
+  |---|---|
+  | Path (`/:id(^\\d+)`) | `/{id}` |
+  | `params`, `query`, `headers` | `parameters`, com `required` |
+  | `body` | `requestBody` em JSON |
+  | `response` | uma resposta por status, com os `contentType` declarados |
+  | Erros | resposta `default` com o schema `ProblemDetails`; com `formatError`, só a descrição |
+  | Classe e método | `tags` e `operationId` (`UserRoutes.getUser`) |
+
+- **Limites:** só schemas JSON Schema (TypeBox) entram como estão. Rotas sem schema de resposta aparecem com um `200` genérico. Em produção, proteja as rotas com `guards`/`middlewares` ou gere só o arquivo com `openapiDocument()`.
 
 ## Segurança
 
@@ -493,12 +552,13 @@ assert.equal(res.json<{ name: string }>().name, 'Ana');
 | `shutdown` | SIGINT/SIGTERM, 10s | `signals`, `timeoutMs`, `onShutdown`, `exit`; `false` desliga |
 | `trustProxy` | `false` | `true` ou o número de proxies: `ctx.ip`/`host`/`protocol` passam a usar os `X-Forwarded-*` |
 | `allowedHosts` | qualquer host válido | Lista de hosts (string ou RegExp); os demais recebem 400 |
+| `formatError` | Problem Details | `(problem, ctx) => corpo`, para personalizar o corpo de todos os erros |
 | `timeouts` | 30s / 10s / 5s | `requestTimeout`, `headersTimeout`, `keepAliveTimeout` |
 | `logger` | `consoleLogger()` | Logger compatível com pino; `false` desliga |
 | `logRequests` | `false` | Log de cada requisição concluída |
 | `requestId` | header `x-request-id` | `header`, `trustIncoming`, `generate` |
 
-Métodos do app: `use()`, `mount()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
+Métodos do app: `use()`, `mount()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
