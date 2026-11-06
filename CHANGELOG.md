@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.10.0] - 2026-11-06
+
 ### Adicionado
 
 - Guards de autenticação `bearerAuth({ verify })` e `basicAuth({ verify })`. O usuário vai para `ctx.state.user`,
