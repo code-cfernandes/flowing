@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.15.2] - 2026-11-07
+
 ### Documentação
 
 - **Site de documentação** em https://code-cfernandes.github.io/sashiko/, com os guias, a referência de `createApp(options)` e
