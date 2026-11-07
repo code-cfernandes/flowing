@@ -19,6 +19,12 @@ export { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 
 type RawBody = string | Uint8Array | Readable;
 
+/** Erros de stream que só significam que o cliente foi embora (P-12). */
+const CLIENT_GONE = new Set(['ECONNRESET', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'ERR_STREAM_UNABLE_TO_PIPE', 'ERR_STREAM_DESTROYED']);
+function isClientDisconnect(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && CLIENT_GONE.has((err as { code?: string }).code ?? '');
+}
+
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
 export interface SendPayload {
   body: string | Uint8Array;
@@ -393,7 +399,13 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       this.res.setHeader('Content-Type', type);
       this.streaming = true;
       pipeline(body, this.res).catch((err: unknown) => {
-        this.log.error({ err, method: this.method, path: this.path }, 'stream failed');
+        // P-12: o cliente desistir (fechar a conexão) é normal e não é erro do servidor.
+        // Pelo código do erro: o pipeline já destruiu a resposta aqui, então `res.destroyed` não distingue.
+        const clientGone = isClientDisconnect(err);
+        this.log[clientGone ? 'debug' : 'error'](
+          { err, method: this.method, path: this.path },
+          clientGone ? 'client disconnected during stream' : 'stream failed',
+        );
         this.res.destroy(err as Error);
       });
       return this;
