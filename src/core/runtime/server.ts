@@ -5,7 +5,7 @@ import type { ListenOptions } from '../app/options.ts';
 import type { Context } from '../context.ts';
 import type { Logger } from '../logger.ts';
 import { shutdownCoordinator, type ShutdownTarget } from '../shutdown.ts';
-import { kAbort } from '../symbols.ts';
+import { kAbort, kContext } from '../symbols.ts';
 import { compileTls, type SniTable, type TlsOptions } from '../../server/tls.ts';
 
 /** Servidor HTTP/HTTPS do app: `listen`, `close`, troca de certificados, drain e shutdown por sinal (F-07, F-33). */
@@ -14,8 +14,6 @@ export class ServerLifecycle {
   private tlsState: { sni: { current: SniTable } } | undefined;
   /** Respostas em andamento, para o `close()` e o shutdown. */
   readonly inflight = new Set<http.ServerResponse>();
-  /** Contexto de cada resposta em andamento, para o shutdown encerrar os streams (F-13). */
-  readonly contexts = new WeakMap<http.ServerResponse, Context>();
   closing: http.Server | https.Server | undefined;
   draining = false;
   private closeHooksPending = true;
@@ -120,7 +118,7 @@ export class ServerLifecycle {
     // Streams longos (SSE, NDJSON) não terminam sozinhos: o `ctx.signal` é cancelado para eles fecharem
     // já, em vez de segurar o encerramento até o prazo. Requisições comuns seguem até terminar.
     for (const res of this.inflight) {
-      const ctx = this.contexts.get(res);
+      const ctx = (res as unknown as Record<symbol, Context | undefined>)[kContext];
       if (ctx?.streamingResponse) ctx[kAbort]('server shutting down');
     }
     const force = setTimeout(() => server.closeAllConnections(), graceMs);

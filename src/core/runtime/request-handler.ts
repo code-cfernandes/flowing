@@ -5,7 +5,7 @@ import type { AppCore } from '../app/core.ts';
 import { compileChain } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import { kRouted } from '../symbols.ts';
+import { kContext, kRouted } from '../symbols.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
@@ -47,28 +47,27 @@ export class RequestHandler {
       onSend: this.core.onSendHooks,
     };
 
+    const server = this.server;
+    // Listener compartilhado por todas as respostas (antes, uma closure por requisição).
+    const onClose = function (this: http.ServerResponse) {
+      server.inflight.delete(this);
+      // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
+      server.closing?.closeIdleConnections();
+    };
+    const timed = () => this.core.opts.logRequests === true || this.core.onResponseHooks.length > 0;
+
     return (req, res) => {
-      const started = performance.now();
-      this.server.inflight.add(res);
-      if (this.server.closing) res.setHeader('Connection', 'close');
-      res.once('close', () => {
-        this.server.inflight.delete(res);
-        // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
-        this.server.closing?.closeIdleConnections();
-      });
+      const started = timed() ? performance.now() : -1;
+      server.inflight.add(res);
+      if (server.closing) res.setHeader('Connection', 'close');
+      res.on('close', onClose);
       const incoming = header ? req.headers[header] : undefined;
       const id = trust && typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming) ? incoming : generate();
       if (header) res.setHeader(header, id);
 
-      // Última barreira (B-08): nada que aconteça numa requisição pode virar unhandledRejection.
-      const fail = (err: unknown) => {
-        this.core.log.error({ err, reqId: id, method: req.method, url: req.url }, 'unhandled error while handling request');
-        if (!res.headersSent) res.statusCode = 500;
-        if (!res.writableEnded) res.end();
-      };
       try {
         const ctx = new Context(req, res, contextOptions, id);
-        this.server.contexts.set(res, ctx);
+        (res as unknown as Record<symbol, Context>)[kContext] = ctx;
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
         const healthProbe = this.framework.health?.bypassesHostCheck(ctx.method, ctx.path) ?? false;
@@ -77,7 +76,7 @@ export class RequestHandler {
           sendProblem(ctx, problem(400, 'Invalid Host header', { code: 'INVALID_HOST' }), this.core.opts.formatError);
           return;
         }
-        if (this.core.opts.logRequests || this.core.onResponseHooks.length > 0) {
+        if (started !== -1) {
           res.once('finish', () => {
             const ms = Math.round((performance.now() - started) * 100) / 100;
             if (this.core.opts.logRequests) {
@@ -90,11 +89,26 @@ export class RequestHandler {
             }
           });
         }
-        this.handle(ctx).catch(fail);
+        void this.safeHandle(ctx, id);
       } catch (err) {
-        fail(err);
+        this.fail(err, req, res, id);
       }
     };
+  }
+
+  /** Última barreira (B-08): nada que aconteça numa requisição pode virar unhandledRejection. */
+  private async safeHandle(ctx: Context, id: string): Promise<void> {
+    try {
+      await this.handle(ctx);
+    } catch (err) {
+      this.fail(err, ctx.req, ctx.res, id);
+    }
+  }
+
+  private fail(err: unknown, req: http.IncomingMessage, res: http.ServerResponse, id: string): void {
+    this.core.log.error({ err, reqId: id, method: req.method, url: req.url }, 'unhandled error while handling request');
+    if (!res.headersSent) res.statusCode = 500;
+    if (!res.writableEnded) res.end();
   }
 
   /** Cadeia global compilada; refeita só quando `app.use()` acrescenta um middleware. */
