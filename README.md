@@ -934,6 +934,8 @@ pnpm build           # dist/
 
 Para o `git blame` ignorar o commit de formatação: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
+**Publicação:** um push de tag de versão (`git tag v1.2.3 && git push origin v1.2.3`) dispara o workflow `release.yml`. Ele confere que a tag bate com o `package.json`, que o commit está na `main` e que o CHANGELOG tem a seção da versão. Depois roda as mesmas verificações do CI e envia o pacote ao npm em estágio, por Trusted Publishing, sem token e com provenance, além de criar a GitHub Release com as notas do CHANGELOG. A versão só fica pública depois da aprovação no npmjs.com, com o 2FA da conta.
+
 Mudanças notáveis estão no [CHANGELOG](CHANGELOG.md). Para reportar uma vulnerabilidade e conhecer a política de dependências, veja o [SECURITY.md](SECURITY.md).
 
 ## Licença
