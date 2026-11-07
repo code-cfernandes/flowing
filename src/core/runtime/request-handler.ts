@@ -7,6 +7,7 @@ import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import type { RouteInfo } from '../route-table.ts';
 import { kError, kPhase, kRoute, kRouted } from '../symbols.ts';
+import { parseTraceparent } from '../../utils/trace-context.ts';
 import type { ResponseInfo } from '../app/options.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
@@ -66,7 +67,13 @@ export class RequestHandler {
       if (server.closing) res.setHeader('Connection', 'close');
       res.on('close', onClose);
       const incoming = header ? req.headers[header] : undefined;
-      const id = trust && typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming) ? incoming : generate();
+      // Sem X-Request-Id aceito, o traceId de um `traceparent` válido vira o id: logs e traces com a mesma chave.
+      const id =
+        trust && typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming)
+          ? incoming
+          : req.headers.traceparent
+            ? (parseTraceparent(req.headers.traceparent)?.traceId ?? generate())
+            : generate();
       if (header) res.setHeader(header, id);
 
       try {

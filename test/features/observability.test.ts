@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
+import { parseTraceparent } from '../../src/utils/trace-context.ts';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { Type } from '@sinclair/typebox';
@@ -373,5 +374,84 @@ describe('F-38 · onError com a fase', () => {
     };
     assert.deepEqual(seen, expected);
     assert.deepEqual(reached, expected, 'o onResponse recebe a mesma fase');
+  });
+});
+
+describe('F-38 · trace W3C (traceparent)', () => {
+  const TP = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+
+  it('parseTraceparent valida pela especificação', () => {
+    assert.deepEqual(parseTraceparent(TP), {
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      parentSpanId: '00f067aa0ba902b7',
+      sampled: true,
+    });
+    assert.equal(parseTraceparent(TP.replace(/-01$/, '-00'))?.sampled, false);
+    assert.equal(parseTraceparent(TP, 'vendor=abc')?.tracestate, 'vendor=abc');
+    assert.ok(parseTraceparent('01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-futuro'), 'versão futura com campos extras');
+    const invalid = [
+      undefined,
+      '',
+      'lixo',
+      TP.toUpperCase(),
+      `ff${TP.slice(2)}`,
+      `${TP}-extra`,
+      `00-${'0'.repeat(32)}-00f067aa0ba902b7-01`,
+      `00-4bf92f3577b34da6a3ce929d0e0e4736-${'0'.repeat(16)}-01`,
+      '00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01',
+      `${TP}\n`.repeat(100),
+    ];
+    for (const v of invalid) assert.equal(parseTraceparent(v), undefined, `inválido: ${JSON.stringify(v)?.slice(0, 40)}`);
+    assert.equal(parseTraceparent(TP, 'ruim\u0000')?.tracestate, undefined, 'tracestate com controle é descartado');
+  });
+
+  @Router('/')
+  class T {
+    @Get('/t') t(ctx: Context) {
+      ctx.log.info({}, 'oi');
+      return { id: ctx.id, trace: ctx.trace ?? null };
+    }
+  }
+  function app() {
+    const bindings: unknown[] = [];
+    const logger = {
+      info() {},
+      warn() {},
+      error() {},
+      debug() {},
+      child(b: unknown) {
+        bindings.push(b);
+        return logger;
+      },
+    };
+    const a = createApp({ logger, shutdown: false });
+    a.mount(T);
+    return { a, bindings };
+  }
+
+  it('ctx.trace, ctx.id = traceId sem X-Request-Id, e traceId nos logs', async () => {
+    const { a, bindings } = app();
+    const res = await a.inject({ url: '/t', headers: { traceparent: TP } });
+    const body = res.json() as { id: string; trace: { traceId: string } };
+    assert.equal(body.trace.traceId, '4bf92f3577b34da6a3ce929d0e0e4736');
+    assert.equal(body.id, '4bf92f3577b34da6a3ce929d0e0e4736');
+    assert.equal(res.headers['x-request-id'], '4bf92f3577b34da6a3ce929d0e0e4736');
+    assert.ok(bindings.some((b) => JSON.stringify(b) === JSON.stringify({ reqId: body.id, traceId: body.id })));
+  });
+
+  it('X-Request-Id recebido vence; traceparent inválido gera um UUID; sem trace, nada muda', async () => {
+    const { a, bindings } = app();
+    const withId = (await a.inject({ url: '/t', headers: { traceparent: TP, 'x-request-id': 'pedido-1' } })).json() as {
+      id: string;
+    };
+    assert.equal(withId.id, 'pedido-1');
+    const bad = (await a.inject({ url: '/t', headers: { traceparent: 'lixo' } })).json() as { id: string; trace: null };
+    assert.match(bad.id, /^[0-9a-f-]{36}$/);
+    assert.equal(bad.trace, null);
+    const none = (await a.inject('/t')).json() as { id: string };
+    assert.ok(
+      bindings.some((b) => JSON.stringify(b) === JSON.stringify({ reqId: none.id })),
+      'sem traceId nos logs',
+    );
   });
 });

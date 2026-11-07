@@ -83,4 +83,5 @@ export {
 } from './metadata.ts';
 export type { Handler, RouteInfo } from './route-table.ts';
 export { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
+export type { TraceContext } from '../utils/trace-context.ts';
 export type { ValidationIssue, ValidationTarget } from '../schema/validation.ts';

@@ -11,6 +11,7 @@ import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
+import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
 import { kAbort, kBindResponse, kPendingSend, kPhase, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -148,9 +149,25 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
   /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
   get log(): Logger {
-    this.requestLog ??= (this.opts.logger ?? silentLogger).child({ reqId: this.id });
+    if (!this.requestLog) {
+      const trace = this.trace;
+      const base = this.opts.logger ?? silentLogger;
+      this.requestLog = base.child(trace ? { reqId: this.id, traceId: trace.traceId } : { reqId: this.id });
+    }
     return this.requestLog;
   }
+
+  /**
+   * Contexto de trace W3C recebido no `traceparent` (F-38), já validado: `{ traceId, parentSpanId, sampled,
+   * tracestate }`, ou `undefined` se não veio ou é inválido. Os logs do `ctx.log` levam o `traceId`.
+   */
+  get trace(): TraceContext | undefined {
+    if (this.traceContext === null) {
+      this.traceContext = parseTraceparent(this.req.headers.traceparent, this.req.headers.tracestate);
+    }
+    return this.traceContext;
+  }
+  private traceContext: TraceContext | undefined | null = null;
 
   // Campos preguiçosos (F-39, fase 2): calculados no primeiro acesso e guardados. Dependem só da
   // requisição e da configuração do app, que não mudam durante a requisição.
