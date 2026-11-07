@@ -26,7 +26,10 @@ export interface ResponseInfo {
   outcome: 'completed' | 'aborted' | 'error';
   /** Por que foi cancelada, quando `outcome` é `aborted`. */
   abortReason?: AbortCode;
-  /** Milissegundos até os headers saírem. Em SSE e NDJSON, é a latência real; `ms` mede a conexão inteira. */
+  /**
+   * Milissegundos até os headers saírem. Em SSE e NDJSON, é a latência real; `ms` mede a conexão inteira.
+   * Medido nos servidores do `listen()` e no `inject()`; ausente num servidor próprio (`callback()`).
+   */
   ttfbMs?: number;
   /** Resposta em stream: SSE, NDJSON, `Readable` ou arquivo. */
   streaming: boolean;

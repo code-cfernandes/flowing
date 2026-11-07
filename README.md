@@ -42,6 +42,7 @@ await app.listen({ port: 3000 });
 - [OpenAPI e `/docs`](#openapi-e-docs)
 - [Segurança](#segurança)
 - [Logs e request id](#logs-e-request-id)
+- [Observabilidade: OpenTelemetry e métricas](#observabilidade-opentelemetry-e-métricas)
 - [Ciclo de vida e testes](#ciclo-de-vida-e-testes)
 - [Deploy em produção](#deploy-em-produção)
 - [Referência: `createApp(options)`](#referência-createappoptions)
@@ -345,7 +346,9 @@ Os schemas de resposta valem para o que o **handler** envia. Middlewares e guard
 | `ctx.clearCookie(name, opts?)`      | Remove um cookie (use o mesmo `path` e `domain` da criação)                              |
 | `ctx.throw(status, message)`        | Lança um `HttpError`                                                                     |
 
-Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.sentBody`, `ctx.sentType`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.req` e `ctx.res`.
+Outros campos: `ctx.params`, `ctx.query`, `ctx.body`, `ctx.state`, `ctx.id`, `ctx.log`, `ctx.sentBody`, `ctx.sentType`, `ctx.ip`, `ctx.host`, `ctx.hostname`, `ctx.protocol`, `ctx.method`, `ctx.path`, `ctx.url`, `ctx.signal`, `ctx.abortReason`, `ctx.trace`, `ctx.req` e `ctx.res`.
+
+**`ctx.route`** diz qual rota atende a requisição: `{ method, path: '/v1/users/:id', owner: 'UserRoutes', handler: 'getUser', host?: '*.exemplo.com' }`. O `path` é o template já com os prefixos, nunca o path recebido, e o `host` é a regra de virtual host que venceu: os dois servem como rótulo de métrica sem explodir a cardinalidade. Fica `undefined` antes do roteamento e quando nenhuma rota atende (404, 405, healthcheck, OpenAPI).
 
 > ⚠️ `ctx.send` não faz escape de HTML; escape o conteúdo dinâmico antes. `ctx.redirect` com uma URL vinda do usuário abre um _open redirect_; valide o destino.
 
@@ -419,6 +422,14 @@ events(ctx: Context) {
 ### `ctx.signal` e encerramento
 
 - **`ctx.signal`** é um `AbortSignal` cancelado quando o cliente desconecta antes do fim da resposta. Passe-o a consultas e `fetch` longos, para não continuar um trabalho que ninguém vai ler.
+- **Motivo:** `ctx.signal.reason` é um `RequestAbortedError` com `code`: `CLIENT_DISCONNECTED` ou `SHUTDOWN`. `ctx.abortReason` é o atalho tipado:
+
+  ```ts
+  ctx.signal.addEventListener('abort', () => {
+    if (ctx.abortReason === 'SHUTDOWN') queue.requeue(job); // o app está encerrando: devolve o trabalho
+  });
+  ```
+
 - **No shutdown:** os streams já iniciados (SSE, NDJSON) recebem o cancelamento e fecham na hora, em vez de segurar o encerramento até o prazo. Requisições comuns continuam até terminar.
 
 ## Middlewares e guards
@@ -475,17 +486,34 @@ Para o que acontece **antes** do handler (autenticação, rate limit, preparar o
 
 ```ts
 app
+  .onRequest((ctx) => active.inc()) // no início de toda requisição (síncrono)
   .onSend((ctx, payload) => {
     ctx.header('ETag', etag(payload.body));
   }) // antes de escrever (síncrono)
-  .onResponse((ctx, { status, ms }) => metrics.observe(ctx.path, status, ms)) // depois do envio
+  .onResponse((ctx, info) => {
+    active.dec();
+    metrics.observe(ctx.route?.path ?? 'not_found', info.status, info.ms); // o template, nunca ctx.path
+  }) // quando a requisição termina, exatamente uma vez
   .onClose(async () => {
     await db.close();
   }); // em qualquer close()
 ```
 
+- **`onRequest`:** roda no início de cada requisição, antes da validação do `Host` e dos middlewares. Toda requisição que passa por ele também passa pelo `onResponse`. É síncrono: uma Promise devolvida não é esperada. Erros são só logados.
 - **`onSend`:** roda imediatamente antes de escrever uma resposta com corpo (exceto streams), inclusive erros e 404. É **síncrono**, como a escrita do pipeline. Pode alterar headers ou devolver `{ body, contentType }` novos. Se lançar, o erro é logado e a resposta original é enviada.
-- **`onResponse`:** roda depois do envio, com o status e a duração. Pode ser assíncrono, porque não atrasa o cliente, e erros são só logados.
+- **`onResponse`:** roda **exatamente uma vez** quando a requisição termina, em todos os caminhos: sucesso, erro, 404/405, `Host` inválido, healthcheck, cancelamento pelo cliente, shutdown, streams e `inject()`. Pode ser assíncrono, porque não atrasa o cliente, e erros são só logados. O segundo argumento traz:
+
+  | Campo                 | Conteúdo                                                                                                                                 |
+  | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+  | `status`              | Status enviado                                                                                                                           |
+  | `ms`                  | Duração total, até o fim da resposta ou o cancelamento                                                                                   |
+  | `outcome`             | `completed`, `aborted` (cancelada antes do fim) ou `error` (respondida com 5xx)                                                          |
+  | `abortReason`         | `CLIENT_DISCONNECTED` ou `SHUTDOWN`, quando cancelada                                                                                    |
+  | `ttfbMs`              | Tempo até os headers saírem. Em SSE e NDJSON é a latência real; `ms` mede a conexão inteira. Ausente num servidor próprio (`callback()`) |
+  | `streaming`           | Resposta em stream: SSE, NDJSON, `Readable` ou arquivo                                                                                   |
+  | `route`               | A rota que atendeu (o mesmo `ctx.route`); ausente em 404, 405, healthcheck e OpenAPI                                                     |
+  | `error`, `errorPhase` | O erro tratado e a etapa em que ele chegou                                                                                               |
+
 - **`onClose`:** roda em qualquer `close()` (sinal, teste, código), depois que o servidor fecha e antes do `shutdown.onShutdown`. Todos os hooks rodam mesmo se algum falhar, e o `close()` rejeita ao final.
 
 **Cache com middleware.** Depois do `await next()`, `ctx.sentBody` e `ctx.sentType` contêm o corpo exatamente como foi enviado, já filtrado pelo schema:
@@ -503,13 +531,14 @@ const cache =
 app.mount(products, { middlewares: [cache(60_000)] });
 ```
 
-| Fastify                   | Sashiko                                                           |
-| ------------------------- | ----------------------------------------------------------------- |
-| `onRequest`, `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |
-| `onError`                 | `app.onError`                                                     |
-| `onSend`                  | `app.onSend` (síncrono)                                           |
-| `onResponse`              | `app.onResponse`                                                  |
-| `onClose`                 | `app.onClose`                                                     |
+| Fastify      | Sashiko                                                           |
+| ------------ | ----------------------------------------------------------------- |
+| `onRequest`  | `app.onRequest` (observação) ou middlewares (para interromper)    |
+| `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |
+| `onError`    | `app.onError`                                                     |
+| `onSend`     | `app.onSend` (síncrono)                                           |
+| `onResponse` | `app.onResponse`                                                  |
+| `onClose`    | `app.onClose`                                                     |
 
 ## Erros
 
@@ -540,7 +569,7 @@ Todos os erros, inclusive 404, 405, validação e `Host` inválido, saem no form
 - **Erros 4xx:** a mensagem vai para o cliente.
 - **Erros 5xx e erros comuns** (`throw new Error(...)`): a resposta é sempre `{ "type": "about:blank", "title": "Internal Server Error", "status": 500 }`. O erro completo vai para o log, com `reqId`. Para mostrar uma mensagem de 5xx ao cliente, use `expose: true`.
 - **`formatError`:** para outro formato (legado, um envelope próprio, o request id no corpo), passe `createApp({ formatError: (problem, ctx) => ({ error: problem.detail ?? problem.title, code: problem.code }) })`. O retorno sai como `application/json`. Se a função lançar, o erro é logado e o problema padrão é enviado.
-- **`app.onError(handler)`:** roda antes da resposta padrão, para enviar o erro a um APM, por exemplo. Se o próprio handler falhar, o app não cai: o erro é logado e a resposta padrão é enviada.
+- **`app.onError((err, ctx, phase) => ...)`:** roda antes da resposta padrão, para enviar o erro a um APM, por exemplo. `phase` diz em que etapa a requisição estava: `middleware`, `guard`, `validation` (inclui a leitura do body), `handler` ou `response`. No modelo onion, um erro lançado depois do `await next()` de um middleware aparece com a etapa mais recente. Se o próprio handler falhar, o app não cai: o erro é logado e a resposta padrão é enviada.
 
 ## OpenAPI e `/docs`
 
@@ -648,7 +677,9 @@ import pino from 'pino';
 createApp({ logger: pino(), logRequests: true });
 ```
 
-- **Logger:** compatível com o pino (`info(obj, msg)`, `child()`). O padrão, `consoleLogger({ level, format, redact })`, usa o `console`: `format: 'json'` gera uma linha JSON por evento, para coletores de log. `logger: false` desliga tudo.
+- **Logger:** compatível com o pino (`info(obj, msg)`, `child()`). O padrão, `consoleLogger({ level, format, redact, stream })`, usa o `console`: `format: 'json'` gera uma linha JSON por evento, para coletores de log. `logger: false` desliga tudo.
+- **Níveis:** `trace`, `debug`, `info`, `warn`, `error` e `fatal`, os mesmos do pino. `trace` e `fatal` são opcionais na interface `Logger`, para um logger próprio não precisar implementá-los: use `ctx.log.trace?.(...)`.
+- **`stream: 'stdout'`:** manda todos os níveis para a saída padrão. Por padrão, `warn`, `error` e `fatal` vão para o stderr, que alguns coletores tratam inteiro como erro.
 - **Request id:** cada requisição recebe `ctx.id`, também devolvido no header `X-Request-Id`. Um id recebido nesse header é reaproveitado se for seguro; isso é configurável em `requestId`.
 
   O padrão gera um UUID (`crypto.randomUUID()`), que não é previsível e não revela quantas requisições o processo atendeu. Se a alocação por requisição importar mais que isso, troque o gerador:
@@ -663,7 +694,8 @@ createApp({ logger: pino(), logRequests: true });
 
   Num benchmark de `GET` simples, isso reduziu a alocação por requisição em cerca de 8%, sem diferença mensurável de vazão ou memória. `requestId: { header: false }` deixa de enviar o header; `ctx.id` e o `reqId` dos logs continuam.
 
-- **`ctx.log`:** já inclui o `reqId`: `ctx.log.info({ userId }, 'user created')`.
+- **`ctx.log`:** já inclui o `reqId`, e o `traceId` quando a requisição chega com `traceparent` (ou o `traceId` e o `spanId` do span, com `telemetry`): `ctx.log.info({ userId }, 'user created')`.
+- **Trace recebido:** um `traceparent` W3C válido é exposto em `ctx.trace` (`{ traceId, parentSpanId, sampled, tracestate }`). Sem `X-Request-Id` recebido, o `ctx.id` passa a ser o `traceId`, e logs e traces ficam com a mesma chave. O header é validado pela especificação; um valor inválido é ignorado.
 - **`logRequests: true`:** registra método, path, status e duração de cada requisição.
 - **Dados sensíveis:** headers e body nunca são logados automaticamente. O que você logar passa pelo `redact` do logger padrão. As chaves `authorization`, `cookie`, `set-cookie`, `x-api-key`, `password`, `secret`, `token`, `access_token`, `refresh_token` e afins, em qualquer nível, saem como `[REDACTED]`. A comparação ignora maiúsculas, `-` e `_`.
 
@@ -672,6 +704,32 @@ createApp({ logger: pino(), logRequests: true });
   ```
 
   Com o pino, configure o [`redact`](https://getpino.io/#/docs/redaction) dele.
+
+## Observabilidade: OpenTelemetry e métricas
+
+Passe o `@opentelemetry/api` que a aplicação já usa. O Sashiko não depende do pacote nem prende uma versão:
+
+```ts
+import * as otel from '@opentelemetry/api';
+
+createApp({ telemetry: otel });
+```
+
+- **Com a auto-instrumentação HTTP do SDK** (o caso mais comum): o Sashiko enriquece o span SERVER que ela criou, com o nome `GET /users/:id`, o `http.route` e as exceções com a fase (`middleware`, `guard`, `validation`, `handler`, `response`). Não cria span duplicado.
+- **Sem a auto-instrumentação:** o Sashiko cria o span SERVER, continuando o `traceparent` recebido, e roda o handler dentro dele, então os spans criados pela aplicação viram filhos. Só um 5xx marca o span como erro.
+- **Métricas**, pelo `metrics.getMeter('sashiko')`, com os nomes das convenções semânticas HTTP:
+
+  | Métrica                        | Tipo                        | Atributos                                                                                        |
+  | ------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------ |
+  | `http.server.request.duration` | histograma (s), sem streams | `http.request.method`, `http.route`, `http.response.status_code`, `server.address`, `error.type` |
+  | `sashiko.stream.duration`      | histograma (s), só streams  | os mesmos                                                                                        |
+  | `http.server.active_requests`  | up-down counter             | `http.request.method`                                                                            |
+  | `sashiko.request.aborted`      | counter                     | `sashiko.abort.reason`                                                                           |
+
+  O `http.route` vem sempre do template e o `server.address` da regra de virtual host, nunca do path ou do hostname do cliente: a cardinalidade das séries fica fixa. Nenhum atributo inclui query, headers ou body.
+- **Sem `telemetry`**, os mesmos dados estão disponíveis para outra ferramenta em `ctx.route`, `ctx.trace`, `onRequest` e `onResponse`.
+
+**Custo** (benchmark de `GET` simples, SDK real com um exportador que descarta os spans): a auto-instrumentação HTTP do OpenTelemetry é a parte cara, também num `node:http` puro. Em cima dela, o `telemetry` acrescentou cerca de 5% de vazão e de memória. Sem `telemetry` e sem hooks, nada disso é carregado.
 
 ## Ciclo de vida e testes
 
@@ -833,10 +891,11 @@ Checklist:
 | `formatError`     | Problem Details       | `(problem, ctx) => corpo`, para personalizar o corpo de todos os erros                     |
 | `timeouts`        | 30s / 10s / 5s        | `requestTimeout`, `headersTimeout`, `keepAliveTimeout`                                     |
 | `logger`          | `consoleLogger()`     | Logger compatível com pino; `false` desliga                                                |
-| `logRequests`     | `false`               | Log de cada requisição concluída                                                           |
+| `logRequests`     | `false`               | Log de cada requisição concluída (`request completed`) ou cancelada (`request aborted`)    |
+| `telemetry`       | —                     | O `@opentelemetry/api` da aplicação: spans e métricas HTTP                                 |
 | `requestId`       | header `x-request-id` | `header`, `trustIncoming`, `generate`                                                      |
 
-Métodos do app: `use()`, `mount()`, `group()`, `static()`, `health()`, `openapi()`, `openapiDocument()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
+Métodos do app: `use()`, `mount()`, `group()`, `static()`, `health()`, `openapi()`, `openapiDocument()`, `onRequest()`, `onError()`, `onSend()`, `onResponse()`, `onClose()`, `listen()`, `close()`, `callback()`, `inject()`, `log`. O `mount()` devolve um `MountedGroup`, com os verbos do mapeamento manual e os mesmos métodos do app, para continuar o encadeamento.
 
 O body só é lido como JSON quando o `Content-Type` é `application/json` ou `application/*+json`.
 
