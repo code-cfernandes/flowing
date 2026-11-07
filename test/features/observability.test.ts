@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { type Context, createApp, Get, type RouteInfo, Router } from 'sashiko';
+import { type Context, createApp, Get, RequestAbortedError, type RouteInfo, Router } from 'sashiko';
 
 @Router('/users')
 class UserRoutes {
@@ -82,5 +84,74 @@ describe('F-38 · ctx.route', () => {
     // `@Get('/')` em `@Router('/x')` é registrada como `/x/`: o template é o registrado.
     assert.equal(((await app.inject('/x')).json() as { path: string }).path, '/x/');
     assert.equal(((await app.inject('/x')).json() as { path: string }).path, '/x/');
+  });
+});
+
+describe('F-38 · motivo tipado do cancelamento', () => {
+  it('desconexão do cliente: RequestAbortedError com CLIENT_DISCONNECTED (mensagem de antes)', async () => {
+    let reason: unknown;
+    let code: string | undefined;
+    let done!: () => void;
+    const aborted = new Promise<void>((r) => (done = r));
+    @Router('/')
+    class R {
+      @Get('/slow') slow(ctx: Context) {
+        ctx.signal.addEventListener('abort', () => {
+          reason = ctx.signal.reason;
+          code = ctx.abortReason;
+          done();
+        });
+        return new Promise(() => {}); // nunca responde: o cliente desiste
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false });
+    app.mount(R);
+    const server = await app.listen(0);
+    try {
+      const req = http.get({ port: (server.address() as AddressInfo).port, path: '/slow' });
+      req.on('error', () => {});
+      setTimeout(() => req.destroy(), 30);
+      await aborted;
+      assert.ok(reason instanceof RequestAbortedError);
+      assert.equal(reason.code, 'CLIENT_DISCONNECTED');
+      assert.equal(reason.message, 'client disconnected');
+      assert.equal(code, 'CLIENT_DISCONNECTED');
+    } finally {
+      await app.close(500);
+    }
+  });
+
+  it('close() do app: os streams abertos recebem SHUTDOWN', async () => {
+    let code: string | undefined;
+    @Router('/')
+    class R {
+      @Get('/sse') sse(ctx: Context) {
+        ctx.sse().send({ data: 'oi' });
+        ctx.signal.addEventListener('abort', () => (code = ctx.abortReason));
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false });
+    app.mount(R);
+    const server = await app.listen(0);
+    await new Promise<void>((resolve) => {
+      http.get({ port: (server.address() as AddressInfo).port, path: '/sse' }, (res) => {
+        res.once('data', () => resolve());
+        res.resume();
+      });
+    });
+    await app.close(2_000);
+    assert.equal(code, 'SHUTDOWN');
+  });
+
+  it('sem cancelamento, abortReason é undefined', async () => {
+    @Router('/')
+    class R {
+      @Get('/ok') ok(ctx: Context) {
+        return { code: ctx.abortReason ?? null };
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false });
+    app.mount(R);
+    assert.deepEqual((await app.inject('/ok')).json(), { code: null });
   });
 });

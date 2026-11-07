@@ -137,7 +137,7 @@ export class ServerLifecycle {
     // Streams longos (SSE, NDJSON) não terminam sozinhos: o `ctx.signal` é cancelado para eles fecharem
     // já, em vez de segurar o encerramento até o prazo. Requisições comuns seguem até terminar, e cada
     // conexão é fechada assim que fica ociosa (listener `close` das respostas, no request-handler).
-    for (const ctx of this.streams) ctx[kAbort]('server shutting down');
+    for (const ctx of this.streams) ctx[kAbort]('SHUTDOWN');
     const force = setTimeout(() => server.closeAllConnections(), graceMs);
     force.unref();
     try {

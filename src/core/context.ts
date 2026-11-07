@@ -9,6 +9,7 @@ import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
+import { type AbortCode, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { kAbort, kBindResponse, kPendingSend, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
@@ -193,16 +194,25 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       // O cliente pode ter desconectado antes do primeiro acesso ao signal (num `await` anterior):
       // o evento 'close' já passou, então o estado precisa ser conferido agora.
       if (this.res.destroyed || this.req.destroyed || this.req.socket?.destroyed) {
-        controller.abort(new Error('client disconnected'));
+        controller.abort(new RequestAbortedError('CLIENT_DISCONNECTED'));
         return controller.signal;
       }
       this.res.once('close', () => {
         // `writableEnded`: a resposta foi encerrada pelo app. `writableFinished` dependeria de o socket ter
         // recebido tudo, e no inject (sem socket) uma resposta bem-sucedida pareceria uma desconexão.
-        if (!this.res.writableEnded) controller.abort(new Error('client disconnected'));
+        if (!this.res.writableEnded) controller.abort(new RequestAbortedError('CLIENT_DISCONNECTED'));
       });
     }
     return this.abortController.signal;
+  }
+
+  /**
+   * Por que esta requisição foi cancelada (`CLIENT_DISCONNECTED`, `SHUTDOWN`), ou `undefined` se não foi.
+   * Atalho tipado para `ctx.signal.reason.code` (F-38).
+   */
+  get abortReason(): AbortCode | undefined {
+    const reason: unknown = this.abortController?.signal.reason;
+    return reason instanceof RequestAbortedError ? reason.code : undefined;
   }
 
   /** @internal `true` em respostas de streaming (SSE, NDJSON, `Readable`) já iniciadas. */
@@ -217,9 +227,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
 
   /** @internal */
-  [kAbort](reason: string): void {
+  [kAbort](code: AbortCode): void {
     void this.signal;
-    this.abortController?.abort(new Error(reason));
+    this.abortController?.abort(new RequestAbortedError(code));
   }
 
   /**
