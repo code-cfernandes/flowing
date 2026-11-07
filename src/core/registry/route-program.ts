@@ -4,7 +4,7 @@ import { guardsMiddleware } from '../guard.ts';
 import { validateRequest } from '../request-validation.ts';
 import { responsePlan, sendResult, type Serializer } from '../response/pipeline.ts';
 import type { RouteDefinition } from '../route-table.ts';
-import { kBindResponse, kPendingSend } from '../symbols.ts';
+import { kBindResponse, kPendingSend, kPhase } from '../symbols.ts';
 
 /** A função completa de uma rota, montada uma vez no registro. */
 export type RouteProgram = (ctx: Context) => Step;
@@ -20,6 +20,7 @@ export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyM
   const { schemas, handler } = route;
   const plan = responsePlan(schemas.response, serializers);
   const send = (ctx: Context, result: unknown): void => {
+    ctx[kPhase] = 'response';
     if (!ctx.sent) sendResult(ctx, plan.response, result, plan.serializers, 'auto', plan.defaultStatus);
   };
   const finish = (ctx: Context, result: unknown): Step => {
@@ -31,9 +32,11 @@ export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyM
   };
   // Síncrono quando o handler é síncrono: Promise só se o handler devolver uma (F-41).
   const terminal = (ctx: Context): Step => {
+    ctx[kPhase] = 'validation';
     validateRequest(ctx, schemas);
     // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
     ctx[kBindResponse](plan);
+    ctx[kPhase] = 'handler';
     const result = handler(ctx);
     if (isPromiseLike(result)) return Promise.resolve(result).then((value) => finish(ctx, value));
     return finish(ctx, result);

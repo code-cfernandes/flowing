@@ -1,10 +1,26 @@
 import type { AppCore } from '../app/core.ts';
 import { assertSchemas } from '../request-validation.ts';
 import type { CompiledRoute } from '../compiler.ts';
-import { RouteTable } from '../route-table.ts';
+import { type RouteInfo, RouteTable } from '../route-table.ts';
 import { buildRouteProgram } from './route-program.ts';
 import { hostRank, hostReachability, NO_HOST_RANK } from '../../utils/origin-match.ts';
 import { canonicalPath } from '../../utils/path.ts';
+
+/**
+ * O objeto guardado no roteador para um host: herda tudo da rota (inclusive o programa) e acrescenta o
+ * `RouteInfo` daquele host, para o `ctx.route` dizer qual regra venceu sem trabalho por requisição.
+ */
+function withInfo(route: CompiledRoute, hostKey: string | undefined): CompiledRoute {
+  const label = hostKey === undefined ? undefined : route.hosts.find((h) => h.key === hostKey)?.label;
+  const info: RouteInfo = Object.freeze({
+    method: route.method,
+    path: route.path,
+    owner: route.owner,
+    handler: route.handlerName,
+    ...(label === undefined ? {} : { host: label }),
+  });
+  return Object.create(route, { info: { value: info } }) as CompiledRoute;
+}
 
 /** Uma rota validada e ainda não registrada (registro em duas fases). */
 export interface PendingRoute {
@@ -88,7 +104,7 @@ export class RouteRegistry {
         (route as CompiledRoute & { run?: unknown }).run ??= buildRouteProgram(route, this.core.serializers);
         for (const host of hosts) {
           try {
-            this.router.on(route.method, route.path, route, host);
+            this.router.on(route.method, route.path, withInfo(route, host), host);
           } catch (err) {
             throw new Error(`[sashiko] app.mount(${owner}): ${route.method} ${route.path} conflicts with a registered route.`, {
               cause: err,

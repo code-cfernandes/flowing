@@ -6,7 +6,10 @@ export {
   type AppOptions,
   type ListenOptions,
   type OnCloseHook,
+  type OnErrorHook,
+  type OnRequestHook,
   type OnResponseHook,
+  type ResponseInfo,
   type RequestIdOptions,
   type ServerTimeouts,
 } from './app.ts';
@@ -78,5 +81,8 @@ export {
   type MethodMetadata,
   type RouteSchemas,
 } from './metadata.ts';
-export type { Handler } from './route-table.ts';
+export type { Handler, RouteInfo } from './route-table.ts';
+export { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
+export type { TraceContext } from '../utils/trace-context.ts';
+export type { TelemetryApi, TelemetrySpan } from './telemetry.ts';
 export type { ValidationIssue, ValidationTarget } from '../schema/validation.ts';

@@ -9,7 +9,11 @@ import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
-import { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
+import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
+import type { RouteInfo } from './route-table.ts';
+import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
+import { telemetryIds } from './telemetry.ts';
+import { kAbort, kBindResponse, kPendingSend, kPhase, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
@@ -117,6 +121,18 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     this.routeParams = value;
   }
   private routeParams: ParamsFor<S> | undefined;
+  /**
+   * A rota que atende esta requisição (F-38): template com o prefixo, classe, método e a regra de host que
+   * venceu. `undefined` antes do roteamento e quando nenhuma rota atende (404, 405, healthcheck, OpenAPI).
+   * Use `ctx.route.path` como rótulo de métrica, nunca `ctx.path`.
+   */
+  get route(): RouteInfo | undefined {
+    return this[kRoute];
+  }
+  /** @internal */
+  [kRoute]: RouteInfo | undefined;
+  /** @internal */
+  [kPhase]: ErrorPhase = 'middleware';
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;
@@ -134,9 +150,29 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
   /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
   get log(): Logger {
-    this.requestLog ??= (this.opts.logger ?? silentLogger).child({ reqId: this.id });
+    if (!this.requestLog) {
+      // Com `telemetry`, os ids do span desta requisição; sem, o `traceId` recebido no `traceparent`.
+      const ids = telemetryIds(this as unknown as Context);
+      const traceId = ids?.traceId ?? this.trace?.traceId;
+      const base = this.opts.logger ?? silentLogger;
+      this.requestLog = base.child(
+        ids ? { reqId: this.id, traceId: ids.traceId, spanId: ids.spanId } : traceId ? { reqId: this.id, traceId } : { reqId: this.id },
+      );
+    }
     return this.requestLog;
   }
+
+  /**
+   * Contexto de trace W3C recebido no `traceparent` (F-38), já validado: `{ traceId, parentSpanId, sampled,
+   * tracestate }`, ou `undefined` se não veio ou é inválido. Os logs do `ctx.log` levam o `traceId`.
+   */
+  get trace(): TraceContext | undefined {
+    if (this.traceContext === null) {
+      this.traceContext = parseTraceparent(this.req.headers.traceparent, this.req.headers.tracestate);
+    }
+    return this.traceContext;
+  }
+  private traceContext: TraceContext | undefined | null = null;
 
   // Campos preguiçosos (F-39, fase 2): calculados no primeiro acesso e guardados. Dependem só da
   // requisição e da configuração do app, que não mudam durante a requisição.
@@ -182,16 +218,25 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       // O cliente pode ter desconectado antes do primeiro acesso ao signal (num `await` anterior):
       // o evento 'close' já passou, então o estado precisa ser conferido agora.
       if (this.res.destroyed || this.req.destroyed || this.req.socket?.destroyed) {
-        controller.abort(new Error('client disconnected'));
+        controller.abort(new RequestAbortedError('CLIENT_DISCONNECTED'));
         return controller.signal;
       }
       this.res.once('close', () => {
         // `writableEnded`: a resposta foi encerrada pelo app. `writableFinished` dependeria de o socket ter
         // recebido tudo, e no inject (sem socket) uma resposta bem-sucedida pareceria uma desconexão.
-        if (!this.res.writableEnded) controller.abort(new Error('client disconnected'));
+        if (!this.res.writableEnded) controller.abort(new RequestAbortedError('CLIENT_DISCONNECTED'));
       });
     }
     return this.abortController.signal;
+  }
+
+  /**
+   * Por que esta requisição foi cancelada (`CLIENT_DISCONNECTED`, `SHUTDOWN`), ou `undefined` se não foi.
+   * Atalho tipado para `ctx.signal.reason.code` (F-38).
+   */
+  get abortReason(): AbortCode | undefined {
+    const reason: unknown = this.abortController?.signal.reason;
+    return reason instanceof RequestAbortedError ? reason.code : undefined;
   }
 
   /** @internal `true` em respostas de streaming (SSE, NDJSON, `Readable`) já iniciadas. */
@@ -206,9 +251,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
 
   /** @internal */
-  [kAbort](reason: string): void {
+  [kAbort](code: AbortCode): void {
     void this.signal;
-    this.abortController?.abort(new Error(reason));
+    this.abortController?.abort(new RequestAbortedError(code));
   }
 
   /**

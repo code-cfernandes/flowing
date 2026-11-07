@@ -10,3 +10,13 @@ export const kPendingSend = Symbol('sashiko.pendingSend');
 export const kBindResponse = Symbol('sashiko.bindResponse');
 /** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
 export const kRouted = Symbol('sashiko.routed');
+/** @internal A rota que atendeu a requisição (`ctx.route`, F-38). */
+export const kRoute = Symbol('sashiko.route');
+/** @internal O erro tratado pelo pipeline de erros, para o `onResponse` (F-38). */
+export const kError = Symbol('sashiko.error');
+/** @internal Em que etapa a requisição está, para a fase do `onError` (F-38). */
+export const kPhase = Symbol('sashiko.phase');
+/** @internal Estado do `telemetry` de uma requisição (F-38). */
+export const kTelemetry = Symbol('sashiko.telemetry');
+/** @internal Instante em que os headers da resposta saíram, para o `ttfbMs` (F-38). */
+export const kHeadersAt = Symbol('sashiko.headersAt');

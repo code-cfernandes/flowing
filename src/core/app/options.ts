@@ -1,4 +1,7 @@
+import type { AbortCode, ErrorPhase } from '../abort.ts';
+import type { TelemetryApi } from '../telemetry.ts';
 import type { Context } from '../context.ts';
+import type { RouteInfo } from '../route-table.ts';
 import type { ErrorFormatter } from '../errors.ts';
 import type { Logger } from '../logger.ts';
 import type { Serializer } from '../response/pipeline.ts';
@@ -7,8 +10,47 @@ import type { TlsOptions } from '../../server/tls.ts';
 import type { ProtoPoisoning } from '../../utils/safe-json.ts';
 import type { SecurityHeadersOptions, SecurityPreset } from '../../middlewares/security-headers.ts';
 
-/** Depois do envio da resposta (F-04). */
-export type OnResponseHook = (ctx: Context, info: { status: number; ms: number }) => void | Promise<void>;
+/**
+ * Tratamento de erros (F-04). `phase` diz em que etapa a requisição estava: `middleware`, `guard`,
+ * `validation` (inclui a leitura do body), `handler` ou `response`.
+ */
+export type OnErrorHook = (err: unknown, ctx: Context, phase: ErrorPhase) => void | Promise<void>;
+
+/** Como a requisição terminou, no `onResponse` (F-04, F-38). */
+export interface ResponseInfo {
+  /** Status enviado (num cancelamento, o que estava definido quando a conexão caiu). */
+  status: number;
+  /** Duração total em milissegundos, até o fim da resposta ou o cancelamento. */
+  ms: number;
+  /** `completed`, `aborted` (cancelada antes do fim) ou `error` (respondida com 5xx). */
+  outcome: 'completed' | 'aborted' | 'error';
+  /** Por que foi cancelada, quando `outcome` é `aborted`. */
+  abortReason?: AbortCode;
+  /**
+   * Milissegundos até os headers saírem. Em SSE e NDJSON, é a latência real; `ms` mede a conexão inteira.
+   * Medido nos servidores do `listen()` e no `inject()`; ausente num servidor próprio (`callback()`).
+   */
+  ttfbMs?: number;
+  /** Resposta em stream: SSE, NDJSON, `Readable` ou arquivo. */
+  streaming: boolean;
+  /** A rota que atendeu; ausente em 404, 405, healthcheck e OpenAPI. */
+  route?: RouteInfo;
+  /** O erro lançado, quando a resposta veio do tratamento de erros. */
+  error?: unknown;
+  /** A etapa em que o erro chegou (a mesma do 3º argumento do `onError`). */
+  errorPhase?: ErrorPhase;
+}
+
+/**
+ * Depois que a requisição termina (F-04). Roda **exatamente uma vez** por requisição, em todos os caminhos:
+ * sucesso, erro, 404/405, `Host` inválido, cancelamento pelo cliente, shutdown, streams e `inject()`.
+ */
+export type OnResponseHook = (ctx: Context, info: ResponseInfo) => void | Promise<void>;
+/**
+ * No início de cada requisição, antes da validação do `Host` e de qualquer middleware (F-38). É síncrono:
+ * uma Promise devolvida não é esperada. Erros são logados e não interrompem a requisição.
+ */
+export type OnRequestHook = (ctx: Context) => void;
 /** No `close()` do app (F-04). */
 export type OnCloseHook = () => void | Promise<void>;
 
@@ -34,6 +76,12 @@ export interface ServerTimeouts {
 }
 
 export interface AppOptions {
+  /**
+   * OpenTelemetry nativo (F-38): passe o `@opentelemetry/api` que a aplicação usa (`import * as otel`).
+   * Enriquece o span da auto-instrumentação HTTP (ou cria o span SERVER, se não houver), com o template da
+   * rota e os erros com a fase, e gera as métricas HTTP. Sem esta opção, nada é carregado.
+   */
+  telemetry?: TelemetryApi;
   /** Tamanho máximo do body JSON em bytes. Padrão: 1 MiB. */
   bodyLimit?: number;
   /**

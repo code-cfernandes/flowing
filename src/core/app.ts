@@ -27,15 +27,26 @@ import { compileHostMatcher } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
+import { createTelemetry } from './telemetry.ts';
 import { buildSecurityHeaders } from '../middlewares/security-headers.ts';
 import type { AppCore } from './app/core.ts';
-import type { AppOptions, ListenOptions, OnCloseHook, OnResponseHook } from './app/options.ts';
+import type { AppOptions, ListenOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './app/options.ts';
 import { FrameworkRoutes } from './registry/framework-routes.ts';
 import { RouteRegistry } from './registry/registry.ts';
 import { RequestHandler } from './runtime/request-handler.ts';
 import { ServerLifecycle } from './runtime/server.ts';
 
-export type { AppOptions, ListenOptions, OnCloseHook, OnResponseHook, RequestIdOptions, ServerTimeouts } from './app/options.ts';
+export type {
+  AppOptions,
+  ListenOptions,
+  OnCloseHook,
+  OnErrorHook,
+  OnRequestHook,
+  OnResponseHook,
+  RequestIdOptions,
+  ResponseInfo,
+  ServerTimeouts,
+} from './app/options.ts';
 
 function assertOpen(scope: RouteScope): void {
   if (scope.token && !scope.token.open) {
@@ -66,6 +77,8 @@ export class SashikoApp {
       middlewares: [],
       errorHandlers: [],
       onSendHooks: [],
+      onRequestHooks: [],
+      telemetry: opts.telemetry ? createTelemetry(opts.telemetry) : undefined,
       onResponseHooks: [],
       onCloseHooks: [],
       // Compilados na criação: uma regra inválida falha aqui, e não na primeira requisição.
@@ -88,7 +101,7 @@ export class SashikoApp {
     return this;
   }
 
-  onError(h: (err: unknown, ctx: Context) => void | Promise<void>): this {
+  onError(h: OnErrorHook): this {
     this.core.errorHandlers.push(h);
     return this;
   }
@@ -104,8 +117,19 @@ export class SashikoApp {
   }
 
   /**
-   * Roda depois que a resposta foi enviada (evento `finish`), com o status e a duração: métricas,
-   * auditoria. Pode ser assíncrono; erros são só logados (F-04).
+   * Roda no início de cada requisição, antes da validação do `Host` e dos middlewares: abrir um span, contar
+   * requisições ativas. Toda requisição que passa por aqui também passa pelo `onResponse`. É síncrono; erros
+   * são só logados (F-38).
+   */
+  onRequest(hook: OnRequestHook): this {
+    this.core.onRequestHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Roda exatamente uma vez quando a requisição termina, com status, duração, `outcome` (`completed`,
+   * `aborted`, `error`), motivo do cancelamento, tempo até os headers, rota e se foi stream: métricas,
+   * tracing, auditoria. Pode ser assíncrono; erros são só logados (F-04, F-38).
    */
   onResponse(hook: OnResponseHook): this {
     this.core.onResponseHooks.push(hook);

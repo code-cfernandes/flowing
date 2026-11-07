@@ -5,7 +5,7 @@ import type { ListenOptions } from '../app/options.ts';
 import type { Context } from '../context.ts';
 import type { Logger } from '../logger.ts';
 import { shutdownCoordinator, type ShutdownTarget } from '../shutdown.ts';
-import { kAbort } from '../symbols.ts';
+import { kAbort, kHeadersAt } from '../symbols.ts';
 import { compileTls, type SniTable, type TlsOptions } from '../../server/tls.ts';
 
 /** Servidor HTTP/HTTPS do app: `listen`, `close`, troca de certificados, drain e shutdown por sinal (F-07, F-33). */
@@ -25,7 +25,9 @@ export class ServerLifecycle {
   /**
    * Respostas dos servidores criados pelo `listen()`. Durante o `close()`, as que ainda não enviaram headers
    * saem com `Connection: close`, para o cliente não reaproveitar a conexão. Assim o app não precisa guardar
-   * as respostas em andamento só para isso (F-41).
+   * as respostas em andamento só para isso (F-41). Quando há quem observe o fim da requisição (`onResponse`,
+   * `logRequests`, `telemetry`), também guarda o instante dos headers, para o `ttfbMs` (F-38). No protótipo,
+   * e não um wrapper por resposta: um wrapper por instância fazia cada resposta ser promovida e dobrava o RSS.
    */
   private readonly responseClass = (() => {
     const lifecycle = this;
@@ -34,6 +36,10 @@ export class ServerLifecycle {
     const base = http.ServerResponse.prototype.writeHead as (this: http.ServerResponse, ...args: unknown[]) => http.ServerResponse;
     (SashikoResponse.prototype as unknown as { writeHead: typeof base }).writeHead = function (...args) {
       if (lifecycle.closing) this.shouldKeepAlive = false;
+      const core = lifecycle.core;
+      if (core.onResponseHooks.length > 0 || core.telemetry !== undefined || core.opts.logRequests === true) {
+        (this as unknown as Record<symbol, number>)[kHeadersAt] ??= performance.now();
+      }
       return base.apply(this, args);
     };
     return SashikoResponse;
@@ -137,7 +143,7 @@ export class ServerLifecycle {
     // Streams longos (SSE, NDJSON) não terminam sozinhos: o `ctx.signal` é cancelado para eles fecharem
     // já, em vez de segurar o encerramento até o prazo. Requisições comuns seguem até terminar, e cada
     // conexão é fechada assim que fica ociosa (listener `close` das respostas, no request-handler).
-    for (const ctx of this.streams) ctx[kAbort]('server shutting down');
+    for (const ctx of this.streams) ctx[kAbort]('SHUTDOWN');
     const force = setTimeout(() => server.closeAllConnections(), graceMs);
     force.unref();
     try {
