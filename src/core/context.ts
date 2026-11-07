@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
 import { parseQuery, type ParsedQuery } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
-import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../utils/request-target.ts';
+import { hostnameOf, isValidHost, pickForwarded, type RequestTarget, splitRequestTarget } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
@@ -117,7 +117,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private routeParams: ParamsFor<S> | undefined;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
-    this.parsedQuery ??= parseQuery(this.target.searchParams, this.opts.queryMaxKeys) as ParsedQuery;
+    this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;
     return this.parsedQuery as InferQuery<SchemasOf<S>>;
   }
   set query(value: InferQuery<SchemasOf<S>>) {
@@ -143,7 +143,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * dela em vez de copiar `trustProxy`, `onSend`, `queryMaxKeys` e o logger campo a campo.
    */
   private readonly opts: ContextOptions;
-  private readonly target: URL;
+  private readonly target: RequestTarget;
   private parsedQuery: ParsedQuery | undefined;
   private fullUrl: URL | undefined;
   private requestLog: Logger | undefined;
@@ -266,7 +266,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     this.method = req.method ?? 'GET';
     this.opts = opts;
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
-    this.target = parseRequestTarget(req.url);
+    this.target = splitRequestTarget(req.url);
     this.path = this.target.pathname;
     this.id = id ?? opts.id ?? '';
   }
