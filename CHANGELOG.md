@@ -9,6 +9,36 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.15.0] - 2026-11-07
+
+### Adicionado
+
+- **`createApp({ telemetry: otel })`:** OpenTelemetry nativo, com o `@opentelemetry/api` que a aplicação já usa, sem
+  dependência nova. Com a auto-instrumentação HTTP, enriquece o span dela (nome `GET /users/:id`, `http.route`,
+  exceções com a fase); sem ela, cria o span SERVER a partir do `traceparent` e roda o handler dentro dele. Gera
+  `http.server.request.duration`, `http.server.active_requests`, `sashiko.stream.duration` e
+  `sashiko.request.aborted`, com o template da rota como atributo.
+- **`ctx.route`:** a rota que atende a requisição, com o template já com os prefixos (`/v1/users/:id`), a classe, o
+  método e a regra de virtual host que venceu.
+- **`app.onRequest(ctx)`:** hook síncrono no início de toda requisição, antes da validação do `Host`.
+- **`onResponse` com mais dados:** além de `status` e `ms`, recebe `outcome` (`completed`, `aborted`, `error`),
+  `abortReason`, `ttfbMs`, `streaming`, `route`, `error` e `errorPhase`.
+- **`onError(err, ctx, phase)`:** a etapa em que o erro chegou (`middleware`, `guard`, `validation`, `handler`,
+  `response`).
+- **Motivo tipado do cancelamento:** `ctx.signal.reason` é um `RequestAbortedError` com `code` (`CLIENT_DISCONNECTED`
+  ou `SHUTDOWN`), com as mesmas mensagens de antes. `ctx.abortReason` é o atalho.
+- **Trace W3C:** `ctx.trace` com o `traceparent` recebido, validado pela especificação. O `ctx.log` leva o `traceId`.
+- **Logger:** níveis `trace` e `fatal` (opcionais na interface `Logger`) e `consoleLogger({ stream: 'stdout' })`.
+
+### Alterado
+
+- **`onResponse` roda exatamente uma vez em todos os caminhos.** Antes, escutava o evento `finish` e não rodava em
+  requisições canceladas pelo cliente nem com `Host` inválido. Quem usa o hook para métricas passa a ver essas
+  requisições, com `outcome: 'aborted'` ou status 400. O `logRequests` registra os cancelamentos como `request
+  aborted`.
+- **`ctx.id` a partir do trace:** quando a requisição chega com um `traceparent` válido e sem `X-Request-Id`, o
+  `ctx.id` (e o `X-Request-Id` da resposta) passa a ser o `traceId`, com 32 caracteres hex, em vez de um UUID.
+
 ## [0.14.0] - 2026-11-07
 
 ### Alterado
