@@ -44,6 +44,9 @@ describe('F-04 · ctx.sentBody e cache por middleware', () => {
     calls = 0;
     const app = createApp({ logger: false }).mount(H, { middlewares: [cache], only: (r) => [r.user] });
     const first = await app.inject('/h/user');
+    // O inject resolve quando a resposta termina; o código do cache depois do next() roda logo em seguida.
+    // Sem esperar, a segunda requisição pode consultar o cache antes de ele ser gravado.
+    await new Promise((r) => setImmediate(r));
     const second = await app.inject('/h/user');
     assert.equal(calls, 1, 'o handler rodou uma vez só');
     assert.equal(second.headers['x-cache'], 'HIT');

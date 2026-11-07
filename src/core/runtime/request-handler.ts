@@ -113,7 +113,7 @@ export class RequestHandler {
 
   /** Cadeia global compilada; refeita só quando `app.use()` acrescenta um middleware. */
   private globalChain: { size: number; run: (ctx: Context) => Promise<void> } | undefined;
-  private readonly readBody: (ctx: Context) => Promise<void> | void;
+  private readonly readBody: (ctx: Context) => Promise<void> | undefined;
 
   async handle(ctx: Context): Promise<void> {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
@@ -123,7 +123,8 @@ export class RequestHandler {
       if (this.framework.health && (await this.framework.health.serve(ctx, this.server.draining || this.server.closing !== undefined)))
         return;
       // O body chega lido aos middlewares globais (invariante 5), sem uma camada de middleware para isso.
-      await this.readBody(ctx);
+      const reading = this.readBody(ctx);
+      if (reading) await reading;
       const chain = this.chain();
       await chain(ctx);
       // Um middleware global que não chama next() e não responde: a rota não roda (antes, rodava mesmo
@@ -152,7 +153,9 @@ export class RequestHandler {
   /** Fim da cadeia global: OpenAPI, roteamento, 404/405 e o programa da rota. */
   private async route(ctx: Context): Promise<void> {
     (ctx as unknown as Record<symbol, boolean>)[kRouted] = true;
-    if (ctx.sent || (await this.framework.serveOpenAPI(ctx))) return;
+    if (ctx.sent) return;
+    // Só cria a Promise do OpenAPI se ele estiver configurado (F-41).
+    if (this.framework.openapi && (await this.framework.serveOpenAPI(ctx))) return;
 
     // F-35: hosts não diferenciam maiúsculas; as regras já são compiladas em minúsculas.
     const hostname = ctx.hostname.toLowerCase();
