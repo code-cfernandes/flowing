@@ -1,11 +1,11 @@
 import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
-import type { ResponseInfo } from '../app/options.ts';
+import type { OnResponseHook, ResponseInfo } from '../app/options.ts';
 import { isPromiseLike, type Step } from '../compose.ts';
 import type { Context } from '../context.ts';
 import type { RouteInfo } from '../route-table.ts';
-import { kError, kHeadersAt, kPhase } from '../symbols.ts';
+import { kError, kHeadersAt, kHooks, kPhase } from '../symbols.ts';
 
 /** Grava o instante em que os headers da resposta saíram (a primeira vez), para o `ttfbMs`. */
 export function markHeadersSent(res: http.ServerResponse): void {
@@ -27,10 +27,14 @@ function headersSentAt(res: http.ServerResponse): number | undefined {
 export class RequestObserver {
   constructor(private readonly core: AppCore) {}
 
-  /** Há quem observe o fim da requisição: `onResponse`, `logRequests` ou `telemetry`. */
+  /**
+   * Há quem observe o fim da requisição: `onResponse` (do app ou de alguma rota), `logRequests` ou `telemetry`.
+   * A requisição ainda não foi roteada quando isso é decidido, então um `onResponse` de rota liga a observação
+   * do app inteiro; sem nenhum, o custo continua zero.
+   */
   get watching(): boolean {
     const core = this.core;
-    return core.onResponseHooks.length > 0 || core.telemetry !== undefined || core.opts.logRequests === true;
+    return core.onResponseHooks.length > 0 || core.scopedOnResponse > 0 || core.telemetry !== undefined || core.opts.logRequests === true;
   }
 
   /**
@@ -78,11 +82,10 @@ export class RequestObserver {
         const entry = { method: ctx.method, path: ctx.path, status, ms, ...(abortReason ? { abortReason } : {}) };
         ctx.log.info(entry, abortReason ? 'request aborted' : 'request completed');
       }
-      for (const hook of this.core.onResponseHooks) {
-        Promise.resolve()
-          .then(() => hook(ctx, info))
-          .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
-      }
+      // Os do app primeiro, depois os da rota (F-43), na ordem de fora para dentro.
+      for (const hook of this.core.onResponseHooks) this.runOnResponse(hook, ctx, info);
+      const scoped = info.route?.[kHooks]?.onResponse;
+      if (scoped) for (const hook of scoped) this.runOnResponse(hook, ctx, info);
     });
   }
 
@@ -105,6 +108,12 @@ export class RequestObserver {
       ...(route ? { route } : {}),
       ...(error === undefined ? {} : { error, errorPhase: ctx[kPhase] }),
     };
+  }
+
+  private runOnResponse(hook: OnResponseHook, ctx: Context, info: ResponseInfo): void {
+    Promise.resolve()
+      .then(() => hook(ctx, info))
+      .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
   }
 
   /** `onRequest` é síncrono: uma Promise devolvida não é esperada, mas a rejeição é logada. */

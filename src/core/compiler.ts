@@ -5,6 +5,7 @@ import { readOwnMetadata, type MethodMetadata, type RouterMetadata } from './met
 import type { RouteDefinition } from './route-table.ts';
 import { joinPaths, pathParams } from '../utils/path.ts';
 import { compileRouteHost, type MatchRule, type RouteHostRule } from '../utils/origin-match.ts';
+import { concatHooks, emptyHooks, type HookOptions, hookOptions, type RouteHooks, routeHooks, type ScopedHooks } from './hooks.ts';
 
 export interface CompiledRoute extends RouteDefinition {
   method: string;
@@ -16,6 +17,8 @@ export interface CompiledRoute extends RouteDefinition {
   hosts: readonly RouteHostRule[];
   /** Rota criada pelo framework (`static()`): fica fora do OpenAPI. */
   internal?: boolean;
+  /** Hooks com escopo da rota (F-43), já em ordem de execução; ausente se não há nenhum. */
+  hooks?: RouteHooks | undefined;
 }
 
 /** Um host, ou uma lista: `'api.exemplo.com'`, `'*.exemplo.dev'`, `/^tenant-\d+\.exemplo\.com$/`. */
@@ -52,6 +55,8 @@ export interface MountOptions<T = object> {
   middlewares?: readonly Middleware[];
   /** Guards para todas as rotas do grupo; rodam antes dos `@Guards` da classe. */
   guards?: readonly Guard[];
+  /** Hooks `onSend`, `onResponse` e `onError` só para estas rotas (F-43); rodam antes dos hooks da classe. */
+  hooks?: HookOptions;
   /** Virtual host (F-35): as rotas só respondem nesses hosts. Sem `host`, valem para qualquer um. */
   host?: HostOption;
 }
@@ -62,6 +67,8 @@ export interface ManualRouteOptions {
   middlewares?: readonly Middleware[];
   /** Rodam depois dos `@Guards` do método. */
   guards?: readonly Guard[];
+  /** Hooks só desta rota (F-43): os mais específicos. */
+  hooks?: HookOptions;
 }
 
 /** Opções de `app.group()`: valem para todos os `mount()` do grupo, inclusive de grupos aninhados. */
@@ -72,6 +79,8 @@ export interface GroupOptions {
   middlewares?: readonly Middleware[];
   /** Rodam antes dos guards do `mount()`. */
   guards?: readonly Guard[];
+  /** Hooks para todas as rotas do grupo (F-43); rodam antes dos hooks do `mount()`. */
+  hooks?: HookOptions;
   /** Virtual host (F-35) para todos os `mount()` do grupo, inclusive os aninhados. */
   host?: HostOption;
 }
@@ -83,10 +92,11 @@ export interface RouteScope {
   prefix: string;
   middlewares: readonly Middleware[];
   guards: readonly Guard[];
+  hooks: ScopedHooks;
   hosts: readonly RouteHostRule[];
 }
 
-export const ROOT_SCOPE: RouteScope = { prefix: '', middlewares: [], guards: [], hosts: [] };
+export const ROOT_SCOPE: RouteScope = { prefix: '', middlewares: [], guards: [], hooks: emptyHooks(), hosts: [] };
 
 /** Host herdado do grupo ou definido aqui; os dois ao mesmo tempo seria ambíguo (F-35). */
 function scopedHosts(where: string, inherited: readonly RouteHostRule[], own: HostOption | undefined): readonly RouteHostRule[] {
@@ -115,6 +125,7 @@ export function childScope(parent: RouteScope, opts: GroupOptions): RouteScope {
     prefix: joinPrefix(parent.prefix, opts.prefix ?? ''),
     middlewares: [...parent.middlewares, ...(opts.middlewares ?? [])],
     guards: [...parent.guards, ...(opts.guards ?? [])],
+    hooks: concatHooks(parent.hooks, hookOptions(opts.hooks)),
   };
 }
 
@@ -208,6 +219,7 @@ function buildRoute(
       ...(manual.middlewares ?? []),
     ],
     guards: [...scope.guards, ...(options.guards ?? []), ...meta.guards, ...methodMeta.guards, ...(manual.guards ?? [])],
+    hooks: routeHooks(concatHooks(scope.hooks, hookOptions(options.hooks), meta.hooks, methodMeta.hooks, hookOptions(manual.hooks))),
   };
 }
 

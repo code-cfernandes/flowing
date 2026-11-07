@@ -1,6 +1,7 @@
 // src/core/metadata.ts
 import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
+import { concatHooks, emptyHooks, type ScopedHooks } from './hooks.ts';
 export const ROUTER_METADATA = Symbol.for('sashiko:router');
 
 /**
@@ -43,6 +44,8 @@ export interface MethodMetadata {
   middlewares: Middleware[];
   /** `@Guards` no método (F-01). */
   guards: Guard[];
+  /** `@OnSend`, `@OnResponse` e `@OnError` no método (F-43). */
+  hooks: ScopedHooks;
 }
 
 export interface RouterMetadata {
@@ -54,6 +57,8 @@ export interface RouterMetadata {
   middlewares: Middleware[];
   /** `@Guards` na classe (F-01). */
   guards: Guard[];
+  /** Hooks da classe (F-43). */
+  hooks: ScopedHooks;
 }
 
 /**
@@ -75,12 +80,13 @@ export function getOrCreateMetadata(meta: DecoratorMetadataObject): RouterMetada
     methods: new Map(
       [...(inherited?.methods ?? [])].map(([name, m]) => [
         name,
-        { ...m, schemas: { ...m.schemas }, middlewares: [...m.middlewares], guards: [...m.guards] },
+        { ...m, schemas: { ...m.schemas }, middlewares: [...m.middlewares], guards: [...m.guards], hooks: concatHooks(m.hooks) },
       ]),
     ),
     // A subclasse herda os middlewares/guards de classe do pai e pode acrescentar os seus.
     middlewares: [...(inherited?.middlewares ?? [])],
     guards: [...(inherited?.guards ?? [])],
+    hooks: concatHooks(inherited?.hooks ?? emptyHooks()),
   };
   meta[ROUTER_METADATA] = own;
   return own;
@@ -141,7 +147,7 @@ export function mergeSchemas(method: MethodMetadata, schemas: RouteSchemas, wher
 export function getOrCreateMethod(meta: RouterMetadata, name: string | symbol): MethodMetadata {
   let m = meta.methods.get(name);
   if (!m) {
-    m = { schemas: {}, handlerName: name, middlewares: [], guards: [] };
+    m = { schemas: {}, handlerName: name, middlewares: [], guards: [], hooks: emptyHooks() };
     meta.methods.set(name, m);
   }
   return m;

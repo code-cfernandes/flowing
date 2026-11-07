@@ -36,6 +36,7 @@ import { RouteRegistry } from './registry/registry.ts';
 import { RequestHandler } from './runtime/request-handler.ts';
 import { RequestObserver } from './runtime/observer.ts';
 import { ServerLifecycle } from './runtime/server.ts';
+import { routeHooks } from './hooks.ts';
 
 export type {
   AppOptions,
@@ -81,6 +82,7 @@ export class SashikoApp {
       onRequestHooks: [],
       telemetry: opts.telemetry ? createTelemetry(opts.telemetry) : undefined,
       onResponseHooks: [],
+      scopedOnResponse: 0,
       onCloseHooks: [],
       // Compilados na criação: uma regra inválida falha aqui, e não na primeira requisição.
       allowedHosts: opts.allowedHosts ? compileHostMatcher(opts.allowedHosts) : undefined,
@@ -237,6 +239,7 @@ export class SashikoApp {
       schemas: {},
       middlewares: [...scope.middlewares],
       guards: [...scope.guards],
+      hooks: routeHooks(scope.hooks),
       owner: 'static',
       handlerName: `static('${prefix}')`,
       hosts: scope.hosts,

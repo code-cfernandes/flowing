@@ -5,7 +5,7 @@ import type { AppCore } from '../app/core.ts';
 import { compileChain, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import { kPhase, kRoute, kRouted } from '../symbols.ts';
+import { kHooks, kPhase, kRoute, kRouted } from '../symbols.ts';
 import { parseTraceparent } from '../../utils/trace-context.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
@@ -229,7 +229,9 @@ export class RequestHandler {
    */
   private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
     this.observer.failed(ctx, err);
-    for (const h of this.core.errorHandlers) {
+    // Os da rota primeiro, do mais específico para o mais externo (F-43); depois os do app.
+    const scoped = ctx.route?.[kHooks]?.onError;
+    for (const h of scoped ? [...scoped, ...this.core.errorHandlers] : this.core.errorHandlers) {
       try {
         await h(err, ctx, ctx[kPhase]);
       } catch (handlerErr) {
