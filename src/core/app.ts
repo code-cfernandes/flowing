@@ -34,6 +34,7 @@ import type { AppOptions, ListenOptions, OnCloseHook, OnErrorHook, OnRequestHook
 import { FrameworkRoutes } from './registry/framework-routes.ts';
 import { RouteRegistry } from './registry/registry.ts';
 import { RequestHandler } from './runtime/request-handler.ts';
+import { RequestObserver } from './runtime/observer.ts';
 import { ServerLifecycle } from './runtime/server.ts';
 
 export type {
@@ -92,8 +93,9 @@ export class SashikoApp {
       () => this.framework.openapi?.cache.clear(),
     );
     this.framework = new FrameworkRoutes(this.core, this.registry);
-    this.runtime = new ServerLifecycle(this.core, () => this.callback());
-    this.requests = new RequestHandler(this.core, this.registry, this.framework, this.runtime);
+    const observer = new RequestObserver(this.core);
+    this.runtime = new ServerLifecycle(this.core, () => this.callback(), observer);
+    this.requests = new RequestHandler(this.core, this.registry, this.framework, this.runtime, observer);
   }
 
   use(mw: Middleware): this {

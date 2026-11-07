@@ -5,7 +5,8 @@ import type { ListenOptions } from '../app/options.ts';
 import type { Context } from '../context.ts';
 import type { Logger } from '../logger.ts';
 import { shutdownCoordinator, type ShutdownTarget } from '../shutdown.ts';
-import { kAbort, kHeadersAt } from '../symbols.ts';
+import { kAbort } from '../symbols.ts';
+import { markHeadersSent, type RequestObserver } from './observer.ts';
 import { compileTls, type SniTable, type TlsOptions } from '../../server/tls.ts';
 
 /** Servidor HTTP/HTTPS do app: `listen`, `close`, troca de certificados, drain e shutdown por sinal (F-07, F-33). */
@@ -36,10 +37,7 @@ export class ServerLifecycle {
     const base = http.ServerResponse.prototype.writeHead as (this: http.ServerResponse, ...args: unknown[]) => http.ServerResponse;
     (SashikoResponse.prototype as unknown as { writeHead: typeof base }).writeHead = function (...args) {
       if (lifecycle.closing) this.shouldKeepAlive = false;
-      const core = lifecycle.core;
-      if (core.onResponseHooks.length > 0 || core.telemetry !== undefined || core.opts.logRequests === true) {
-        (this as unknown as Record<symbol, number>)[kHeadersAt] ??= performance.now();
-      }
+      if (lifecycle.observer.watching) markHeadersSent(this);
       return base.apply(this, args);
     };
     return SashikoResponse;
@@ -49,6 +47,8 @@ export class ServerLifecycle {
     private readonly core: AppCore,
     /** Listener `(req, res)` do app, criado a cada `listen()`. */
     private readonly listener: () => http.RequestListener,
+    /** Diz se há quem observe o fim da requisição (o `ttfbMs` só é medido nesse caso). */
+    private readonly observer: RequestObserver,
   ) {
     const sd = core.opts.shutdown || {};
     Object.assign(this.shutdownTarget, {
