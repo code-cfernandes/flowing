@@ -1,11 +1,12 @@
-import { type Context, kRawSend } from './context.ts';
+import type { Context } from '../context.ts';
+import { kRawSend } from '../symbols.ts';
 import { STATUS_CODES } from 'node:http';
-import { HttpError, type ErrorFormatter, type ProblemDetails } from './errors.ts';
-import { isResponseContent, type RouteSchemas } from './metadata.ts';
+import { HttpError, type ErrorFormatter, type ProblemDetails } from '../errors.ts';
+import { isResponseContent, type RouteSchemas } from '../metadata.ts';
 import { Readable } from 'node:stream';
-import { serialize } from '../schema/serialization.ts';
-import { stripToSchema } from '../schema/validation.ts';
-import { isJsonContentType, mediaType, negotiate, withCharset } from '../utils/content-type.ts';
+import { serialize } from '../../schema/serialization.ts';
+import { stripToSchema } from '../../schema/validation.ts';
+import { isJsonContentType, mediaType, negotiate, withCharset } from '../../utils/content-type.ts';
 
 /** Converte dados num corpo de resposta para um content type (F-31). */
 export type Serializer = (data: unknown) => string | Uint8Array;
@@ -32,19 +33,40 @@ const JSON_TYPE = 'application/json';
  * 4. sem schema, o tipo do valor: string → `text/plain`, Buffer/Uint8Array/stream → `application/octet-stream`,
  *    o resto → JSON.
  */
+/**
+ * O que cada rota sabe sobre a resposta, decidido no registro (Strategy, F-39): schemas, serializadores e o
+ * status padrão (o único 2xx declarado, quando não há 200). O mesmo objeto serve a todas as requisições.
+ */
+export interface ResponsePlan {
+  readonly response: RouteSchemas['response'];
+  readonly serializers: ReadonlyMap<string, Serializer>;
+  readonly defaultStatus: number | undefined;
+}
+
+/** Status padrão de uma rota (B-05): com um único 2xx declarado e sem 200, é esse 2xx. */
+export function defaultStatusFor(response: RouteSchemas['response']): number | undefined {
+  if (!response) return undefined;
+  const success = Object.keys(response)
+    .map(Number)
+    .filter((st) => st >= 200 && st < 300);
+  return success.length === 1 && response[200] === undefined ? success[0] : undefined;
+}
+
+export function responsePlan(response: RouteSchemas['response'], serializers: ReadonlyMap<string, Serializer>): ResponsePlan {
+  return { response, serializers, defaultStatus: defaultStatusFor(response) };
+}
+
+const EMPTY_SERIALIZERS: ReadonlyMap<string, Serializer> = new Map();
+
 export function sendResult(
   ctx: Context,
   response: RouteSchemas['response'],
   result: unknown,
-  serializers: ReadonlyMap<string, Serializer> = new Map(),
+  serializers: ReadonlyMap<string, Serializer> = EMPTY_SERIALIZERS,
   mode: SendMode = 'auto',
+  defaultStatus: number | undefined = defaultStatusFor(response),
 ): void {
-  if (response && !ctx.statusExplicit) {
-    const success = Object.keys(response)
-      .map(Number)
-      .filter((st) => st >= 200 && st < 300);
-    if (success.length === 1 && response[200] === undefined) ctx.res.statusCode = success[0]!;
-  }
+  if (defaultStatus !== undefined && !ctx.statusExplicit) ctx.res.statusCode = defaultStatus;
 
   if (result === undefined) return void ctx.res.end();
 

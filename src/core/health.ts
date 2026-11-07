@@ -1,6 +1,6 @@
 import type { Context } from './context.ts';
 import { compose, type Middleware } from './compose.ts';
-import { kRawSend } from './context.ts';
+import { kRawSend } from './symbols.ts';
 import { guardsMiddleware, type Guard } from './guard.ts';
 import type { Logger } from './logger.ts';
 import { canonicalPath } from '../utils/path.ts';

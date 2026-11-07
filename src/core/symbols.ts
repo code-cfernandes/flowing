@@ -1,0 +1,14 @@
+/** Símbolos internos do core. Ficam num módulo próprio para quem os usa não depender do `Context` em tempo de execução. */
+
+/** @internal Envio cru, sem pipeline: usado pelo próprio pipeline, por erros e por 404/405. */
+export const kRawSend = Symbol('sashiko.rawSend');
+/** @internal Cancela o `ctx.signal` (encerramento do app) (F-13). */
+export const kAbort = Symbol('sashiko.abort');
+/** @internal Envio de arquivo em andamento, que o app aguarda mesmo sem `await` no handler (F-13). */
+export const kPendingSend = Symbol('sashiko.pendingSend');
+/** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
+export const kBindResponse = Symbol('sashiko.bindResponse');
+/** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
+export const kRouted = Symbol('sashiko.routed');
+/** @internal O `Context` de uma resposta em andamento, guardado na própria `ServerResponse` (F-39). */
+export const kContext = Symbol('sashiko.context');

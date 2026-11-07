@@ -228,3 +228,45 @@ describe('0.12.1 · costuras dos estáticos, do sendFile e do inject', () => {
     assert.equal(info.mock.calls.filter((c) => c.arguments[1] === 'request completed').length, 2);
   });
 });
+
+describe('fase 4 · desconexão do cliente não é erro (P-12)', () => {
+  it('cliente que desiste de um download grande gera log debug, não error', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const http = await import('node:http');
+    const dirTmp = mkdtempSync(join(tmpdir(), 'sashiko-p12-'));
+    writeFileSync(join(dirTmp, 'big.bin'), Buffer.alloc(20 * 1024 * 1024));
+    const levels: string[] = [];
+    const log = {
+      debug: (_o: unknown, m?: string) => {
+        levels.push(`debug:${m}`);
+      },
+      info() {},
+      warn() {},
+      error: (_o: unknown, m?: string) => {
+        levels.push(`error:${m}`);
+      },
+      child() {
+        return log;
+      },
+    };
+    const app = createApp({ logger: log, shutdown: false }).static('/s', dirTmp);
+    const server = await app.listen(0);
+    try {
+      await new Promise<void>((resolve) => {
+        const req = http.get({ port: (server.address() as { port: number }).port, path: '/s/big.bin' }, (res) => {
+          res.once('data', () => {
+            req.destroy();
+            setTimeout(resolve, 100);
+          });
+        });
+        req.on('error', () => {});
+      });
+      assert.ok(!levels.some((l) => l.startsWith('error:')), levels.join(' | '));
+    } finally {
+      await app.close();
+      rmSync(dirTmp, { recursive: true, force: true });
+    }
+  });
+});

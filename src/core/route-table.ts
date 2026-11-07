@@ -16,7 +16,9 @@ export interface RouteDefinition {
   guards: readonly Guard[];
 }
 
-export interface RouteMatch extends RouteDefinition {
+/** Resultado do `find()`: a rota registrada (o mesmo objeto, sem cópia) e os parâmetros desta requisição. */
+export interface RouteMatch {
+  route: RouteDefinition & { run?: (ctx: Context) => Promise<void> };
   params: Record<string, string>;
 }
 
@@ -99,7 +101,7 @@ export class RouteTable {
     // O Node já descarta o corpo de respostas a HEAD.
     const found = this.inner.find(method as Method, path, c) ?? (method === 'HEAD' ? this.inner.find('GET', path, c) : null);
     if (!found) return null;
-    return { ...(found.store as RouteDefinition), params: found.params as Record<string, string> };
+    return { route: found.store as RouteMatch['route'], params: found.params as Record<string, string> };
   }
 
   /**

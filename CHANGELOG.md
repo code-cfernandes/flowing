@@ -9,6 +9,36 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.13.0] - 2026-11-07
+
+### Alterado
+
+- **Incompatível: middlewares globais seguem o modelo onion do Koa, como o README já documentava.** O código depois
+  do `await next()` num `app.use()` agora roda **depois** do roteamento e do handler (antes, rodava antes da
+  rota). Medir o tempo da requisição, ler `ctx.sentBody` ou pós-processar a resposta passa a funcionar como
+  documentado. **Migração:** um middleware global que, depois do `next()`, alterava headers ou o estado esperando
+  que isso valesse para a rota deve fazer essa alteração **antes** do `next()`.
+- **Incompatível: um middleware global que não chama `next()` nem responde interrompe a requisição.** Antes, a
+  rota rodava mesmo assim: um middleware de autenticação que esquecesse o `throw` liberava o acesso. Agora o
+  handler não roda, o app responde 404 e registra um aviso. **Migração:** para bloquear, lance um erro
+  (`throw unauthorized()`) ou responda; para seguir, chame `next()`.
+- **Incompatível: o host validado é o host roteado.** Um middleware que reescreve `req.headers.host` não muda mais
+  o roteamento por virtual host. Antes, isso permitia contornar o `allowedHosts`, que é conferido antes dos
+  middlewares. **Migração:** para mapear hosts, use regras de `host` no `mount()`/`group()` ou `trustProxy` com o
+  `X-Forwarded-Host` do proxy.
+- Um cliente que desconecta no meio de um arquivo ou stream é registrado em nível `debug` (`client disconnected
+  during stream`), e não mais como erro `stream failed`. Falhas da fonte (leitura do disco) continuam em `error`.
+
+### Desempenho
+
+- Refatoração interna guiada por benchmark e profiling (sem mudança de API pública):
+  - `app.ts` dividido em registro, rotas do framework, servidor e pipeline da requisição;
+  - `ctx.url`, `ctx.query` e `ctx.log` criados no primeiro acesso, e `host`/`protocol` memoizados;
+  - logger padrão com a configuração compartilhada entre os filhos;
+  - programa de cada rota e cadeias de middlewares montados no registro;
+  - callback da requisição sem closures, `Content-Type` escrito uma vez e `ctx.sentBody` convertido só se lido.
+    Os números, a metodologia e a atribuição de cada ganho estão no PR e em `docs/ARCHITECTURE.md`.
+
 ## [0.12.2] - 2026-11-06
 
 ### Corrigido

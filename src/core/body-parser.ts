@@ -1,12 +1,15 @@
-import type { Middleware } from './compose.ts';
+import type { Context } from './context.ts';
 import { isJsonContentType } from '../utils/content-type.ts';
 import { parseJson, ProtoPoisoningError, type ProtoPoisoning } from '../utils/safe-json.ts';
 
-/** Lê e parseia o body JSON, respeitando `limit` em bytes. Registrado pelo app como primeiro middleware. */
-export function bodyParser(limit: number, protoPoisoning: ProtoPoisoning = 'error'): Middleware {
-  return async (ctx, next) => {
-    if (ctx.method === 'GET' || ctx.method === 'HEAD') return next();
-    if (!isJsonContentType(ctx.req.headers['content-type'])) return next();
+/**
+ * Lê e parseia o body JSON, respeitando `limit` em bytes. O app chama antes dos middlewares globais, que
+ * recebem o body já lido; é uma etapa direta, sem camada de middleware (F-39).
+ */
+export function bodyReader(limit: number, protoPoisoning: ProtoPoisoning = 'error'): (ctx: Context) => Promise<void> | void {
+  return async (ctx) => {
+    if (ctx.method === 'GET' || ctx.method === 'HEAD') return;
+    if (!isJsonContentType(ctx.req.headers['content-type'])) return;
 
     // B-12: rejeita cedo pelo Content-Length e fecha a conexão ao exceder,
     // para o cliente não continuar enviando um corpo que será descartado.
@@ -34,6 +37,5 @@ export function bodyParser(limit: number, protoPoisoning: ProtoPoisoning = 'erro
         ctx.throw(400, 'Invalid JSON', 'INVALID_JSON');
       }
     }
-    await next();
   };
 }

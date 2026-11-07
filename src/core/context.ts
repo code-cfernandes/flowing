@@ -8,82 +8,21 @@ import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../u
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
-import { sendResult, type SendMode, type Serializer } from './response.ts';
+import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
+import { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
+import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
-/** @internal Envio cru, sem pipeline: usado pelo próprio pipeline, por erros e por 404/405. */
-export const kRawSend = Symbol('sashiko.rawSend');
-/** @internal Cancela o `ctx.signal` (encerramento do app) (F-13). */
-export const kAbort = Symbol('sashiko.abort');
-/** @internal Envio de arquivo em andamento, que o app aguarda mesmo sem `await` no handler (F-13). */
-export const kPendingSend = Symbol('sashiko.pendingSend');
-/** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
-export const kBindResponse = Symbol('sashiko.bindResponse');
+export type { SseEvent, SseOptions, SseStream } from './streaming/sse.ts';
+
+export { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 
 type RawBody = string | Uint8Array | Readable;
 
-/** Um evento de Server-Sent Events (F-13). `data` em objeto vira JSON; strings com várias linhas são divididas. */
-export interface SseEvent {
-  data: unknown;
-  event?: string;
-  id?: string;
-  /** Sugestão de espera para o navegador reconectar, em ms. */
-  retry?: number;
-}
-
-/** Conexão SSE aberta por `ctx.sse()`. */
-export interface SseStream {
-  send(event: SseEvent | string): void;
-  /** Comentário (`: texto`), ignorado pelo navegador; útil como keep-alive. */
-  comment(text: string): void;
-  /** Encerra a resposta. */
-  close(): void;
-  /** Chamado quando a conexão termina: o cliente desconectou, `close()` ou encerramento do app. */
-  onClose(listener: () => void): void;
-  readonly closed: boolean;
-  /** `Last-Event-ID` enviado pelo navegador ao reconectar. */
-  readonly lastEventId: string | undefined;
-}
-
-export interface SseOptions {
-  /** Comentário periódico para proxies não derrubarem a conexão ociosa. Padrão: 15000 ms; `0` desliga. */
-  heartbeatMs?: number;
-  /** `retry:` enviado na abertura. */
-  retry?: number;
-}
-
-/**
- * Campos de uma linha SSE não podem ter quebra de linha (seria injeção de evento); `id` também não pode
- * ter U+0000, que faz o navegador ignorar o campo.
- */
-const sseField = (name: string, value: string) => {
-  if (/[\r\n]/.test(value)) throw new Error(`[sashiko] ctx.sse(): "${name}" cannot contain line breaks.`);
-  if (name === 'id' && value.includes('\0')) throw new Error('[sashiko] ctx.sse(): "id" cannot contain U+0000.');
-  return `${name}: ${value}\n`;
-};
-
-/** Maior intervalo dos timers do Node; acima disso, ele usa 1 ms (heartbeat contínuo). */
-const MAX_TIMER_MS = 2_147_483_647;
-
-/** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige, e dentro do limite dos timers. */
-const nonNegativeInt = (name: string, value: number): number => {
-  if (!Number.isInteger(value) || value < 0 || value > MAX_TIMER_MS) {
-    throw new Error(`[sashiko] ctx.sse(): "${name}" must be an integer between 0 and ${MAX_TIMER_MS} (got ${value}).`);
-  }
-  return value;
-};
-
-/** `data` do evento: strings como estão; o resto em JSON. Valor que não vira JSON gera erro claro, sem escrever nada. */
-function sseData(data: unknown): string {
-  if (typeof data === 'string') return data;
-  let text: string | undefined;
-  try {
-    text = JSON.stringify(data);
-  } catch (err) {
-    throw new Error(`[sashiko] ctx.sse(): "data" is not JSON-serializable (${(err as Error).message}).`, { cause: err });
-  }
-  if (text === undefined) throw new Error(`[sashiko] ctx.sse(): "data" of type ${typeof data} is not JSON-serializable.`);
-  return text;
+/** Erros de stream que só significam que o cliente foi embora (P-12). */
+const CLIENT_GONE = new Set(['ECONNRESET', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'ERR_STREAM_UNABLE_TO_PIPE', 'ERR_STREAM_DESTROYED']);
+function isClientDisconnect(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && CLIENT_GONE.has((err as { code?: string }).code ?? '');
 }
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
@@ -164,16 +103,43 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly res: ServerResponse;
   readonly method: string;
   readonly path: string;
-  readonly url: URL;
   /** Id da requisição, também enviado no header `X-Request-Id` (F-06). */
   readonly id: string;
-  /** Logger da requisição, já com `reqId` (F-06). */
-  readonly log: Logger;
 
   /** Parâmetros de rota; tipados pelo schema `params` quando informado em `Context<S>`. */
   params: ParamsFor<S> = {} as ParamsFor<S>;
-  /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). */
-  query: InferQuery<SchemasOf<S>>;
+  /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
+  get query(): InferQuery<SchemasOf<S>> {
+    this.parsedQuery ??= parseQuery(this.target.searchParams, this.queryMaxKeys) as ParsedQuery;
+    return this.parsedQuery as InferQuery<SchemasOf<S>>;
+  }
+  set query(value: InferQuery<SchemasOf<S>>) {
+    this.parsedQuery = value as ParsedQuery;
+  }
+
+  /** URL completa da requisição, com o host validado (S-09). Criada no primeiro acesso. */
+  get url(): URL {
+    this.fullUrl ??= new URL(`${this.protocol}://${this.host || 'localhost'}${this.target.pathname}${this.target.search}`);
+    return this.fullUrl;
+  }
+
+  /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
+  get log(): Logger {
+    this.requestLog ??= this.baseLogger.child({ reqId: this.id });
+    return this.requestLog;
+  }
+
+  // Campos preguiçosos (F-39, fase 2): calculados no primeiro acesso e guardados. Dependem só da
+  // requisição e da configuração do app, que não mudam durante a requisição.
+  private readonly target: URL;
+  private readonly queryMaxKeys: number | undefined;
+  private readonly baseLogger: Logger;
+  private parsedQuery: ParsedQuery | undefined;
+  private fullUrl: URL | undefined;
+  private requestLog: Logger | undefined;
+  private memoHost: string | undefined;
+  private memoHostname: string | undefined;
+  private memoProtocol: 'http' | 'https' | undefined;
   /** Body; tipado pelo schema `body`. */
   body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
   state: ContextState = {};
@@ -230,74 +196,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * ```
    */
   sse(opts: SseOptions = {}): SseStream {
-    if (this.sent) throw new Error('[sashiko] ctx.sse(): the response was already sent.');
-    // Valida antes de abrir a resposta: um erro aqui ainda vira um 500 normal.
-    const heartbeatMs = nonNegativeInt('heartbeatMs', opts.heartbeatMs ?? 15_000);
-    if (opts.retry !== undefined) nonNegativeInt('retry', opts.retry);
-    const res = this.res;
-    this.streaming = true;
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.removeHeader('Content-Length');
-    res.flushHeaders();
-
-    const listeners: (() => void)[] = [];
-    let closed = false;
-    const finish = () => {
-      if (closed) return;
-      closed = true;
-      clearInterval(heartbeat);
-      for (const l of listeners.splice(0)) {
-        try {
-          l();
-        } catch (err) {
-          this.log.error({ err }, 'sse onClose listener failed');
-        }
-      }
-    };
-    const write = (chunk: string) => {
-      if (!closed && !res.writableEnded) res.write(chunk);
-    };
-    const heartbeat = setInterval(() => write(': ping\n\n'), heartbeatMs || 2 ** 31 - 1);
-    heartbeat.unref();
-    if (!heartbeatMs) clearInterval(heartbeat);
-    res.once('close', finish);
-    const signal = this.signal;
-    signal.addEventListener('abort', () => stream.close(), { once: true });
-    if (opts.retry !== undefined) write(`retry: ${opts.retry}\n\n`);
-
-    const stream: SseStream = {
-      send: (event) => {
-        const e: SseEvent = typeof event === 'string' ? { data: event } : event;
-        let out = '';
-        if (e.event !== undefined) out += sseField('event', e.event);
-        if (e.id !== undefined) out += sseField('id', e.id);
-        if (e.retry !== undefined) out += `retry: ${nonNegativeInt('retry', e.retry)}\n`;
-        if (e.data === undefined) throw new Error('[sashiko] ctx.sse(): "data" is required; use "" for an empty event.');
-        const text = sseData(e.data);
-        for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
-        write(`${out}\n`);
-      },
-      comment: (text) => write(`: ${text.replace(/[\r\n]+/g, ' ')}\n\n`),
-      close: () => {
-        if (!res.writableEnded) res.end();
-        finish();
-      },
-      onClose: (listener) => {
-        if (closed) listener();
-        else listeners.push(listener);
-      },
-      get closed() {
-        return closed;
-      },
-      lastEventId: this.get('last-event-id'),
-    };
-    // O cliente pode ter desconectado antes do `ctx.sse()` (num `await` anterior): o 'close' e o 'abort' já
-    // passaram, e os listeners acima nunca rodariam. Encerra já, limpando o heartbeat e chamando `onClose`.
-    if (signal.aborted) stream.close();
-    return stream;
+    return openSse(this as unknown as Context, opts, () => {
+      this.streaming = true;
+    });
   }
 
   /**
@@ -321,24 +222,39 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * Corpo exatamente como foi escrito (F-04), depois do envio. Fica `undefined` em streams e em
    * respostas sem corpo. Útil para cache: `await next(); store.set(key, ctx.sentBody)`.
    */
-  sentBody: Buffer | undefined;
+  get sentBody(): Buffer | undefined {
+    // Convertido só se alguém ler (F-39): antes, toda resposta copiava o corpo para um Buffer.
+    if (this.sentBuffer === undefined && this.sentRaw !== undefined) {
+      this.sentBuffer = typeof this.sentRaw === 'string' ? Buffer.from(this.sentRaw) : Buffer.from(this.sentRaw);
+    }
+    return this.sentBuffer;
+  }
+  set sentBody(value: Buffer | undefined) {
+    this.sentBuffer = value;
+    this.sentRaw = undefined;
+  }
+  private sentRaw: string | Uint8Array | undefined;
+  private sentBuffer: Buffer | undefined;
   /** `Content-Type` da resposta enviada, junto com `sentBody`. */
   sentType: string | undefined;
-  private bound: { response: RouteSchemas['response']; serializers: ReadonlyMap<string, Serializer> } | undefined;
+  private bound: ResponsePlan | undefined;
 
-  constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}) {
+  /**
+   * @param opts configuração; o app passa **o mesmo objeto** para todas as requisições (Flyweight), e o
+   *   que muda por requisição (`id`) vem à parte.
+   */
+  constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}, id?: string) {
     this.req = req;
     this.res = res;
     this.method = req.method ?? 'GET';
     this.trustProxy = opts.trustProxy ?? false;
     this.onSendHooks = opts.onSend ?? [];
+    this.queryMaxKeys = opts.queryMaxKeys;
+    this.baseLogger = opts.logger ?? silentLogger;
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
-    const target = parseRequestTarget(req.url);
-    this.path = target.pathname;
-    this.query = parseQuery(target.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<SchemasOf<S>>;
-    this.url = new URL(`${this.protocol}://${this.host || 'localhost'}${target.pathname}${target.search}`);
-    this.id = opts.id ?? '';
-    this.log = (opts.logger ?? silentLogger).child({ reqId: this.id });
+    this.target = parseRequestTarget(req.url);
+    this.path = this.target.pathname;
+    this.id = id ?? opts.id ?? '';
   }
 
   private readonly trustProxy: boolean | number;
@@ -357,22 +273,32 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * configurada em vez do host pedido pelo cliente (S-09).
    */
   get host(): string {
-    const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
-    if (forwarded !== undefined) return isValidHost(forwarded) ? forwarded : '';
-    const host = this.req.headers.host;
-    return isValidHost(host) ? host : '';
+    if (this.memoHost === undefined) {
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
+      const raw = forwarded !== undefined ? forwarded : this.req.headers.host;
+      this.memoHost = isValidHost(raw) ? raw : '';
+    }
+    return this.memoHost;
   }
 
   /** `host` sem a porta. */
   get hostname(): string {
-    return this.host ? hostnameOf(this.host) : '';
+    this.memoHostname ??= this.host ? hostnameOf(this.host) : '';
+    return this.memoHostname;
   }
 
   /** `https` se a conexão for TLS ou, com `trustProxy`, se o `X-Forwarded-Proto` disser; senão `http`. */
   get protocol(): 'http' | 'https' {
-    const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
-    if (forwarded === 'https' || forwarded === 'http') return forwarded;
-    return (this.req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http';
+    if (this.memoProtocol === undefined) {
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
+      this.memoProtocol =
+        forwarded === 'https' || forwarded === 'http'
+          ? forwarded
+          : (this.req.socket as { encrypted?: boolean }).encrypted
+            ? 'https'
+            : 'http';
+    }
+    return this.memoProtocol;
   }
 
   /**
@@ -453,34 +379,44 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private dispatch(body: unknown, mode: SendMode): this {
     if (this.sent) return this;
     // Antes do handler (middlewares, guards) não há schema ligado: vale só o tipo do conteúdo.
-    sendResult(this as unknown as Context, this.bound?.response, body, this.bound?.serializers, mode);
+    const plan = this.bound;
+    if (plan) sendResult(this as unknown as Context, plan.response, body, plan.serializers, mode, plan.defaultStatus);
+    else sendResult(this as unknown as Context, undefined, body, undefined, mode);
     return this;
   }
 
   /** @internal Liga os schemas de resposta da rota (o app chama antes do handler). */
-  [kBindResponse](response: RouteSchemas['response'], serializers: ReadonlyMap<string, Serializer>): void {
-    this.bound = { response, serializers };
+  [kBindResponse](plan: ResponsePlan): void {
+    this.bound = plan;
   }
 
   /** @internal Envio cru, sem schema: string, bytes ou stream. */
   [kRawSend](body: RawBody, contentType?: string): this {
     if (this.sent) return this;
-    if (contentType) this.res.setHeader('Content-Type', contentType);
-    else if (!this.res.hasHeader('Content-Type')) this.res.setHeader('Content-Type', 'application/octet-stream');
+    const type = contentType ?? (this.res.getHeader('Content-Type') as string | undefined) ?? 'application/octet-stream';
 
     if (body instanceof Readable) {
+      this.res.setHeader('Content-Type', type);
       this.streaming = true;
       pipeline(body, this.res).catch((err: unknown) => {
-        this.log.error({ err, method: this.method, path: this.path }, 'stream failed');
+        // P-12: o cliente desistir (fechar a conexão) é normal e não é erro do servidor.
+        // Pelo código do erro: o pipeline já destruiu a resposta aqui, então `res.destroyed` não distingue.
+        const clientGone = isClientDisconnect(err);
+        this.log[clientGone ? 'debug' : 'error'](
+          { err, method: this.method, path: this.path },
+          clientGone ? 'client disconnected during stream' : 'stream failed',
+        );
         this.res.destroy(err as Error);
       });
       return this;
     }
-    const payload = this.runOnSend({ body, contentType: String(this.res.getHeader('Content-Type')) });
+    // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).
+    const payload = this.onSendHooks.length > 0 ? this.runOnSend({ body, contentType: type }) : { body, contentType: type };
     this.res.setHeader('Content-Type', payload.contentType);
-    this.sentBody = Buffer.from(payload.body);
+    this.sentRaw = payload.body;
+    this.sentBuffer = undefined;
     this.sentType = payload.contentType;
-    this.res.end(this.sentBody);
+    this.res.end(payload.body);
     return this;
   }
 

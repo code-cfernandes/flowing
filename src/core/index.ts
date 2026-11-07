@@ -28,7 +28,7 @@ export type {
 } from './infer.ts';
 export type { ShutdownOptions } from './shutdown.ts';
 export type { HealthCheck, HealthOptions } from './health.ts';
-export type { Serializer } from './response.ts';
+export type { Serializer } from './response/pipeline.ts';
 export type { CookieOptions } from '../utils/cookie.ts';
 export type { TlsCertificate, TlsOptions } from '../server/tls.ts';
 export type { FileOptions, SendFileOptions, StaticOptions } from '../server/static.ts';
