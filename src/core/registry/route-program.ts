@@ -1,4 +1,4 @@
-import { compileChain } from '../compose.ts';
+import { compileChain, isPromiseLike, type Step } from '../compose.ts';
 import type { Context } from '../context.ts';
 import { guardsMiddleware } from '../guard.ts';
 import { validateRequest } from '../request-validation.ts';
@@ -7,7 +7,7 @@ import type { RouteDefinition } from '../route-table.ts';
 import { kBindResponse, kPendingSend } from '../symbols.ts';
 
 /** A função completa de uma rota, montada uma vez no registro. */
-export type RouteProgram = (ctx: Context) => Promise<void>;
+export type RouteProgram = (ctx: Context) => Step;
 
 /**
  * Builder (F-39): monta, no registro, o programa de cada rota. Antes, a cada requisição, o app criava o
@@ -19,13 +19,24 @@ export type RouteProgram = (ctx: Context) => Promise<void>;
 export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyMap<string, Serializer>): RouteProgram {
   const { schemas, handler } = route;
   const plan = responsePlan(schemas.response, serializers);
-  const terminal = async (ctx: Context): Promise<void> => {
+  const send = (ctx: Context, result: unknown): void => {
+    if (!ctx.sent) sendResult(ctx, plan.response, result, plan.serializers, 'auto', plan.defaultStatus);
+  };
+  const finish = (ctx: Context, result: unknown): Step => {
+    // Um sendFile() sem await no handler: espera o envio pendente antes de responder.
+    const pending = ctx[kPendingSend];
+    if (pending) return pending.then(() => send(ctx, result));
+    send(ctx, result);
+    return undefined;
+  };
+  // Síncrono quando o handler é síncrono: Promise só se o handler devolver uma (F-41).
+  const terminal = (ctx: Context): Step => {
     validateRequest(ctx, schemas);
     // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
     ctx[kBindResponse](plan);
-    const result = await handler(ctx);
-    if (ctx[kPendingSend]) await ctx[kPendingSend];
-    if (!ctx.sent) sendResult(ctx, plan.response, result, plan.serializers, 'auto', plan.defaultStatus);
+    const result = handler(ctx);
+    if (isPromiseLike(result)) return Promise.resolve(result).then((value) => finish(ctx, value));
+    return finish(ctx, result);
   };
   const layers = route.guards.length > 0 ? [...route.middlewares, guardsMiddleware(route.guards)] : route.middlewares;
   return layers.length === 0 ? terminal : compileChain(layers, terminal);

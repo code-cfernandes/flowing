@@ -18,7 +18,7 @@ export interface RouteDefinition {
 
 /** Resultado do `find()`: a rota registrada (o mesmo objeto, sem cópia) e os parâmetros desta requisição. */
 export interface RouteMatch {
-  route: RouteDefinition & { run?: (ctx: Context) => Promise<void> };
+  route: RouteDefinition & { run?: (ctx: Context) => Promise<void> | undefined };
   params: Record<string, string>;
 }
 

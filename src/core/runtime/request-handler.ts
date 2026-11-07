@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
-import { compileChain } from '../compose.ts';
+import { compileChain, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import { kContext, kRouted } from '../symbols.ts';
@@ -89,21 +89,16 @@ export class RequestHandler {
             }
           });
         }
-        void this.safeHandle(ctx, id);
+        // Síncrono no caso comum: só uma requisição que de fato ficou assíncrona recebe o handler da barreira.
+        const step = this.run(ctx);
+        if (step) step.then(undefined, (err: unknown) => this.fail(err, req, res, id));
       } catch (err) {
         this.fail(err, req, res, id);
       }
     };
   }
 
-  /** Última barreira (B-08): nada que aconteça numa requisição pode virar unhandledRejection. */
-  private async safeHandle(ctx: Context, id: string): Promise<void> {
-    try {
-      await this.handle(ctx);
-    } catch (err) {
-      this.fail(err, ctx.req, ctx.res, id);
-    }
-  }
+  // Última barreira (B-08): `fail` recebe o que escapar, de forma síncrona (try/catch) ou assíncrona (.then).
 
   private fail(err: unknown, req: http.IncomingMessage, res: http.ServerResponse, id: string): void {
     this.core.log.error({ err, reqId: id, method: req.method, url: req.url }, 'unhandled error while handling request');
@@ -112,29 +107,64 @@ export class RequestHandler {
   }
 
   /** Cadeia global compilada; refeita só quando `app.use()` acrescenta um middleware. */
-  private globalChain: { size: number; run: (ctx: Context) => Promise<void> } | undefined;
+  private globalChain: { size: number; run: (ctx: Context) => Step } | undefined;
   private readonly readBody: (ctx: Context) => Promise<void> | undefined;
 
+  /** O pipeline completo, como uma Promise (API pública: `app.handle()`). */
   async handle(ctx: Context): Promise<void> {
+    await this.run(ctx);
+  }
+
+  /**
+   * O pipeline completo. Síncrono do começo ao fim quando nada é assíncrono (sem healthcheck no path, sem
+   * body a ler, sem middlewares, handler síncrono); vira assíncrono só a partir da primeira Promise de verdade
+   * (F-41). Erros síncronos e assíncronos terminam no mesmo `runErrorHandlers`.
+   */
+  run(ctx: Context): Step {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
     this.core.applySecurityHeaders?.(ctx.res);
     try {
       // Healthchecks antes dos middlewares globais: sondas do load balancer não têm credenciais.
-      if (this.framework.health && (await this.framework.health.serve(ctx, this.server.draining || this.server.closing !== undefined)))
-        return;
-      // O body chega lido aos middlewares globais (invariante 5), sem uma camada de middleware para isso.
-      const reading = this.readBody(ctx);
-      if (reading) await reading;
-      const chain = this.chain();
-      await chain(ctx);
-      // Um middleware global que não chama next() e não responde: a rota não roda (antes, rodava mesmo
-      // assim). Para a requisição não ficar sem resposta, 404, como no Koa.
-      if (!(ctx as unknown as Record<symbol, boolean>)[kRouted] && !ctx.sent) {
-        ctx.log.warn({ method: ctx.method, path: ctx.path }, 'a global middleware neither called next() nor sent a response');
-        sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
-      }
+      const health = this.framework.health;
+      if (health?.handles(ctx.method, ctx.path)) return this.catching(ctx, this.serveHealth(ctx));
+      return this.catching(ctx, this.afterHealth(ctx));
     } catch (err) {
-      await this.runErrorHandlers(err, ctx);
+      return this.runErrorHandlers(err, ctx);
+    }
+  }
+
+  /** Liga a parte assíncrona (se houver) ao tratamento de erros. */
+  private catching(ctx: Context, step: Step): Step {
+    return step ? step.then(undefined, (err: unknown) => this.runErrorHandlers(err, ctx)) : undefined;
+  }
+
+  private async serveHealth(ctx: Context): Promise<void> {
+    if (await this.framework.health!.serve(ctx, this.server.draining || this.server.closing !== undefined)) return;
+    await this.afterHealth(ctx);
+  }
+
+  private afterHealth(ctx: Context): Step {
+    // O body chega lido aos middlewares globais (invariante 5), sem uma camada de middleware para isso.
+    const reading = this.readBody(ctx);
+    if (reading) return reading.then(() => this.afterBody(ctx));
+    return this.afterBody(ctx);
+  }
+
+  private afterBody(ctx: Context): Step {
+    const step = this.chain()(ctx);
+    if (step) return step.then(() => this.checkRouted(ctx));
+    this.checkRouted(ctx);
+    return undefined;
+  }
+
+  /**
+   * Um middleware global que não chama next() e não responde: a rota não roda (antes, rodava mesmo assim).
+   * Para a requisição não ficar sem resposta, 404, como no Koa.
+   */
+  private checkRouted(ctx: Context): void {
+    if (!(ctx as unknown as Record<symbol, boolean>)[kRouted] && !ctx.sent) {
+      ctx.log.warn({ method: ctx.method, path: ctx.path }, 'a global middleware neither called next() nor sent a response');
+      sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
     }
   }
 
@@ -142,7 +172,7 @@ export class RequestHandler {
    * Cadeia global (Chain of Responsibility pré-compilada): os middlewares de `app.use()` envolvem o
    * roteamento e a rota, como no Koa. Um `await next()` num middleware global inclui o handler.
    */
-  private chain(): (ctx: Context) => Promise<void> {
+  private chain(): (ctx: Context) => Step {
     const mws = this.core.middlewares;
     if (this.globalChain?.size !== mws.length) {
       this.globalChain = { size: mws.length, run: compileChain([...mws], (ctx) => this.route(ctx)) };
@@ -151,12 +181,18 @@ export class RequestHandler {
   }
 
   /** Fim da cadeia global: OpenAPI, roteamento, 404/405 e o programa da rota. */
-  private async route(ctx: Context): Promise<void> {
+  private route(ctx: Context): Step {
     (ctx as unknown as Record<symbol, boolean>)[kRouted] = true;
-    if (ctx.sent) return;
+    if (ctx.sent) return undefined;
     // Só cria a Promise do OpenAPI se ele estiver configurado (F-41).
-    if (this.framework.openapi && (await this.framework.serveOpenAPI(ctx))) return;
+    if (this.framework.openapi) {
+      return this.framework.serveOpenAPI(ctx).then((served) => (served ? undefined : this.dispatch(ctx)));
+    }
+    return this.dispatch(ctx);
+  }
 
+  /** Roteamento, 404/405 e o programa da rota. */
+  private dispatch(ctx: Context): Step {
     // F-35: hosts não diferenciam maiúsculas; as regras já são compiladas em minúsculas.
     const hostname = ctx.hostname.toLowerCase();
     const match = this.registry.router.find(ctx.method, ctx.path, hostname);
@@ -177,7 +213,7 @@ export class RequestHandler {
     ctx.params = match.params;
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
     const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
-    await run(ctx);
+    return run(ctx);
   }
 
   /**
