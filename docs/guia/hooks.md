@@ -34,6 +34,55 @@ app
 
 - **`onClose`:** roda em qualquer `close()` (sinal, teste, código), depois que o servidor fecha e antes do `shutdown.onShutdown`. Todos os hooks rodam mesmo se algum falhar, e o `close()` rejeita ao final.
 
+## Hooks com escopo
+
+Os mesmos `onSend`, `onResponse` e `onError` valem para um grupo, um `mount()`, uma classe, um método ou uma rota manual, com a mesma assinatura dos hooks do app:
+
+```ts
+import { Get, OnError, OnResponse, OnSend, Router } from 'sashiko';
+
+@Router('/orders')
+@OnResponse((ctx, info) => metrics.orders.observe(info.ms)) // todas as rotas da classe
+class OrderRoutes {
+  @Get('/:id/invoice')
+  @OnSend((ctx) => void ctx.header('Cache-Control', 'private, max-age=60')) // só esta rota
+  @OnError((err, ctx, phase) => audit.invoiceFailed(err, phase))
+  invoice() {}
+}
+
+app.group({ prefix: '/admin', guards: [isAdmin], hooks: { onResponse: auditAdmin } }, (g) => g.mount(AdminRoutes));
+app.mount(Reports, { hooks: { onSend: signPayload } });
+app.mount(Legacy).get('/old/:id', (r) => r.get, { hooks: { onError: [logLegacy, alertLegacy] } });
+```
+
+- **Quando rodam:** só quando uma rota daquele escopo atendeu. Um 404, um 405, um `Host` inválido, um healthcheck ou o OpenAPI nunca chegam a eles; os hooks do app continuam vendo tudo.
+- **Ordem:** de fora para dentro, como os middlewares (grupo → `mount()` → classe → método → rota manual).
+
+  | Hook         | Ordem                                      | Interrupção                                                   |
+  | ------------ | ------------------------------------------ | ------------------------------------------------------------- |
+  | `onSend`     | app → escopo, de fora para dentro          | Cada um recebe o payload do anterior                          |
+  | `onError`    | escopo, do mais específico para fora → app | O primeiro que responder encerra a cadeia e a resposta padrão |
+  | `onResponse` | app → escopo                               | Todos rodam                                                   |
+
+- **Herança:** uma subclasse herda os hooks da classe pai, e os que ela acrescenta não alteram a pai.
+- **Erro antes do roteamento**, num middleware global: ainda não há rota, então só os `onError` do app rodam.
+- **Custo:** as listas de cada rota são montadas no registro. Uma rota sem hooks não paga nada, e só um `onResponse` (do app ou de alguma rota) faz o app acompanhar o fim das requisições.
+
+**E o `onRequest`?** Ele roda antes do roteamento, quando a rota ainda não é conhecida, então não existe com escopo. Para algo no início das requisições de um escopo, use um middleware desse escopo: `@Middlewares(fn)`, ou `middlewares` no `group()` e no `mount()`.
+
+**Regras junto da classe, sem tirar a composição do lugar.** Os grupos são montados no `app.group()`, e não por um decorator na classe: assim a mesma classe pode ser montada em dois grupos, e uma regra de segurança não depende de lembrar de um decorator. Para ler os guards e hooks junto da classe, combine os decorators numa função:
+
+```ts
+const AdminArea = () => (cls: Function, ctx: ClassDecoratorContext) => {
+  Guards(isAdmin)(cls, ctx);
+  OnResponse(auditAdmin)(cls, ctx);
+};
+
+@AdminArea()
+@Router('/users')
+class AdminUsers {}
+```
+
 **Cache com middleware.** Depois do `await next()`, `ctx.sentBody` e `ctx.sentType` contêm o corpo exatamente como foi enviado, já filtrado pelo schema:
 
 ```ts
