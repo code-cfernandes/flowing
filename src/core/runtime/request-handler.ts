@@ -60,7 +60,7 @@ export class RequestHandler {
       // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
       server.closing?.closeIdleConnections();
     };
-    const timed = () => this.core.opts.logRequests === true || this.core.onResponseHooks.length > 0;
+    const timed = () => this.core.opts.logRequests === true || this.core.onResponseHooks.length > 0 || this.core.telemetry !== undefined;
 
     return (req, res) => {
       const started = timed() ? performance.now() : -1;
@@ -80,6 +80,7 @@ export class RequestHandler {
         const ctx = new Context(req, res, contextOptions, id);
         // Antes da validação do Host: toda requisição observada no início também é observada no fim.
         if (started !== -1) this.observe(ctx, started);
+        this.core.telemetry?.onRequest(ctx);
         if (this.core.onRequestHooks.length > 0) this.runOnRequest(ctx);
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
@@ -90,7 +91,8 @@ export class RequestHandler {
           return;
         }
         // Síncrono no caso comum: só uma requisição que de fato ficou assíncrona recebe o handler da barreira.
-        const step = this.run(ctx);
+        const telemetry = this.core.telemetry;
+        const step = telemetry ? telemetry.run(ctx, () => this.run(ctx)) : this.run(ctx);
         if (step) step.then(undefined, (err: unknown) => this.fail(err, req, res, id));
       } catch (err) {
         this.fail(err, req, res, id);
@@ -131,6 +133,7 @@ export class RequestHandler {
         ...(route ? { route } : {}),
         ...(error === undefined ? {} : { error, errorPhase: ctx[kPhase] }),
       };
+      this.core.telemetry?.onResponse(ctx, info);
       if (this.core.opts.logRequests) {
         const entry = { method: ctx.method, path: ctx.path, status, ms: info.ms, ...(abortReason ? { abortReason } : {}) };
         ctx.log.info(entry, abortReason ? 'request aborted' : 'request completed');
@@ -270,7 +273,11 @@ export class RequestHandler {
       return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
     }
     ctx.params = match.params;
-    if (match.route.info) (ctx as unknown as Record<symbol, RouteInfo>)[kRoute] = match.route.info;
+    const info = match.route.info;
+    if (info) {
+      (ctx as unknown as Record<symbol, RouteInfo>)[kRoute] = info;
+      this.core.telemetry?.onRoute(ctx, info);
+    }
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
     const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
     return run(ctx);
@@ -282,6 +289,7 @@ export class RequestHandler {
    */
   private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
     (ctx as unknown as Record<symbol, unknown>)[kError] = err;
+    this.core.telemetry?.onError(ctx, err, ctx[kPhase]);
     for (const h of this.core.errorHandlers) {
       try {
         await h(err, ctx, ctx[kPhase]);

@@ -1,4 +1,5 @@
 import type { AbortCode, ErrorPhase } from '../abort.ts';
+import type { TelemetryApi } from '../telemetry.ts';
 import type { Context } from '../context.ts';
 import type { RouteInfo } from '../route-table.ts';
 import type { ErrorFormatter } from '../errors.ts';
@@ -72,6 +73,12 @@ export interface ServerTimeouts {
 }
 
 export interface AppOptions {
+  /**
+   * OpenTelemetry nativo (F-38): passe o `@opentelemetry/api` que a aplicação usa (`import * as otel`).
+   * Enriquece o span da auto-instrumentação HTTP (ou cria o span SERVER, se não houver), com o template da
+   * rota e os erros com a fase, e gera as métricas HTTP. Sem esta opção, nada é carregado.
+   */
+  telemetry?: TelemetryApi;
   /** Tamanho máximo do body JSON em bytes. Padrão: 1 MiB. */
   bodyLimit?: number;
   /**

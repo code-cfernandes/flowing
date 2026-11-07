@@ -27,6 +27,7 @@ import { compileHostMatcher } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
 import { guardsMiddleware } from './guard.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
+import { createTelemetry } from './telemetry.ts';
 import { buildSecurityHeaders } from '../middlewares/security-headers.ts';
 import type { AppCore } from './app/core.ts';
 import type { AppOptions, ListenOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './app/options.ts';
@@ -77,6 +78,7 @@ export class SashikoApp {
       errorHandlers: [],
       onSendHooks: [],
       onRequestHooks: [],
+      telemetry: opts.telemetry ? createTelemetry(opts.telemetry) : undefined,
       onResponseHooks: [],
       onCloseHooks: [],
       // Compilados na criação: uma regra inválida falha aqui, e não na primeira requisição.

@@ -12,6 +12,7 @@ import { sendResult, type ResponsePlan, type SendMode } from './response/pipelin
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
+import { telemetryIds } from './telemetry.ts';
 import { kAbort, kBindResponse, kPendingSend, kPhase, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -150,9 +151,13 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
   get log(): Logger {
     if (!this.requestLog) {
-      const trace = this.trace;
+      // Com `telemetry`, os ids do span desta requisição; sem, o `traceId` recebido no `traceparent`.
+      const ids = telemetryIds(this as unknown as Context);
+      const traceId = ids?.traceId ?? this.trace?.traceId;
       const base = this.opts.logger ?? silentLogger;
-      this.requestLog = base.child(trace ? { reqId: this.id, traceId: trace.traceId } : { reqId: this.id });
+      this.requestLog = base.child(
+        ids ? { reqId: this.id, traceId: ids.traceId, spanId: ids.spanId } : traceId ? { reqId: this.id, traceId } : { reqId: this.id },
+      );
     }
     return this.requestLog;
   }

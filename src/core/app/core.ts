@@ -2,6 +2,7 @@ import type http from 'node:http';
 import type { Middleware } from '../compose.ts';
 import type { OnSendHook } from '../context.ts';
 import type { Logger } from '../logger.ts';
+import type { Telemetry } from '../telemetry.ts';
 import type { Serializer } from '../response/pipeline.ts';
 import type { AppOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './options.ts';
 
@@ -16,6 +17,8 @@ export interface AppCore {
   readonly errorHandlers: OnErrorHook[];
   readonly onSendHooks: OnSendHook[];
   readonly onRequestHooks: OnRequestHook[];
+  /** OpenTelemetry, quando `createApp({ telemetry })` (F-38). */
+  readonly telemetry: Telemetry | undefined;
   readonly onResponseHooks: OnResponseHook[];
   readonly onCloseHooks: OnCloseHook[];
   readonly serializers: ReadonlyMap<string, Serializer>;

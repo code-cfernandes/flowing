@@ -16,3 +16,5 @@ export const kRoute = Symbol('sashiko.route');
 export const kError = Symbol('sashiko.error');
 /** @internal Em que etapa a requisição está, para a fase do `onError` (F-38). */
 export const kPhase = Symbol('sashiko.phase');
+/** @internal Estado do `telemetry` de uma requisição (F-38). */
+export const kTelemetry = Symbol('sashiko.telemetry');
