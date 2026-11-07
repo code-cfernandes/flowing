@@ -12,7 +12,6 @@ import { sendResult, type ResponsePlan, type SendMode } from './response/pipelin
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
-import { telemetryIds } from './telemetry.ts';
 import { kAbort, kBindResponse, kError, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -90,6 +89,11 @@ export interface ContextOptions {
   trustProxy?: boolean | number | undefined;
   /** Hooks `onSend` do app (F-04). */
   onSend?: readonly OnSendHook[] | undefined;
+  /**
+   * Ids do span desta requisição, para o `ctx.log` (F-38). Quem fornece é o `telemetry`; o `Context` não
+   * depende dele.
+   */
+  spanIds?: ((ctx: Context) => { traceId: string; spanId: string } | undefined) | undefined;
   /** Avisado quando a resposta vira stream, para o `close()` do app cancelar streams abertos. */
   onStream?: ((ctx: Context) => void) | undefined;
 }
@@ -158,7 +162,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   get log(): Logger {
     if (!this.requestLog) {
       // Com `telemetry`, os ids do span desta requisição; sem, o `traceId` recebido no `traceparent`.
-      const ids = telemetryIds(this as unknown as Context);
+      const ids = this.opts.spanIds?.(this as unknown as Context);
       const traceId = ids?.traceId ?? this.trace?.traceId;
       const base = this.opts.logger ?? silentLogger;
       this.requestLog = base.child(

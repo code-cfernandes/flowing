@@ -47,6 +47,7 @@ export class RequestHandler {
       logger: this.core.log,
       trustProxy: this.core.opts.trustProxy,
       onSend: this.core.onSendHooks,
+      ...(this.core.telemetry ? { spanIds: this.core.telemetry.spanIds } : {}),
       onStream: (ctx: Context) => {
         server.streams.add(ctx);
         ctx.res.once('close', () => server.streams.delete(ctx));

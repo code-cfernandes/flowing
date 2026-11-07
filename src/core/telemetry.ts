@@ -78,6 +78,8 @@ export interface Telemetry {
   onResponse(ctx: Context, info: ResponseInfo): void;
   /** Roda o pipeline dentro do contexto do span criado pelo Sashiko (spans do usuário viram filhos). */
   run<T>(ctx: Context, fn: () => T): T;
+  /** `traceId`/`spanId` do span da requisição, para o `ctx.log`. */
+  spanIds(ctx: Context): { traceId: string; spanId: string } | undefined;
 }
 
 /** O estado deste módulo no `ctx`; o campo é `unknown` no `Context`, para ele não depender do telemetry. */
@@ -167,10 +169,9 @@ export function createTelemetry(api: TelemetryApi, version: string | undefined =
       const t = state(ctx);
       return t?.context === undefined ? fn() : api.context.with(t.context, fn);
     },
-  };
-}
 
-/** `traceId`/`spanId` do span da requisição, para o `ctx.log` (F-38). */
-export function telemetryIds(ctx: Context): { traceId: string; spanId: string } | undefined {
-  return state(ctx)?.span.spanContext();
+    spanIds(ctx) {
+      return state(ctx)?.span.spanContext();
+    },
+  };
 }
