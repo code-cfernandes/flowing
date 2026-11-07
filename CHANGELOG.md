@@ -9,6 +9,14 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.15.1] - 2026-11-07
+
+### Alterado
+
+- Reorganização interna da observabilidade, sem mudança de comportamento nem de API: os hooks `onRequest` e
+  `onResponse`, o `logRequests` e o `telemetry` passam por um único componente, e o modelo da requisição deixa de
+  depender da integração com o OpenTelemetry. Vazão, memória e alocação por requisição seguem iguais às da 0.15.0.
+
 ## [0.15.0] - 2026-11-07
 
 ### Adicionado
