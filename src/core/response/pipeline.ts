@@ -1,11 +1,12 @@
-import { type Context, kRawSend } from './context.ts';
+import type { Context } from '../context.ts';
+import { kRawSend } from '../symbols.ts';
 import { STATUS_CODES } from 'node:http';
-import { HttpError, type ErrorFormatter, type ProblemDetails } from './errors.ts';
-import { isResponseContent, type RouteSchemas } from './metadata.ts';
+import { HttpError, type ErrorFormatter, type ProblemDetails } from '../errors.ts';
+import { isResponseContent, type RouteSchemas } from '../metadata.ts';
 import { Readable } from 'node:stream';
-import { serialize } from '../schema/serialization.ts';
-import { stripToSchema } from '../schema/validation.ts';
-import { isJsonContentType, mediaType, negotiate, withCharset } from '../utils/content-type.ts';
+import { serialize } from '../../schema/serialization.ts';
+import { stripToSchema } from '../../schema/validation.ts';
+import { isJsonContentType, mediaType, negotiate, withCharset } from '../../utils/content-type.ts';
 
 /** Converte dados num corpo de resposta para um content type (F-31). */
 export type Serializer = (data: unknown) => string | Uint8Array;

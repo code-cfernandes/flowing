@@ -1,7 +1,8 @@
 import { createReadStream, realpathSync, type Stats, statSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
-import { type Context, kRawSend } from '../core/context.ts';
+import type { Context } from '../core/context.ts';
+import { kRawSend } from '../core/symbols.ts';
 import { HttpError } from '../core/errors.ts';
 import { contentTypeFor } from '../utils/mime.ts';
 

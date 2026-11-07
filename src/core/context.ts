@@ -8,83 +8,16 @@ import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../u
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
-import { sendResult, type SendMode, type Serializer } from './response.ts';
+import { sendResult, type SendMode, type Serializer } from './response/pipeline.ts';
+import { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
+import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
-/** @internal Envio cru, sem pipeline: usado pelo próprio pipeline, por erros e por 404/405. */
-export const kRawSend = Symbol('sashiko.rawSend');
-/** @internal Cancela o `ctx.signal` (encerramento do app) (F-13). */
-export const kAbort = Symbol('sashiko.abort');
-/** @internal Envio de arquivo em andamento, que o app aguarda mesmo sem `await` no handler (F-13). */
-export const kPendingSend = Symbol('sashiko.pendingSend');
-/** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
-export const kBindResponse = Symbol('sashiko.bindResponse');
+export type { SseEvent, SseOptions, SseStream } from './streaming/sse.ts';
+
+export { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 
 type RawBody = string | Uint8Array | Readable;
-
-/** Um evento de Server-Sent Events (F-13). `data` em objeto vira JSON; strings com várias linhas são divididas. */
-export interface SseEvent {
-  data: unknown;
-  event?: string;
-  id?: string;
-  /** Sugestão de espera para o navegador reconectar, em ms. */
-  retry?: number;
-}
-
-/** Conexão SSE aberta por `ctx.sse()`. */
-export interface SseStream {
-  send(event: SseEvent | string): void;
-  /** Comentário (`: texto`), ignorado pelo navegador; útil como keep-alive. */
-  comment(text: string): void;
-  /** Encerra a resposta. */
-  close(): void;
-  /** Chamado quando a conexão termina: o cliente desconectou, `close()` ou encerramento do app. */
-  onClose(listener: () => void): void;
-  readonly closed: boolean;
-  /** `Last-Event-ID` enviado pelo navegador ao reconectar. */
-  readonly lastEventId: string | undefined;
-}
-
-export interface SseOptions {
-  /** Comentário periódico para proxies não derrubarem a conexão ociosa. Padrão: 15000 ms; `0` desliga. */
-  heartbeatMs?: number;
-  /** `retry:` enviado na abertura. */
-  retry?: number;
-}
-
-/**
- * Campos de uma linha SSE não podem ter quebra de linha (seria injeção de evento); `id` também não pode
- * ter U+0000, que faz o navegador ignorar o campo.
- */
-const sseField = (name: string, value: string) => {
-  if (/[\r\n]/.test(value)) throw new Error(`[sashiko] ctx.sse(): "${name}" cannot contain line breaks.`);
-  if (name === 'id' && value.includes('\0')) throw new Error('[sashiko] ctx.sse(): "id" cannot contain U+0000.');
-  return `${name}: ${value}\n`;
-};
-
-/** Maior intervalo dos timers do Node; acima disso, ele usa 1 ms (heartbeat contínuo). */
-const MAX_TIMER_MS = 2_147_483_647;
-
-/** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige, e dentro do limite dos timers. */
-const nonNegativeInt = (name: string, value: number): number => {
-  if (!Number.isInteger(value) || value < 0 || value > MAX_TIMER_MS) {
-    throw new Error(`[sashiko] ctx.sse(): "${name}" must be an integer between 0 and ${MAX_TIMER_MS} (got ${value}).`);
-  }
-  return value;
-};
-
-/** `data` do evento: strings como estão; o resto em JSON. Valor que não vira JSON gera erro claro, sem escrever nada. */
-function sseData(data: unknown): string {
-  if (typeof data === 'string') return data;
-  let text: string | undefined;
-  try {
-    text = JSON.stringify(data);
-  } catch (err) {
-    throw new Error(`[sashiko] ctx.sse(): "data" is not JSON-serializable (${(err as Error).message}).`, { cause: err });
-  }
-  if (text === undefined) throw new Error(`[sashiko] ctx.sse(): "data" of type ${typeof data} is not JSON-serializable.`);
-  return text;
-}
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
 export interface SendPayload {
@@ -230,74 +163,9 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * ```
    */
   sse(opts: SseOptions = {}): SseStream {
-    if (this.sent) throw new Error('[sashiko] ctx.sse(): the response was already sent.');
-    // Valida antes de abrir a resposta: um erro aqui ainda vira um 500 normal.
-    const heartbeatMs = nonNegativeInt('heartbeatMs', opts.heartbeatMs ?? 15_000);
-    if (opts.retry !== undefined) nonNegativeInt('retry', opts.retry);
-    const res = this.res;
-    this.streaming = true;
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.removeHeader('Content-Length');
-    res.flushHeaders();
-
-    const listeners: (() => void)[] = [];
-    let closed = false;
-    const finish = () => {
-      if (closed) return;
-      closed = true;
-      clearInterval(heartbeat);
-      for (const l of listeners.splice(0)) {
-        try {
-          l();
-        } catch (err) {
-          this.log.error({ err }, 'sse onClose listener failed');
-        }
-      }
-    };
-    const write = (chunk: string) => {
-      if (!closed && !res.writableEnded) res.write(chunk);
-    };
-    const heartbeat = setInterval(() => write(': ping\n\n'), heartbeatMs || 2 ** 31 - 1);
-    heartbeat.unref();
-    if (!heartbeatMs) clearInterval(heartbeat);
-    res.once('close', finish);
-    const signal = this.signal;
-    signal.addEventListener('abort', () => stream.close(), { once: true });
-    if (opts.retry !== undefined) write(`retry: ${opts.retry}\n\n`);
-
-    const stream: SseStream = {
-      send: (event) => {
-        const e: SseEvent = typeof event === 'string' ? { data: event } : event;
-        let out = '';
-        if (e.event !== undefined) out += sseField('event', e.event);
-        if (e.id !== undefined) out += sseField('id', e.id);
-        if (e.retry !== undefined) out += `retry: ${nonNegativeInt('retry', e.retry)}\n`;
-        if (e.data === undefined) throw new Error('[sashiko] ctx.sse(): "data" is required; use "" for an empty event.');
-        const text = sseData(e.data);
-        for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
-        write(`${out}\n`);
-      },
-      comment: (text) => write(`: ${text.replace(/[\r\n]+/g, ' ')}\n\n`),
-      close: () => {
-        if (!res.writableEnded) res.end();
-        finish();
-      },
-      onClose: (listener) => {
-        if (closed) listener();
-        else listeners.push(listener);
-      },
-      get closed() {
-        return closed;
-      },
-      lastEventId: this.get('last-event-id'),
-    };
-    // O cliente pode ter desconectado antes do `ctx.sse()` (num `await` anterior): o 'close' e o 'abort' já
-    // passaram, e os listeners acima nunca rodariam. Encerra já, limpando o heartbeat e chamando `onClose`.
-    if (signal.aborted) stream.close();
-    return stream;
+    return openSse(this as unknown as Context, opts, () => {
+      this.streaming = true;
+    });
   }
 
   /**
