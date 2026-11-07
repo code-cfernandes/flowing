@@ -9,6 +9,21 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.14.0] - 2026-11-07
+
+### Alterado
+
+- **Menos memória e mais vazão.** O app deixou de guardar todas as respostas em andamento para o `close()`. Esse
+  conjunto fazia cada resposta, com a requisição e o parser do Node, sobreviver às coletas rápidas do V8 e ir para
+  a memória de longa duração. No benchmark (`GET` simples, 100 conexões, pipelining 10), o RSS de pico caiu de
+  cerca de 223 MB para 124 MB, as coletas completas sumiram e a vazão subiu cerca de 24%. O `close()` mantém o
+  mesmo comportamento: respostas em andamento numa conexão keep-alive saem com `Connection: close`, streams
+  abertos (SSE, NDJSON, `Readable`) são cancelados e as conexões fecham assim que ficam ociosas.
+- O request-target é lido sem criar um objeto `URL` quando o path é simples e já normalizado. Qualquer outro caso
+  (absolute-form, `%`, `\`, `//`, segmentos `.` e `..`) usa o caminho completo, com o mesmo resultado de antes.
+- A query só é interpretada quando `ctx.query` é lido, e `ctx.params` e `ctx.state` são criados no primeiro acesso.
+- Rotas e middlewares síncronos não criam `Promise` no caminho da requisição.
+
 ## [0.13.0] - 2026-11-07
 
 ### Alterado
