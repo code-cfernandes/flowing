@@ -12,11 +12,22 @@ export interface Logger {
   error(obj: object, msg?: string): void;
   error(msg: string): void;
   child(bindings: Record<string, unknown>): Logger;
+  /**
+   * Opcionais, para não exigir de loggers próprios (F-38): o `consoleLogger` e o pino têm os dois. Os níveis
+   * seguem o pino e o OpenTelemetry: `trace` abaixo de `debug`, `fatal` acima de `error`.
+   */
+  trace?(obj: object, msg?: string): void;
+  trace?(msg: string): void;
+  fatal?(obj: object, msg?: string): void;
+  fatal?(msg: string): void;
 }
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'silent';
 
-const LEVELS: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40, silent: 99 };
+const LEVELS: Record<LogLevel, number> = { trace: 5, debug: 10, info: 20, warn: 30, error: 40, fatal: 50, silent: 99 };
+
+/** Método do `console` de cada nível (`trace` e `fatal` não existem lá com esse sentido). */
+const CONSOLE_METHOD = { trace: 'debug', debug: 'debug', info: 'info', warn: 'warn', error: 'error', fatal: 'error' } as const;
 
 export interface ConsoleLoggerOptions {
   /** Padrão: `info`. */
@@ -32,6 +43,11 @@ export interface ConsoleLoggerOptions {
    * evento (`{ level, time, msg, ...dados }`), para coletores de log (Datadog, Loki, CloudWatch…).
    */
   format?: 'pretty' | 'json';
+  /**
+   * `'stdout'` manda todos os níveis para a saída padrão. O padrão (`'console'`) segue o `console`: `warn`,
+   * `error` e `fatal` vão para o stderr, que alguns coletores tratam inteiro como erro (F-38).
+   */
+  stream?: 'console' | 'stdout';
 }
 
 /** `JSON.stringify` que não falha: erros viram `{ type, message, stack }` e ciclos viram `[Circular]`. */
@@ -101,6 +117,7 @@ interface ConsoleConfig {
   readonly min: number;
   readonly keys: ReadonlySet<string> | undefined;
   readonly json: boolean;
+  readonly stdout: boolean;
 }
 
 function compileConsoleConfig(opts: ConsoleLoggerOptions): ConsoleConfig {
@@ -108,6 +125,7 @@ function compileConsoleConfig(opts: ConsoleLoggerOptions): ConsoleConfig {
     min: LEVELS[opts.level ?? 'info'],
     keys: opts.redact === false ? undefined : new Set([...DEFAULT_REDACT_KEYS, ...(opts.redact ?? [])].map(normalizeKey)),
     json: opts.format === 'json',
+    stdout: opts.stream === 'stdout',
   };
 }
 
@@ -121,6 +139,9 @@ class ConsoleLogger implements Logger {
     private readonly bindings: Record<string, unknown>,
   ) {}
 
+  trace(objOrMsg: object | string, msg?: string): void {
+    this.emit('trace', objOrMsg, msg);
+  }
   debug(objOrMsg: object | string, msg?: string): void {
     this.emit('debug', objOrMsg, msg);
   }
@@ -133,6 +154,9 @@ class ConsoleLogger implements Logger {
   error(objOrMsg: object | string, msg?: string): void {
     this.emit('error', objOrMsg, msg);
   }
+  fatal(objOrMsg: object | string, msg?: string): void {
+    this.emit('fatal', objOrMsg, msg);
+  }
   child(extra: Record<string, unknown>): Logger {
     return new ConsoleLogger(this.cfg, { ...this.bindings, ...extra });
   }
@@ -143,19 +167,22 @@ class ConsoleLogger implements Logger {
     const merged = { ...this.bindings, ...data };
     const keys = this.cfg.keys;
     const safe = (keys ? redactValue(merged, keys) : merged) as Record<string, unknown>;
+    const out = this.cfg.stdout ? 'log' : CONSOLE_METHOD[level];
     if (this.cfg.json) {
-      console[level](toJsonLine({ level, time: new Date().toISOString(), msg: text, ...safe }));
+      console[out](toJsonLine({ level, time: new Date().toISOString(), msg: text, ...safe }));
     } else {
-      console[level](`[sashiko] ${text}`, safe);
+      console[out](`[sashiko] ${text}`, safe);
     }
   }
 }
 
 /** Logger que descarta tudo (`createApp({ logger: false })`). */
 export const silentLogger: Logger = {
+  trace() {},
   debug() {},
   info() {},
   warn() {},
   error() {},
+  fatal() {},
   child: () => silentLogger,
 };

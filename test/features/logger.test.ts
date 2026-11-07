@@ -124,3 +124,49 @@ describe('F-06 · logger plugável', () => {
     }
   });
 });
+
+describe('F-38 · níveis trace e fatal, stream stdout', () => {
+  const spy = () => {
+    const m = Object.fromEntries((['log', 'debug', 'info', 'warn', 'error'] as const).map((k) => [k, mock.method(console, k, () => {})]));
+    return {
+      count: (k: string) => m[k]!.mock.callCount(),
+      json: (k: string) => JSON.parse(String(m[k]!.mock.calls[0]!.arguments[0])) as { level: string; msg: string },
+      restore: () => {
+        for (const x of Object.values(m)) x.mock.restore();
+      },
+    };
+  };
+
+  it('trace fica abaixo de debug e fatal acima de error; vão para console.debug e console.error', () => {
+    const c = spy();
+    try {
+      const log = consoleLogger({ level: 'trace', format: 'json' });
+      log.trace?.('fino');
+      log.fatal?.({ code: 1 }, 'caiu');
+      assert.equal(c.json('debug').level, 'trace');
+      assert.deepEqual({ ...c.json('error'), time: undefined }, { level: 'fatal', time: undefined, msg: 'caiu', code: 1 });
+      consoleLogger({ level: 'debug' }).trace?.('escondido');
+      consoleLogger({ level: 'fatal' }).error('escondido');
+      assert.equal(c.count('debug'), 1);
+      assert.equal(c.count('error'), 1);
+    } finally {
+      c.restore();
+    }
+  });
+
+  it("stream: 'stdout' manda todos os níveis para console.log", () => {
+    const c = spy();
+    try {
+      const log = consoleLogger({ level: 'trace', stream: 'stdout' });
+      log.trace?.('a');
+      log.info('b');
+      log.warn('c');
+      log.error('d');
+      log.fatal?.('e');
+      assert.equal(c.count('log'), 5);
+      for (const k of ['debug', 'info', 'warn', 'error']) assert.equal(c.count(k), 0, k);
+    } finally {
+      c.restore();
+    }
+  });
+});
