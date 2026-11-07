@@ -1,0 +1,83 @@
+# Envia ao npm, em estágio, quando uma tag de versão (v1.2.3) é enviada, por Trusted Publishing (OIDC): sem token
+# guardado, e com provenance. A versão só fica pública depois da aprovação no npmjs.com (com o 2FA da conta), como
+# o próprio npm recomenda: um acesso indevido ao GitHub não basta para publicar.
+# O nome deste arquivo e o environment `npm` estão registrados no npmjs.com; mudar qualquer um dos dois exige
+# recriar a conexão lá.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Enviar ao npm
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write # GitHub Release
+      id-token: write # OIDC do Trusted Publishing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Conferir a tag
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::A tag ${GITHUB_REF_NAME} não corresponde à versão do package.json (${version})."
+            exit 1
+          fi
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::O commit da tag não está na main."
+            exit 1
+          fi
+          if ! grep -q "^## \[${version}\]" CHANGELOG.md; then
+            echo "::error::O CHANGELOG não tem a seção [${version}]."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.16.1 # manter igual a devEngines.packageManager
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+      # O mesmo que o prepublishOnly, que não roda aqui (o pacote é publicado a partir do .tgz).
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test:coverage
+      - run: pnpm build
+
+      - name: Gerar o pacote
+        run: pnpm pack --pack-destination "${RUNNER_TEMP}/pkg"
+
+      # Fora da pasta do projeto: o npm recusa rodar nela por causa do devEngines (que pede pnpm).
+      # O npm usa o OIDC sozinho e anexa a provenance; `stage publish` deixa a versão aguardando aprovação.
+      - name: Enviar ao npm (em estágio)
+        working-directory: ${{ runner.temp }}/pkg
+        run: npx --yes npm@12 stage publish ./sashiko-*.tgz --access public
+
+      - name: Criar a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md" --verify-tag
