@@ -316,16 +316,43 @@ describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminho
     assert.deepEqual(errors.sort(), ['onRequest hook failed', 'onRequest hook failed', 'onResponse hook failed']);
   });
 
-  it('sem hooks nem logRequests, a resposta não é instrumentada', async () => {
+  it('sem hooks nem logRequests, a resposta do listen() não ganha nada por requisição', async () => {
+    const own: string[][] = [];
     const app = createApp({ logger: false, shutdown: false });
-    let wrapped: boolean | undefined;
     app.use(async (ctx, next) => {
-      wrapped = Object.hasOwn(ctx.res, 'writeHead');
       await next();
+      own.push(
+        [
+          ...Object.getOwnPropertyNames(ctx.res).filter((k) => k === 'writeHead'),
+          ...Object.getOwnPropertySymbols(ctx.res).map(String),
+        ].filter((k) => k === 'writeHead' || k.includes('sashiko')),
+      );
     });
     app.mount(Paths);
-    await app.inject('/ok');
-    assert.equal(wrapped, false);
+    const server = await app.listen(0);
+    try {
+      const port = (server.address() as AddressInfo).port;
+      await new Promise<void>((ok) => http.get({ port, path: '/ok' }, (r) => r.resume().on('end', () => ok())));
+      assert.deepEqual(own, [[]]);
+    } finally {
+      await app.close(500);
+    }
+  });
+
+  it('com onResponse, o ttfbMs também sai no listen() (protótipo da resposta)', async () => {
+    const infos: ResponseInfo[] = [];
+    const app = createApp({ logger: false, shutdown: false });
+    app.onResponse((_ctx, info) => void infos.push(info));
+    app.mount(Paths);
+    const server = await app.listen(0);
+    try {
+      const port = (server.address() as AddressInfo).port;
+      await new Promise<void>((ok) => http.get({ port, path: '/ok' }, (r) => r.resume().on('end', () => ok())));
+      await tick(20);
+      assert.ok(infos[0]?.ttfbMs !== undefined && infos[0].ttfbMs <= infos[0].ms);
+    } finally {
+      await app.close(500);
+    }
   });
 });
 

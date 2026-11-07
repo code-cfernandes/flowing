@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { Socket } from 'node:net';
+import { kHeadersAt } from './symbols.ts';
 
 export interface InjectOptions {
   method?: string;
@@ -57,6 +58,12 @@ export function inject(listener: Listener, opts: InjectOptions): Promise<InjectR
     req.push(null);
 
     const res = new http.ServerResponse(req);
+    // O instante dos headers, para o `ttfbMs` (F-38); no `listen()`, quem grava é o protótipo da resposta.
+    const writeHead = res.writeHead as (...args: unknown[]) => http.ServerResponse;
+    (res as { writeHead: unknown }).writeHead = function (this: http.ServerResponse, ...args: unknown[]) {
+      (this as unknown as Record<symbol, number>)[kHeadersAt] ??= performance.now();
+      return writeHead.apply(this, args);
+    };
     const chunks: Buffer[] = [];
     const noBody = req.method === 'HEAD';
     const collect = (chunk: unknown, encoding?: unknown) => {

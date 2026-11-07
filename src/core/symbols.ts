@@ -18,3 +18,5 @@ export const kError = Symbol('sashiko.error');
 export const kPhase = Symbol('sashiko.phase');
 /** @internal Estado do `telemetry` de uma requisição (F-38). */
 export const kTelemetry = Symbol('sashiko.telemetry');
+/** @internal Instante em que os headers da resposta saíram, para o `ttfbMs` (F-38). */
+export const kHeadersAt = Symbol('sashiko.headersAt');

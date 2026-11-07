@@ -6,7 +6,7 @@ import { compileChain, isPromiseLike, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import type { RouteInfo } from '../route-table.ts';
-import { kError, kPhase, kRoute, kRouted } from '../symbols.ts';
+import { kError, kHeadersAt, kPhase, kRoute, kRouted } from '../symbols.ts';
 import { parseTraceparent } from '../../utils/trace-context.ts';
 import type { ResponseInfo } from '../app/options.ts';
 import { Context } from '../context.ts';
@@ -107,13 +107,6 @@ export class RequestHandler {
    */
   private observe(ctx: Context, started: number): void {
     const res = ctx.res;
-    let ttfb = -1;
-    // O Node chama `this.writeHead` também nos headers implícitos (`write`/`end` sem `writeHead`).
-    const writeHead = res.writeHead as (...args: unknown[]) => http.ServerResponse;
-    (res as { writeHead: unknown }).writeHead = function (this: http.ServerResponse, ...args: unknown[]) {
-      if (ttfb === -1) ttfb = performance.now();
-      return writeHead.apply(this, args);
-    };
     let done = false;
     res.once('close', () => {
       if (done) return;
@@ -123,6 +116,9 @@ export class RequestHandler {
       const status = res.statusCode;
       const error = (ctx as unknown as Record<symbol, unknown>)[kError];
       const route = ctx.route;
+      // Gravado pelo `writeHead` das respostas do `listen()` e do `inject()`; num servidor próprio (`callback()`),
+      // fica ausente.
+      const ttfb = (res as unknown as Record<symbol, number | undefined>)[kHeadersAt] ?? -1;
       const info: ResponseInfo = {
         status,
         ms: round(performance.now()),
