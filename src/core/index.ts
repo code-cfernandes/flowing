@@ -78,5 +78,5 @@ export {
   type MethodMetadata,
   type RouteSchemas,
 } from './metadata.ts';
-export type { Handler } from './route-table.ts';
+export type { Handler, RouteInfo } from './route-table.ts';
 export type { ValidationIssue, ValidationTarget } from '../schema/validation.ts';

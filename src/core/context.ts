@@ -9,7 +9,8 @@ import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
-import { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
+import type { RouteInfo } from './route-table.ts';
+import { kAbort, kBindResponse, kPendingSend, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
@@ -117,6 +118,16 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     this.routeParams = value;
   }
   private routeParams: ParamsFor<S> | undefined;
+  /**
+   * A rota que atende esta requisição (F-38): template com o prefixo, classe, método e a regra de host que
+   * venceu. `undefined` antes do roteamento e quando nenhuma rota atende (404, 405, healthcheck, OpenAPI).
+   * Use `ctx.route.path` como rótulo de métrica, nunca `ctx.path`.
+   */
+  get route(): RouteInfo | undefined {
+    return this[kRoute];
+  }
+  /** @internal */
+  [kRoute]: RouteInfo | undefined;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;

@@ -10,3 +10,5 @@ export const kPendingSend = Symbol('sashiko.pendingSend');
 export const kBindResponse = Symbol('sashiko.bindResponse');
 /** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
 export const kRouted = Symbol('sashiko.routed');
+/** @internal A rota que atendeu a requisição (`ctx.route`, F-38). */
+export const kRoute = Symbol('sashiko.route');

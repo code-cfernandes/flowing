@@ -5,7 +5,8 @@ import type { AppCore } from '../app/core.ts';
 import { compileChain, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import { kRouted } from '../symbols.ts';
+import type { RouteInfo } from '../route-table.ts';
+import { kRoute, kRouted } from '../symbols.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
@@ -212,6 +213,7 @@ export class RequestHandler {
       return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
     }
     ctx.params = match.params;
+    if (match.route.info) (ctx as unknown as Record<symbol, RouteInfo>)[kRoute] = match.route.info;
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
     const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
     return run(ctx);

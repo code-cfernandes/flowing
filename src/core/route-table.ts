@@ -16,9 +16,24 @@ export interface RouteDefinition {
   guards: readonly Guard[];
 }
 
+/**
+ * A rota que atendeu a requisição, em `ctx.route` (F-38). `path` é o template com o prefixo (`/users/:id`),
+ * nunca o path recebido: é seguro como rótulo de métrica. `host` é a regra que venceu (`*.exemplo.com`),
+ * não o hostname do cliente.
+ */
+export interface RouteInfo {
+  readonly method: string;
+  readonly path: string;
+  /** Classe de origem (ou `static`). */
+  readonly owner: string;
+  /** Método da classe que trata a rota. */
+  readonly handler: string;
+  readonly host?: string;
+}
+
 /** Resultado do `find()`: a rota registrada (o mesmo objeto, sem cópia) e os parâmetros desta requisição. */
 export interface RouteMatch {
-  route: RouteDefinition & { run?: (ctx: Context) => Promise<void> | undefined };
+  route: RouteDefinition & { run?: (ctx: Context) => Promise<void> | undefined; info?: RouteInfo };
   params: Record<string, string>;
 }
 
