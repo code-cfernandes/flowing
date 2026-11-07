@@ -97,16 +97,43 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly res: ServerResponse;
   readonly method: string;
   readonly path: string;
-  readonly url: URL;
   /** Id da requisição, também enviado no header `X-Request-Id` (F-06). */
   readonly id: string;
-  /** Logger da requisição, já com `reqId` (F-06). */
-  readonly log: Logger;
 
   /** Parâmetros de rota; tipados pelo schema `params` quando informado em `Context<S>`. */
   params: ParamsFor<S> = {} as ParamsFor<S>;
-  /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). */
-  query: InferQuery<SchemasOf<S>>;
+  /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
+  get query(): InferQuery<SchemasOf<S>> {
+    this.parsedQuery ??= parseQuery(this.target.searchParams, this.queryMaxKeys) as ParsedQuery;
+    return this.parsedQuery as InferQuery<SchemasOf<S>>;
+  }
+  set query(value: InferQuery<SchemasOf<S>>) {
+    this.parsedQuery = value as ParsedQuery;
+  }
+
+  /** URL completa da requisição, com o host validado (S-09). Criada no primeiro acesso. */
+  get url(): URL {
+    this.fullUrl ??= new URL(`${this.protocol}://${this.host || 'localhost'}${this.target.pathname}${this.target.search}`);
+    return this.fullUrl;
+  }
+
+  /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
+  get log(): Logger {
+    this.requestLog ??= this.baseLogger.child({ reqId: this.id });
+    return this.requestLog;
+  }
+
+  // Campos preguiçosos (F-39, fase 2): calculados no primeiro acesso e guardados. Dependem só da
+  // requisição e da configuração do app, que não mudam durante a requisição.
+  private readonly target: URL;
+  private readonly queryMaxKeys: number | undefined;
+  private readonly baseLogger: Logger;
+  private parsedQuery: ParsedQuery | undefined;
+  private fullUrl: URL | undefined;
+  private requestLog: Logger | undefined;
+  private memoHost: string | undefined;
+  private memoHostname: string | undefined;
+  private memoProtocol: 'http' | 'https' | undefined;
   /** Body; tipado pelo schema `body`. */
   body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
   state: ContextState = {};
@@ -194,19 +221,22 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   sentType: string | undefined;
   private bound: { response: RouteSchemas['response']; serializers: ReadonlyMap<string, Serializer> } | undefined;
 
-  constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}) {
+  /**
+   * @param opts configuração; o app passa **o mesmo objeto** para todas as requisições (Flyweight), e o
+   *   que muda por requisição (`id`) vem à parte.
+   */
+  constructor(req: IncomingMessage, res: ServerResponse, opts: ContextOptions = {}, id?: string) {
     this.req = req;
     this.res = res;
     this.method = req.method ?? 'GET';
     this.trustProxy = opts.trustProxy ?? false;
     this.onSendHooks = opts.onSend ?? [];
+    this.queryMaxKeys = opts.queryMaxKeys;
+    this.baseLogger = opts.logger ?? silentLogger;
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
-    const target = parseRequestTarget(req.url);
-    this.path = target.pathname;
-    this.query = parseQuery(target.searchParams, opts.queryMaxKeys) as ParsedQuery as InferQuery<SchemasOf<S>>;
-    this.url = new URL(`${this.protocol}://${this.host || 'localhost'}${target.pathname}${target.search}`);
-    this.id = opts.id ?? '';
-    this.log = (opts.logger ?? silentLogger).child({ reqId: this.id });
+    this.target = parseRequestTarget(req.url);
+    this.path = this.target.pathname;
+    this.id = id ?? opts.id ?? '';
   }
 
   private readonly trustProxy: boolean | number;
@@ -225,22 +255,32 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * configurada em vez do host pedido pelo cliente (S-09).
    */
   get host(): string {
-    const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
-    if (forwarded !== undefined) return isValidHost(forwarded) ? forwarded : '';
-    const host = this.req.headers.host;
-    return isValidHost(host) ? host : '';
+    if (this.memoHost === undefined) {
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
+      const raw = forwarded !== undefined ? forwarded : this.req.headers.host;
+      this.memoHost = isValidHost(raw) ? raw : '';
+    }
+    return this.memoHost;
   }
 
   /** `host` sem a porta. */
   get hostname(): string {
-    return this.host ? hostnameOf(this.host) : '';
+    this.memoHostname ??= this.host ? hostnameOf(this.host) : '';
+    return this.memoHostname;
   }
 
   /** `https` se a conexão for TLS ou, com `trustProxy`, se o `X-Forwarded-Proto` disser; senão `http`. */
   get protocol(): 'http' | 'https' {
-    const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
-    if (forwarded === 'https' || forwarded === 'http') return forwarded;
-    return (this.req.socket as { encrypted?: boolean }).encrypted ? 'https' : 'http';
+    if (this.memoProtocol === undefined) {
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
+      this.memoProtocol =
+        forwarded === 'https' || forwarded === 'http'
+          ? forwarded
+          : (this.req.socket as { encrypted?: boolean }).encrypted
+            ? 'https'
+            : 'http';
+    }
+    return this.memoProtocol;
   }
 
   /**

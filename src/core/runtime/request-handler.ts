@@ -36,6 +36,15 @@ export class RequestHandler {
     const trust = rid.trustIncoming ?? true;
     const generate = rid.generate ?? (() => randomUUID());
 
+    // Factory + Flyweight (F-39): a mesma configuração para todos os contextos deste listener, em vez de
+    // um objeto de opções novo a cada requisição.
+    const contextOptions = {
+      queryMaxKeys: this.core.opts.queryMaxKeys,
+      logger: this.core.log,
+      trustProxy: this.core.opts.trustProxy,
+      onSend: this.core.onSendHooks,
+    };
+
     return (req, res) => {
       const started = performance.now();
       this.server.inflight.add(res);
@@ -56,13 +65,7 @@ export class RequestHandler {
         if (!res.writableEnded) res.end();
       };
       try {
-        const ctx = new Context(req, res, {
-          queryMaxKeys: this.core.opts.queryMaxKeys,
-          id,
-          logger: this.core.log,
-          trustProxy: this.core.opts.trustProxy,
-          onSend: this.core.onSendHooks,
-        });
+        const ctx = new Context(req, res, contextOptions, id);
         this.server.contexts.set(res, ctx);
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.

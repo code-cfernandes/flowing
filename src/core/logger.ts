@@ -93,26 +93,62 @@ export function redactValue(value: unknown, keys: ReadonlySet<string>, seen = ne
  * `cookie`, `password`, `token` e afins saem como `[REDACTED]` (S-11).
  */
 export function consoleLogger(opts: ConsoleLoggerOptions = {}, bindings: Record<string, unknown> = {}): Logger {
-  const min = LEVELS[opts.level ?? 'info'];
-  const keys = opts.redact === false ? undefined : new Set([...DEFAULT_REDACT_KEYS, ...(opts.redact ?? [])].map(normalizeKey));
-  const emit = (level: Exclude<LogLevel, 'silent'>) => (objOrMsg: object | string, msg?: string) => {
-    if (LEVELS[level] < min) return;
+  return new ConsoleLogger(compileConsoleConfig(opts), bindings);
+}
+
+/** Configuração compilada uma vez e compartilhada por todos os loggers filhos (Flyweight, F-39). */
+interface ConsoleConfig {
+  readonly min: number;
+  readonly keys: ReadonlySet<string> | undefined;
+  readonly json: boolean;
+}
+
+function compileConsoleConfig(opts: ConsoleLoggerOptions): ConsoleConfig {
+  return {
+    min: LEVELS[opts.level ?? 'info'],
+    keys: opts.redact === false ? undefined : new Set([...DEFAULT_REDACT_KEYS, ...(opts.redact ?? [])].map(normalizeKey)),
+    json: opts.format === 'json',
+  };
+}
+
+/**
+ * Um `child()` por requisição custa só este objeto com as bindings: os métodos ficam no protótipo e a
+ * configuração (nível, `Set` do redact, formato) é a mesma do logger pai.
+ */
+class ConsoleLogger implements Logger {
+  constructor(
+    private readonly cfg: ConsoleConfig,
+    private readonly bindings: Record<string, unknown>,
+  ) {}
+
+  debug(objOrMsg: object | string, msg?: string): void {
+    this.emit('debug', objOrMsg, msg);
+  }
+  info(objOrMsg: object | string, msg?: string): void {
+    this.emit('info', objOrMsg, msg);
+  }
+  warn(objOrMsg: object | string, msg?: string): void {
+    this.emit('warn', objOrMsg, msg);
+  }
+  error(objOrMsg: object | string, msg?: string): void {
+    this.emit('error', objOrMsg, msg);
+  }
+  child(extra: Record<string, unknown>): Logger {
+    return new ConsoleLogger(this.cfg, { ...this.bindings, ...extra });
+  }
+
+  private emit(level: Exclude<LogLevel, 'silent'>, objOrMsg: object | string, msg?: string): void {
+    if (LEVELS[level] < this.cfg.min) return;
     const [data, text] = typeof objOrMsg === 'string' ? [{}, objOrMsg] : [objOrMsg, msg ?? ''];
-    const merged = { ...bindings, ...data };
+    const merged = { ...this.bindings, ...data };
+    const keys = this.cfg.keys;
     const safe = (keys ? redactValue(merged, keys) : merged) as Record<string, unknown>;
-    if (opts.format === 'json') {
+    if (this.cfg.json) {
       console[level](toJsonLine({ level, time: new Date().toISOString(), msg: text, ...safe }));
     } else {
       console[level](`[sashiko] ${text}`, safe);
     }
-  };
-  return {
-    debug: emit('debug'),
-    info: emit('info'),
-    warn: emit('warn'),
-    error: emit('error'),
-    child: (extra) => consoleLogger(opts, { ...bindings, ...extra }),
-  };
+  }
 }
 
 /** Logger que descarta tudo (`createApp({ logger: false })`). */

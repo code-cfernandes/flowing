@@ -153,3 +153,98 @@ describe('invariante 5 · body disponível nos middlewares globais', () => {
     assert.deepEqual(res.json(), { a: 1 });
   });
 });
+
+describe('fase 2 · Context enxuto (campos preguiçosos)', () => {
+  const countingLogger = () => {
+    let children = 0;
+    const log = {
+      debug() {},
+      info() {},
+      warn() {},
+      error() {},
+      child: () => {
+        children++;
+        return log;
+      },
+    };
+    return { log, children: () => children };
+  };
+
+  it('o logger filho só é criado se ctx.log for usado, e uma vez só por requisição', async () => {
+    @Router('/')
+    class L {
+      @Get('/quiet') quiet() {
+        return 'q';
+      }
+      @Get('/loud') loud(ctx: Context) {
+        ctx.log.info('a');
+        ctx.log.info('b');
+        const first = ctx.log;
+        return first === ctx.log ? 'same' : 'different';
+      }
+    }
+    const { log, children } = countingLogger();
+    const app = createApp({ logger: log }).mount(L);
+    await app.inject('/quiet');
+    assert.equal(children(), 0, 'sem uso, sem child');
+    assert.equal((await app.inject('/loud')).body, 'same');
+    assert.equal(children(), 1);
+  });
+
+  it('ctx.query aceita atribuição e a coerção do schema continua valendo', async () => {
+    @Router('/')
+    class Q {
+      @Get('/set') set(ctx: Context) {
+        ctx.query = { replaced: 'yes' };
+        return ctx.query;
+      }
+    }
+    const res = await createApp({ logger: false }).mount(Q).inject('/set?x=1');
+    assert.deepEqual(res.json(), { replaced: 'yes' });
+  });
+
+  it('filhos do consoleLogger compartilham a configuração (redact e nível)', async () => {
+    const { consoleLogger } = await import('sashiko');
+    const lines: unknown[] = [];
+    const original = console.info;
+    console.info = (...args: unknown[]) => {
+      lines.push(args[1]);
+    };
+    try {
+      const base = consoleLogger({ redact: ['cpf'], level: 'info' });
+      const child = base.child({ reqId: 'r1' }).child({ user: 'u1' });
+      child.debug({ cpf: 'x' }, 'não aparece');
+      child.info({ cpf: '123', password: 'p' }, 'aparece');
+      assert.deepEqual(lines, [{ reqId: 'r1', user: 'u1', cpf: '[REDACTED]', password: '[REDACTED]' }]);
+    } finally {
+      console.info = original;
+    }
+  });
+});
+
+describe('fase 2 · o host validado é o host roteado', () => {
+  it('um middleware que reescreve req.headers.host não muda o roteamento nem contorna o allowedHosts', async () => {
+    @Router('/')
+    class Admin {
+      @Get('/x') x() {
+        return 'admin';
+      }
+    }
+    @Router('/')
+    class Pub {
+      @Get('/x') x() {
+        return 'public';
+      }
+    }
+    const rewrite: Middleware = async (ctx, next) => {
+      ctx.req.headers.host = 'admin.exemplo.com';
+      await next();
+    };
+    const app = createApp({ logger: false, allowedHosts: ['admin.exemplo.com', 'www.exemplo.com'] })
+      .use(rewrite)
+      .mount(Admin, { host: 'admin.exemplo.com' })
+      .mount(Pub);
+    const res = await app.inject({ url: '/x', headers: { host: 'www.exemplo.com' } });
+    assert.equal(res.body, 'public');
+  });
+});
