@@ -107,10 +107,17 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly id: string;
 
   /** Parâmetros de rota; tipados pelo schema `params` quando informado em `Context<S>`. */
-  params: ParamsFor<S> = {} as ParamsFor<S>;
+  get params(): ParamsFor<S> {
+    this.routeParams ??= {} as ParamsFor<S>;
+    return this.routeParams;
+  }
+  set params(value: ParamsFor<S>) {
+    this.routeParams = value;
+  }
+  private routeParams: ParamsFor<S> | undefined;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
-    this.parsedQuery ??= parseQuery(this.target.searchParams, this.queryMaxKeys) as ParsedQuery;
+    this.parsedQuery ??= parseQuery(this.target.searchParams, this.opts.queryMaxKeys) as ParsedQuery;
     return this.parsedQuery as InferQuery<SchemasOf<S>>;
   }
   set query(value: InferQuery<SchemasOf<S>>) {
@@ -125,15 +132,18 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
   /** Logger da requisição, já com `reqId` (F-06). Criado no primeiro acesso. */
   get log(): Logger {
-    this.requestLog ??= this.baseLogger.child({ reqId: this.id });
+    this.requestLog ??= (this.opts.logger ?? silentLogger).child({ reqId: this.id });
     return this.requestLog;
   }
 
   // Campos preguiçosos (F-39, fase 2): calculados no primeiro acesso e guardados. Dependem só da
   // requisição e da configuração do app, que não mudam durante a requisição.
+  /**
+   * Configuração do app, **a mesma referência** para todas as requisições (Flyweight, F-41): o `Context` lê
+   * dela em vez de copiar `trustProxy`, `onSend`, `queryMaxKeys` e o logger campo a campo.
+   */
+  private readonly opts: ContextOptions;
   private readonly target: URL;
-  private readonly queryMaxKeys: number | undefined;
-  private readonly baseLogger: Logger;
   private parsedQuery: ParsedQuery | undefined;
   private fullUrl: URL | undefined;
   private requestLog: Logger | undefined;
@@ -142,7 +152,15 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private memoProtocol: 'http' | 'https' | undefined;
   /** Body; tipado pelo schema `body`. */
   body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
-  state: ContextState = {};
+  /** Estado por requisição, criado no primeiro acesso (F-41). */
+  get state(): ContextState {
+    this.requestState ??= {};
+    return this.requestState;
+  }
+  set state(value: ContextState) {
+    this.requestState = value;
+  }
+  private requestState: ContextState | undefined;
 
   /** `true` quando o handler chamou `ctx.status()`. Usado para escolher o schema de resposta (B-05). */
   statusExplicit = false;
@@ -216,7 +234,6 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
   /** @internal */
   [kPendingSend]: Promise<void> | undefined;
-  private readonly onSendHooks: readonly OnSendHook[];
 
   /**
    * Corpo exatamente como foi escrito (F-04), depois do envio. Fica `undefined` em streams e em
@@ -247,24 +264,19 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     this.req = req;
     this.res = res;
     this.method = req.method ?? 'GET';
-    this.trustProxy = opts.trustProxy ?? false;
-    this.onSendHooks = opts.onSend ?? [];
-    this.queryMaxKeys = opts.queryMaxKeys;
-    this.baseLogger = opts.logger ?? silentLogger;
+    this.opts = opts;
     // S-09: o path vem do request-target com base fixa; o host do cliente nunca entra no parsing.
     this.target = parseRequestTarget(req.url);
     this.path = this.target.pathname;
     this.id = id ?? opts.id ?? '';
   }
 
-  private readonly trustProxy: boolean | number;
-
   /**
    * IP do cliente. Por padrão, o do socket. Com `trustProxy`, vem do `X-Forwarded-For`, que só deve
    * ser ligado atrás de um proxy que reescreve esse header (S-09).
    */
   get ip(): string {
-    return pickForwarded(this.req.headers['x-forwarded-for'], this.trustProxy) ?? this.req.socket.remoteAddress ?? '';
+    return pickForwarded(this.req.headers['x-forwarded-for'], this.opts.trustProxy ?? false) ?? this.req.socket.remoteAddress ?? '';
   }
 
   /**
@@ -274,7 +286,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    */
   get host(): string {
     if (this.memoHost === undefined) {
-      const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.trustProxy);
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-host'], this.opts.trustProxy ?? false);
       const raw = forwarded !== undefined ? forwarded : this.req.headers.host;
       this.memoHost = isValidHost(raw) ? raw : '';
     }
@@ -290,7 +302,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   /** `https` se a conexão for TLS ou, com `trustProxy`, se o `X-Forwarded-Proto` disser; senão `http`. */
   get protocol(): 'http' | 'https' {
     if (this.memoProtocol === undefined) {
-      const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.trustProxy)?.toLowerCase();
+      const forwarded = pickForwarded(this.req.headers['x-forwarded-proto'], this.opts.trustProxy ?? false)?.toLowerCase();
       this.memoProtocol =
         forwarded === 'https' || forwarded === 'http'
           ? forwarded
@@ -411,7 +423,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       return this;
     }
     // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).
-    const payload = this.onSendHooks.length > 0 ? this.runOnSend({ body, contentType: type }) : { body, contentType: type };
+    const hooks = this.opts.onSend;
+    const payload = hooks && hooks.length > 0 ? this.runOnSend({ body, contentType: type }) : { body, contentType: type };
     this.res.setHeader('Content-Type', payload.contentType);
     this.sentRaw = payload.body;
     this.sentBuffer = undefined;
@@ -424,7 +437,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private runOnSend(original: SendPayload): SendPayload {
     let payload = original;
     try {
-      for (const hook of this.onSendHooks) payload = hook(this as unknown as Context, payload) ?? payload;
+      for (const hook of this.opts.onSend ?? []) payload = hook(this as unknown as Context, payload) ?? payload;
       return payload;
     } catch (err) {
       this.log.error({ err, method: this.method, path: this.path }, 'onSend hook failed; sending original response');
