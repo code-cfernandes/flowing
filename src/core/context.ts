@@ -216,7 +216,19 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * Corpo exatamente como foi escrito (F-04), depois do envio. Fica `undefined` em streams e em
    * respostas sem corpo. Útil para cache: `await next(); store.set(key, ctx.sentBody)`.
    */
-  sentBody: Buffer | undefined;
+  get sentBody(): Buffer | undefined {
+    // Convertido só se alguém ler (F-39): antes, toda resposta copiava o corpo para um Buffer.
+    if (this.sentBuffer === undefined && this.sentRaw !== undefined) {
+      this.sentBuffer = typeof this.sentRaw === 'string' ? Buffer.from(this.sentRaw) : Buffer.from(this.sentRaw);
+    }
+    return this.sentBuffer;
+  }
+  set sentBody(value: Buffer | undefined) {
+    this.sentBuffer = value;
+    this.sentRaw = undefined;
+  }
+  private sentRaw: string | Uint8Array | undefined;
+  private sentBuffer: Buffer | undefined;
   /** `Content-Type` da resposta enviada, junto com `sentBody`. */
   sentType: string | undefined;
   private bound: ResponsePlan | undefined;
@@ -375,10 +387,10 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   /** @internal Envio cru, sem schema: string, bytes ou stream. */
   [kRawSend](body: RawBody, contentType?: string): this {
     if (this.sent) return this;
-    if (contentType) this.res.setHeader('Content-Type', contentType);
-    else if (!this.res.hasHeader('Content-Type')) this.res.setHeader('Content-Type', 'application/octet-stream');
+    const type = contentType ?? (this.res.getHeader('Content-Type') as string | undefined) ?? 'application/octet-stream';
 
     if (body instanceof Readable) {
+      this.res.setHeader('Content-Type', type);
       this.streaming = true;
       pipeline(body, this.res).catch((err: unknown) => {
         this.log.error({ err, method: this.method, path: this.path }, 'stream failed');
@@ -386,11 +398,13 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       });
       return this;
     }
-    const payload = this.runOnSend({ body, contentType: String(this.res.getHeader('Content-Type')) });
+    // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).
+    const payload = this.onSendHooks.length > 0 ? this.runOnSend({ body, contentType: type }) : { body, contentType: type };
     this.res.setHeader('Content-Type', payload.contentType);
-    this.sentBody = Buffer.from(payload.body);
+    this.sentRaw = payload.body;
+    this.sentBuffer = undefined;
     this.sentType = payload.contentType;
-    this.res.end(this.sentBody);
+    this.res.end(payload.body);
     return this;
   }
 
