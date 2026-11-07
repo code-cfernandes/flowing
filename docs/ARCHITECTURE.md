@@ -174,7 +174,7 @@ Primeira rodada de [`sashiko-benchmarks`](https://github.com/code-cfernandes/sas
 | Express            |        60.476 |              39% |     132 MB |
 | **Sashiko 0.12.2** |    **55.664** |          **36%** | **225 MB** |
 
-O benchmark usa `logger: false`. O custo do logger padrão (etapa 3 da tabela de custo por requisição) não está nesses números.
+Esta primeira rodada usou `logger: false`, então o custo do logger padrão (etapa 3 da tabela de custo por requisição) não está nesses números. A partir da fase 0, o benchmark usa a configuração padrão do Sashiko.
 
 ## Estrutura proposta
 
@@ -249,17 +249,17 @@ Os problemas P-1 a P-11 vêm da tabela **Custo por requisição**, acima, e do p
 | Body indisponível para middlewares globais                                                | Leitura do body sem camada de middleware | Continua sendo lido **antes** dos globais, só sem a camada extra. Teste novo (invariante 5)                                                        |
 | `onSend`, `sentBody` ou status padrão divergindo entre formatos                           | Strategy de resposta                     | Todas as estratégias terminam no mesmo `raw-send`. Os testes do pipeline único já cobrem                                                           |
 | `inject()` e hooks se comportando diferente da rede                                       | Reorganização do runtime                 | Os testes de `inject()` com `onResponse` e `signal` já existem                                                                                     |
-| Ganho de desempenho que some com o logger padrão                                          | Benchmark usa `logger: false`            | Cenário novo no benchmark com `consoleLogger`                                                                                                      |
+| Ganho de desempenho que some com o logger padrão                                          | Benchmark usava `logger: false`          | O benchmark passou a usar a configuração padrão do Sashiko                                                                                         |
 
 ## Plano em fases
 
 Cada fase é um commit (ou poucos), na branch `refactor/architecture-and-performance`, e só avança com **todos os testes passando** e o **benchmark antes e depois** registrado no commit.
 
-| Fase                            | O que entra                                                                                                                                       | Problemas       | Resultado esperado                                                            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
-| **0. Rede de segurança**        | Testes das cinco garantias que faltam; no benchmark, o cenário `get` com o logger padrão e uma linha de base com três rodadas                     | —               | Nenhuma mudança de desempenho. Serve de referência para todas as fases        |
-| **1. Reorganização estrutural** | Facade, `registry/`, `runtime/`, `response/`, `streaming/sse.ts`; os ciclos de importação quebrados. **Só movimentação, sem mudar comportamento** | Acoplamento     | Desempenho igual (o benchmark confirma); código pronto para as próximas fases |
-| **2. Context enxuto**           | `ContextFactory`, campos preguiçosos e memoizados, Flyweight do logger                                                                            | P-1, P-2, P-3   | Menos alocação e GC; o maior ganho com o logger padrão                        |
-| **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                             | P-5 a P-9       | Maior ganho em `params`, `real` e `post-validate`                             |
-| **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`                                               | P-4, P-10, P-11 | Ganho no `get` e na memória                                                   |
-| **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                    | —               | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
+| Fase                            | O que entra                                                                                                                                                | Problemas             | Resultado esperado                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| **0. Rede de segurança**        | Testes das cinco garantias que faltam; o benchmark passa a rodar o Sashiko com o logger padrão e a medir o build local; uma linha de base com três rodadas | —                     | Nenhuma mudança de desempenho. Serve de referência para todas as fases        |
+| **1. Reorganização estrutural** | Facade, `registry/`, `runtime/`, `response/`, `streaming/sse.ts`; os ciclos de importação quebrados. **Só movimentação, sem mudar comportamento**          | Acoplamento           | Desempenho igual (o benchmark confirma); código pronto para as próximas fases |
+| **2. Context enxuto**           | `ContextFactory`, campos preguiçosos e memoizados, Flyweight do logger                                                                                     | P-1, P-2, P-3         | Menos alocação e GC; o maior ganho com o logger padrão                        |
+| **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                                      | P-5 a P-9             | Maior ganho em `params`, `real` e `post-validate`                             |
+| **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`, desconexão do cliente fora do nível `error`           | P-4, P-10, P-11, P-12 | Ganho no `get` e na memória; logs limpos                                      |
+| **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                             | —                     | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
