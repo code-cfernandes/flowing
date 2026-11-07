@@ -12,3 +12,5 @@ export const kBindResponse = Symbol('sashiko.bindResponse');
 export const kRouted = Symbol('sashiko.routed');
 /** @internal A rota que atendeu a requisição (`ctx.route`, F-38). */
 export const kRoute = Symbol('sashiko.route');
+/** @internal O erro tratado pelo pipeline de erros, para o `onResponse` (F-38). */
+export const kError = Symbol('sashiko.error');

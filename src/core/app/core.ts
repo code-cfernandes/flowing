@@ -3,7 +3,7 @@ import type { Middleware } from '../compose.ts';
 import type { Context, OnSendHook } from '../context.ts';
 import type { Logger } from '../logger.ts';
 import type { Serializer } from '../response/pipeline.ts';
-import type { AppOptions, OnCloseHook, OnResponseHook } from './options.ts';
+import type { AppOptions, OnCloseHook, OnRequestHook, OnResponseHook } from './options.ts';
 
 /**
  * Estado compartilhado do app entre a fachada (`SashikoApp`) e os componentes internos (registro,
@@ -15,6 +15,7 @@ export interface AppCore {
   readonly middlewares: Middleware[];
   readonly errorHandlers: ((err: unknown, ctx: Context) => void | Promise<void>)[];
   readonly onSendHooks: OnSendHook[];
+  readonly onRequestHooks: OnRequestHook[];
   readonly onResponseHooks: OnResponseHook[];
   readonly onCloseHooks: OnCloseHook[];
   readonly serializers: ReadonlyMap<string, Serializer>;

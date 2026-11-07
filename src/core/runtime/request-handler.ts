@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
-import { compileChain, type Step } from '../compose.ts';
+import { compileChain, isPromiseLike, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import type { RouteInfo } from '../route-table.ts';
-import { kRoute, kRouted } from '../symbols.ts';
+import { kError, kRoute, kRouted } from '../symbols.ts';
+import type { ResponseInfo } from '../app/options.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
@@ -70,6 +71,9 @@ export class RequestHandler {
 
       try {
         const ctx = new Context(req, res, contextOptions, id);
+        // Antes da validação do Host: toda requisição observada no início também é observada no fim.
+        if (started !== -1) this.observe(ctx, started);
+        if (this.core.onRequestHooks.length > 0) this.runOnRequest(ctx);
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
         const healthProbe = this.framework.health?.bypassesHostCheck(ctx.method, ctx.path) ?? false;
@@ -78,19 +82,6 @@ export class RequestHandler {
           sendProblem(ctx, problem(400, 'Invalid Host header', { code: 'INVALID_HOST' }), this.core.opts.formatError);
           return;
         }
-        if (started !== -1) {
-          res.once('finish', () => {
-            const ms = Math.round((performance.now() - started) * 100) / 100;
-            if (this.core.opts.logRequests) {
-              ctx.log.info({ method: ctx.method, path: ctx.path, status: res.statusCode, ms }, 'request completed');
-            }
-            for (const hook of this.core.onResponseHooks) {
-              Promise.resolve()
-                .then(() => hook(ctx, { status: res.statusCode, ms }))
-                .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
-            }
-          });
-        }
         // Síncrono no caso comum: só uma requisição que de fato ficou assíncrona recebe o handler da barreira.
         const step = this.run(ctx);
         if (step) step.then(undefined, (err: unknown) => this.fail(err, req, res, id));
@@ -98,6 +89,63 @@ export class RequestHandler {
         this.fail(err, req, res, id);
       }
     };
+  }
+
+  /**
+   * Fim da requisição para `onResponse` e `logRequests` (F-38): o evento `close` dispara em todos os caminhos
+   * (inclusive cancelamento, que não tem `finish`), e a trava garante uma única execução. Só é ligado quando
+   * há quem observe, então uma requisição sem hooks não paga nada.
+   */
+  private observe(ctx: Context, started: number): void {
+    const res = ctx.res;
+    let ttfb = -1;
+    // O Node chama `this.writeHead` também nos headers implícitos (`write`/`end` sem `writeHead`).
+    const writeHead = res.writeHead as (...args: unknown[]) => http.ServerResponse;
+    (res as { writeHead: unknown }).writeHead = function (this: http.ServerResponse, ...args: unknown[]) {
+      if (ttfb === -1) ttfb = performance.now();
+      return writeHead.apply(this, args);
+    };
+    let done = false;
+    res.once('close', () => {
+      if (done) return;
+      done = true;
+      const round = (t: number) => Math.round((t - started) * 100) / 100;
+      const abortReason = ctx.abortReason ?? (res.writableEnded ? undefined : 'CLIENT_DISCONNECTED');
+      const status = res.statusCode;
+      const error = (ctx as unknown as Record<symbol, unknown>)[kError];
+      const route = ctx.route;
+      const info: ResponseInfo = {
+        status,
+        ms: round(performance.now()),
+        outcome: abortReason ? 'aborted' : status >= 500 ? 'error' : 'completed',
+        streaming: ctx.streamingResponse,
+        ...(abortReason ? { abortReason } : {}),
+        ...(ttfb === -1 ? {} : { ttfbMs: round(ttfb) }),
+        ...(route ? { route } : {}),
+        ...(error === undefined ? {} : { error }),
+      };
+      if (this.core.opts.logRequests) {
+        const entry = { method: ctx.method, path: ctx.path, status, ms: info.ms, ...(abortReason ? { abortReason } : {}) };
+        ctx.log.info(entry, abortReason ? 'request aborted' : 'request completed');
+      }
+      for (const hook of this.core.onResponseHooks) {
+        Promise.resolve()
+          .then(() => hook(ctx, info))
+          .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
+      }
+    });
+  }
+
+  /** `onRequest` é síncrono: uma Promise devolvida não é esperada, mas a rejeição é logada. */
+  private runOnRequest(ctx: Context): void {
+    for (const hook of this.core.onRequestHooks) {
+      try {
+        const out: unknown = hook(ctx);
+        if (isPromiseLike(out)) out.then(undefined, (err: unknown) => ctx.log.error({ err }, 'onRequest hook failed'));
+      } catch (err) {
+        ctx.log.error({ err }, 'onRequest hook failed');
+      }
+    }
   }
 
   // Última barreira (B-08): `fail` recebe o que escapar, de forma síncrona (try/catch) ou assíncrona (.then).
@@ -224,6 +272,7 @@ export class RequestHandler {
    * para a resposta padrão com o erro **original** — nunca deixamos a Promise rejeitar (B-08).
    */
   private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
+    (ctx as unknown as Record<symbol, unknown>)[kError] = err;
     for (const h of this.core.errorHandlers) {
       try {
         await h(err, ctx);

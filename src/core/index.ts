@@ -6,7 +6,9 @@ export {
   type AppOptions,
   type ListenOptions,
   type OnCloseHook,
+  type OnRequestHook,
   type OnResponseHook,
+  type ResponseInfo,
   type RequestIdOptions,
   type ServerTimeouts,
 } from './app.ts';

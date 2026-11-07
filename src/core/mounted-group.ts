@@ -16,7 +16,7 @@ import type { ListenOptions } from './app.ts';
 import type { Logger } from './logger.ts';
 import type { Middleware } from './compose.ts';
 import type { Context, OnSendHook } from './context.ts';
-import type { OnCloseHook, OnResponseHook } from './app.ts';
+import type { OnCloseHook, OnRequestHook, OnResponseHook } from './app.ts';
 import type { OpenAPIOptions } from '../openapi/generate.ts';
 import type { HealthOptions } from './health.ts';
 import type { StaticOptions } from '../server/static.ts';
@@ -108,6 +108,9 @@ export class MountedGroup<T extends object> {
   }
   onSend(hook: OnSendHook): SashikoApp {
     return this.app.onSend(hook);
+  }
+  onRequest(hook: OnRequestHook): SashikoApp {
+    return this.app.onRequest(hook);
   }
   onResponse(hook: OnResponseHook): SashikoApp {
     return this.app.onResponse(hook);
