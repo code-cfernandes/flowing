@@ -280,7 +280,7 @@ describe('fase 3 · cadeia global no modelo onion (como documentado)', () => {
     assert.equal(sent, '{"ok":true}', 'ctx.sentBody disponível depois do next()');
   });
 
-  it('middleware global que não chama next() nem responde: a rota não roda e o app responde 404', async () => {
+  it('rota protegida: middleware de auth que interrompe a cadeia sem next() nem throw não deixa o handler rodar (404)', async () => {
     const { O, order } = routes();
     const warn: unknown[] = [];
     const log = {
@@ -321,5 +321,53 @@ describe('fase 3 · cadeia global no modelo onion (como documentado)', () => {
       await next();
     });
     assert.equal((await app.inject('/o')).headers['x-late'], '1');
+  });
+});
+
+describe('fase 4 · limpeza das respostas em andamento (P-11)', () => {
+  it('respostas concluídas, abortadas pelo cliente e com erro saem do rastreamento', async () => {
+    const http = await import('node:http');
+    @Router('/')
+    class C {
+      @Get('/ok') ok() {
+        return 'ok';
+      }
+      @Get('/boom') boom() {
+        throw new Error('falhou');
+      }
+      @Get('/slow') async slow() {
+        await tick(200);
+        return 'tarde';
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false }).mount(C);
+    const server = await app.listen(0);
+    const port = (server.address() as { port: number }).port;
+    const get = (path: string) =>
+      new Promise<number>((resolve) => {
+        const req = http.get({ port, path, agent: false }, (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode!));
+        });
+        req.on('error', () => resolve(0));
+      });
+    assert.equal(await get('/ok'), 200);
+    assert.equal(await get('/boom'), 500);
+    // Abortada: o cliente desiste antes da resposta.
+    await new Promise<void>((resolve) => {
+      const req = http.get({ port, path: '/slow', agent: false });
+      req.on('error', () => {});
+      setTimeout(() => {
+        req.destroy();
+        resolve();
+      }, 20);
+    });
+    await tick(250); // a resposta abortada termina no servidor
+    // Teste de implementação: o conjunto de respostas em andamento precisa esvaziar nos três casos.
+    const inflight = (app as unknown as { runtime: { inflight: Set<unknown> } }).runtime.inflight;
+    assert.equal(inflight.size, 0, 'respostas concluídas, com erro e abortadas saem do rastreamento');
+    const started = Date.now();
+    await app.close(5_000);
+    assert.ok(Date.now() - started < 1_000, `close() levou ${Date.now() - started} ms: alguma resposta ficou rastreada`);
   });
 });
