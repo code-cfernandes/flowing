@@ -8,3 +8,5 @@ export const kAbort = Symbol('sashiko.abort');
 export const kPendingSend = Symbol('sashiko.pendingSend');
 /** @internal Liga o contexto aos schemas de resposta da rota, antes do handler (F-32). */
 export const kBindResponse = Symbol('sashiko.bindResponse');
+/** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
+export const kRouted = Symbol('sashiko.routed');

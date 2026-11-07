@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
-import { compose, type Middleware } from '../compose.ts';
+import { compileChain } from '../compose.ts';
+import { bodyReader } from '../body-parser.ts';
+import { buildRouteProgram } from '../registry/route-program.ts';
+import { kRouted } from '../symbols.ts';
 import { Context } from '../context.ts';
-import { guardsMiddleware } from '../guard.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
-import { validateRequest } from '../request-validation.ts';
-import { problem, sendError, sendProblem, sendResult } from '../response/pipeline.ts';
-import { kBindResponse, kPendingSend } from '../symbols.ts';
+import { problem, sendError, sendProblem } from '../response/pipeline.ts';
 import type { ServerLifecycle } from './server.ts';
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -24,7 +24,9 @@ export class RequestHandler {
     private readonly registry: RouteRegistry,
     private readonly framework: FrameworkRoutes,
     private readonly server: ServerLifecycle,
-  ) {}
+  ) {
+    this.readBody = bodyReader(core.opts.bodyLimit ?? 1024 * 1024, core.opts.protoPoisoning);
+  }
 
   /**
    * Listener `(req, res)` do app, para usar com qualquer servidor do Node:
@@ -95,6 +97,10 @@ export class RequestHandler {
     };
   }
 
+  /** Cadeia global compilada; refeita só quando `app.use()` acrescenta um middleware. */
+  private globalChain: { size: number; run: (ctx: Context) => Promise<void> } | undefined;
+  private readonly readBody: (ctx: Context) => Promise<void> | void;
+
   async handle(ctx: Context): Promise<void> {
     // Antes de tudo, para valer inclusive em erros, 404 e preflight (S-04).
     this.core.applySecurityHeaders?.(ctx.res);
@@ -102,46 +108,59 @@ export class RequestHandler {
       // Healthchecks antes dos middlewares globais: sondas do load balancer não têm credenciais.
       if (this.framework.health && (await this.framework.health.serve(ctx, this.server.draining || this.server.closing !== undefined)))
         return;
-      await compose(ctx, this.core.middlewares);
-      if (ctx.sent || (await this.framework.serveOpenAPI(ctx))) return;
-
-      // F-35: hosts não diferenciam maiúsculas; as regras já são compiladas em minúsculas.
-      const hostname = ctx.hostname.toLowerCase();
-      const match = this.registry.router.find(ctx.method, ctx.path, hostname);
-      if (!match) {
-        const allowed = this.registry.router.allowedMethods(ctx.path, hostname);
-        if (allowed.length > 0) {
-          ctx.res.setHeader('Allow', allowed.join(', '));
-          // F-08: OPTIONS automático para qualquer path com rotas.
-          if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
-          return void sendProblem(
-            ctx,
-            problem(405, undefined, { code: 'METHOD_NOT_ALLOWED', details: { allowed } }),
-            this.core.opts.formatError,
-          );
-        }
-        return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
+      // O body chega lido aos middlewares globais (invariante 5), sem uma camada de middleware para isso.
+      await this.readBody(ctx);
+      const chain = this.chain();
+      await chain(ctx);
+      // Um middleware global que não chama next() e não responde: a rota não roda (antes, rodava mesmo
+      // assim). Para a requisição não ficar sem resposta, 404, como no Koa.
+      if (!(ctx as unknown as Record<symbol, boolean>)[kRouted] && !ctx.sent) {
+        ctx.log.warn({ method: ctx.method, path: ctx.path }, 'a global middleware neither called next() nor sent a response');
+        sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
       }
-
-      ctx.params = match.params;
-
-      // F-01: middlewares → guards → validação → handler. Guards antes da validação, para que
-      // quem não tem acesso receba 401/403 e não um 400 que revele a estrutura esperada.
-      const route = match;
-      const pipeline: Middleware[] = [...route.middlewares];
-      if (route.guards.length > 0) pipeline.push(guardsMiddleware(route.guards));
-      pipeline.push(async () => {
-        validateRequest(ctx, route.schemas);
-        // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
-        ctx[kBindResponse](route.schemas.response, this.core.serializers);
-        const result = await route.handler(ctx);
-        if (ctx[kPendingSend]) await ctx[kPendingSend];
-        if (!ctx.sent) sendResult(ctx, route.schemas.response, result, this.core.serializers);
-      });
-      await compose(ctx, pipeline);
     } catch (err) {
       await this.runErrorHandlers(err, ctx);
     }
+  }
+
+  /**
+   * Cadeia global (Chain of Responsibility pré-compilada): os middlewares de `app.use()` envolvem o
+   * roteamento e a rota, como no Koa. Um `await next()` num middleware global inclui o handler.
+   */
+  private chain(): (ctx: Context) => Promise<void> {
+    const mws = this.core.middlewares;
+    if (this.globalChain?.size !== mws.length) {
+      this.globalChain = { size: mws.length, run: compileChain([...mws], (ctx) => this.route(ctx)) };
+    }
+    return this.globalChain.run;
+  }
+
+  /** Fim da cadeia global: OpenAPI, roteamento, 404/405 e o programa da rota. */
+  private async route(ctx: Context): Promise<void> {
+    (ctx as unknown as Record<symbol, boolean>)[kRouted] = true;
+    if (ctx.sent || (await this.framework.serveOpenAPI(ctx))) return;
+
+    // F-35: hosts não diferenciam maiúsculas; as regras já são compiladas em minúsculas.
+    const hostname = ctx.hostname.toLowerCase();
+    const match = this.registry.router.find(ctx.method, ctx.path, hostname);
+    if (!match) {
+      const allowed = this.registry.router.allowedMethods(ctx.path, hostname);
+      if (allowed.length > 0) {
+        ctx.res.setHeader('Allow', allowed.join(', '));
+        // F-08: OPTIONS automático para qualquer path com rotas.
+        if (ctx.method === 'OPTIONS') return void ctx.status(204).res.end();
+        return void sendProblem(
+          ctx,
+          problem(405, undefined, { code: 'METHOD_NOT_ALLOWED', details: { allowed } }),
+          this.core.opts.formatError,
+        );
+      }
+      return void sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
+    }
+    ctx.params = match.params;
+    // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
+    const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
+    await run(ctx);
   }
 
   /**

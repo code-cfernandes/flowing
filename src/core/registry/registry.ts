@@ -2,6 +2,7 @@ import type { AppCore } from '../app/core.ts';
 import { assertSchemas } from '../request-validation.ts';
 import type { CompiledRoute } from '../compiler.ts';
 import { RouteTable } from '../route-table.ts';
+import { buildRouteProgram } from './route-program.ts';
 import { hostRank, hostReachability, NO_HOST_RANK } from '../../utils/origin-match.ts';
 import { canonicalPath } from '../../utils/path.ts';
 
@@ -84,6 +85,7 @@ export class RouteRegistry {
     const done: { method: string; path: string; host: string | undefined }[] = [];
     try {
       for (const { owner, route, hosts } of batch) {
+        (route as CompiledRoute & { run?: unknown }).run ??= buildRouteProgram(route, this.core.serializers);
         for (const host of hosts) {
           try {
             this.router.on(route.method, route.path, route, host);

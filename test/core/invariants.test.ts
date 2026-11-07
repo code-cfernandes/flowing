@@ -248,3 +248,78 @@ describe('fase 2 · o host validado é o host roteado', () => {
     assert.equal(res.body, 'public');
   });
 });
+
+describe('fase 3 · cadeia global no modelo onion (como documentado)', () => {
+  /** Uma classe por teste, com o próprio registro de ordem: os testes rodam em paralelo. */
+  const routes = () => {
+    const order: string[] = [];
+    @Router('/')
+    class O {
+      @Get('/o') o() {
+        order.push('handler');
+        return { ok: true };
+      }
+    }
+    return { O, order };
+  };
+
+  it('await next() num middleware global inclui o roteamento e o handler', async () => {
+    const { O, order } = routes();
+    let sent: string | undefined;
+    const timing: Middleware = async (ctx, next) => {
+      order.push('antes');
+      await next();
+      order.push('depois');
+      sent = ctx.sentBody?.toString();
+    };
+    const res = await createApp({ logger: false }).use(timing).mount(O).inject('/o');
+    // O inject resolve quando a resposta termina; o código depois do next() roda logo em seguida.
+    await new Promise((r) => setImmediate(r));
+    assert.equal(res.status, 200);
+    assert.deepEqual(order, ['antes', 'handler', 'depois']);
+    assert.equal(sent, '{"ok":true}', 'ctx.sentBody disponível depois do next()');
+  });
+
+  it('middleware global que não chama next() nem responde: a rota não roda e o app responde 404', async () => {
+    const { O, order } = routes();
+    const warn: unknown[] = [];
+    const log = {
+      debug() {},
+      info() {},
+      warn: (...a: unknown[]) => warn.push(a),
+      error() {},
+      child() {
+        return log;
+      },
+    };
+    const forgetful: Middleware = async () => {
+      /* esqueceu o next() e o throw */
+    };
+    const res = await createApp({ logger: log }).use(forgetful).mount(O).inject('/o');
+    assert.equal(res.status, 404);
+    assert.deepEqual(order, [], 'o handler não rodou');
+    assert.equal(warn.length, 1);
+  });
+
+  it('chamar next() duas vezes não executa a cadeia de novo', async () => {
+    const { O, order } = routes();
+    const twice: Middleware = async (_ctx, next) => {
+      await next();
+      await next();
+    };
+    const res = await createApp({ logger: false }).use(twice).mount(O).inject('/o');
+    assert.equal(res.status, 200);
+    assert.deepEqual(order, ['handler']);
+  });
+
+  it('app.use() depois da primeira requisição passa a valer na seguinte', async () => {
+    const { O } = routes();
+    const app = createApp({ logger: false }).mount(O);
+    await app.inject('/o');
+    app.use(async (ctx, next) => {
+      ctx.header('X-Late', '1');
+      await next();
+    });
+    assert.equal((await app.inject('/o')).headers['x-late'], '1');
+  });
+});

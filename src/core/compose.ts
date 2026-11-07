@@ -11,3 +11,31 @@ export async function compose(ctx: Context, fns: Middleware[]): Promise<void> {
   };
   await dispatch();
 }
+
+/**
+ * Cadeia pré-compilada (Chain of Responsibility, F-39): monta, uma vez, a função que executa `fns` no modelo
+ * onion e termina em `terminal`. A cada requisição só se cria o `next` de cada camada.
+ *
+ * Como no `compose`, chamar `next()` de novo depois que a cadeia seguinte já rodou não a executa outra vez.
+ */
+export function compileChain(
+  fns: readonly Middleware[],
+  terminal: (ctx: Context) => Promise<void> | void,
+): (ctx: Context) => Promise<void> {
+  let run = async (ctx: Context): Promise<void> => {
+    await terminal(ctx);
+  };
+  for (let i = fns.length - 1; i >= 0; i--) {
+    const fn = fns[i]!;
+    const inner = run;
+    run = async (ctx) => {
+      let called = false;
+      await fn(ctx, () => {
+        if (called) return Promise.resolve();
+        called = true;
+        return inner(ctx);
+      });
+    };
+  }
+  return run;
+}

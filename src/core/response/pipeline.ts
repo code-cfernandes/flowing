@@ -33,19 +33,40 @@ const JSON_TYPE = 'application/json';
  * 4. sem schema, o tipo do valor: string → `text/plain`, Buffer/Uint8Array/stream → `application/octet-stream`,
  *    o resto → JSON.
  */
+/**
+ * O que cada rota sabe sobre a resposta, decidido no registro (Strategy, F-39): schemas, serializadores e o
+ * status padrão (o único 2xx declarado, quando não há 200). O mesmo objeto serve a todas as requisições.
+ */
+export interface ResponsePlan {
+  readonly response: RouteSchemas['response'];
+  readonly serializers: ReadonlyMap<string, Serializer>;
+  readonly defaultStatus: number | undefined;
+}
+
+/** Status padrão de uma rota (B-05): com um único 2xx declarado e sem 200, é esse 2xx. */
+export function defaultStatusFor(response: RouteSchemas['response']): number | undefined {
+  if (!response) return undefined;
+  const success = Object.keys(response)
+    .map(Number)
+    .filter((st) => st >= 200 && st < 300);
+  return success.length === 1 && response[200] === undefined ? success[0] : undefined;
+}
+
+export function responsePlan(response: RouteSchemas['response'], serializers: ReadonlyMap<string, Serializer>): ResponsePlan {
+  return { response, serializers, defaultStatus: defaultStatusFor(response) };
+}
+
+const EMPTY_SERIALIZERS: ReadonlyMap<string, Serializer> = new Map();
+
 export function sendResult(
   ctx: Context,
   response: RouteSchemas['response'],
   result: unknown,
-  serializers: ReadonlyMap<string, Serializer> = new Map(),
+  serializers: ReadonlyMap<string, Serializer> = EMPTY_SERIALIZERS,
   mode: SendMode = 'auto',
+  defaultStatus: number | undefined = defaultStatusFor(response),
 ): void {
-  if (response && !ctx.statusExplicit) {
-    const success = Object.keys(response)
-      .map(Number)
-      .filter((st) => st >= 200 && st < 300);
-    if (success.length === 1 && response[200] === undefined) ctx.res.statusCode = success[0]!;
-  }
+  if (defaultStatus !== undefined && !ctx.statusExplicit) ctx.res.statusCode = defaultStatus;
 
   if (result === undefined) return void ctx.res.end();
 

@@ -8,7 +8,7 @@ import { hostnameOf, isValidHost, parseRequestTarget, pickForwarded } from '../u
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
-import { sendResult, type SendMode, type Serializer } from './response/pipeline.ts';
+import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
 import { kAbort, kBindResponse, kPendingSend, kRawSend } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -219,7 +219,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   sentBody: Buffer | undefined;
   /** `Content-Type` da resposta enviada, junto com `sentBody`. */
   sentType: string | undefined;
-  private bound: { response: RouteSchemas['response']; serializers: ReadonlyMap<string, Serializer> } | undefined;
+  private bound: ResponsePlan | undefined;
 
   /**
    * @param opts configuração; o app passa **o mesmo objeto** para todas as requisições (Flyweight), e o
@@ -361,13 +361,15 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private dispatch(body: unknown, mode: SendMode): this {
     if (this.sent) return this;
     // Antes do handler (middlewares, guards) não há schema ligado: vale só o tipo do conteúdo.
-    sendResult(this as unknown as Context, this.bound?.response, body, this.bound?.serializers, mode);
+    const plan = this.bound;
+    if (plan) sendResult(this as unknown as Context, plan.response, body, plan.serializers, mode, plan.defaultStatus);
+    else sendResult(this as unknown as Context, undefined, body, undefined, mode);
     return this;
   }
 
   /** @internal Liga os schemas de resposta da rota (o app chama antes do handler). */
-  [kBindResponse](response: RouteSchemas['response'], serializers: ReadonlyMap<string, Serializer>): void {
-    this.bound = { response, serializers };
+  [kBindResponse](plan: ResponsePlan): void {
+    this.bound = plan;
   }
 
   /** @internal Envio cru, sem schema: string, bytes ou stream. */

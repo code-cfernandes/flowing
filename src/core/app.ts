@@ -22,7 +22,6 @@ import { staticHandler, type StaticOptions } from '../server/static.ts';
 import { canonicalPath, joinPaths } from '../utils/path.ts';
 import { generateOpenAPI, type OpenAPIOptions } from '../openapi/generate.ts';
 import { compileHealth, type HealthOptions } from './health.ts';
-import { bodyParser } from './body-parser.ts';
 import { mediaType } from '../utils/content-type.ts';
 import { compileHostMatcher } from '../utils/origin-match.ts';
 import { inject, type InjectOptions, type InjectResponse } from './inject.ts';
@@ -82,7 +81,6 @@ export class SashikoApp {
     this.framework = new FrameworkRoutes(this.core, this.registry);
     this.runtime = new ServerLifecycle(this.core, () => this.callback());
     this.requests = new RequestHandler(this.core, this.registry, this.framework, this.runtime);
-    this.use(bodyParser(opts.bodyLimit ?? 1024 * 1024, opts.protoPoisoning));
   }
 
   use(mw: Middleware): this {
