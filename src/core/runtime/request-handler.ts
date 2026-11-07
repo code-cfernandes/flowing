@@ -5,7 +5,7 @@ import type { AppCore } from '../app/core.ts';
 import { compileChain, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import { kContext, kRouted } from '../symbols.ts';
+import { kRouted } from '../symbols.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
@@ -45,12 +45,15 @@ export class RequestHandler {
       logger: this.core.log,
       trustProxy: this.core.opts.trustProxy,
       onSend: this.core.onSendHooks,
+      onStream: (ctx: Context) => {
+        server.streams.add(ctx);
+        ctx.res.once('close', () => server.streams.delete(ctx));
+      },
     };
 
     const server = this.server;
     // Listener compartilhado por todas as respostas (antes, uma closure por requisição).
-    const onClose = function (this: http.ServerResponse) {
-      server.inflight.delete(this);
+    const onClose = () => {
       // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
       server.closing?.closeIdleConnections();
     };
@@ -58,7 +61,6 @@ export class RequestHandler {
 
     return (req, res) => {
       const started = timed() ? performance.now() : -1;
-      server.inflight.add(res);
       if (server.closing) res.setHeader('Connection', 'close');
       res.on('close', onClose);
       const incoming = header ? req.headers[header] : undefined;
@@ -67,7 +69,6 @@ export class RequestHandler {
 
       try {
         const ctx = new Context(req, res, contextOptions, id);
-        (res as unknown as Record<symbol, Context>)[kContext] = ctx;
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
         const healthProbe = this.framework.health?.bypassesHostCheck(ctx.method, ctx.path) ?? false;

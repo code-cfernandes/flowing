@@ -63,6 +63,33 @@ describe('F-09 · listen / close / callback', () => {
     assert.deepEqual(await res.json(), { done: true });
   });
 
+  it('close(): a resposta em andamento numa conexão keep-alive sai com Connection: close', async () => {
+    const app = createApp({ logger: false, shutdown: false }).mount(L);
+    const server = await app.listen(0);
+    const { port } = server.address() as AddressInfo;
+    const agent = new http.Agent({ keepAlive: true });
+    try {
+      const pending = new Promise<{ connection: string | undefined; socketClosed: Promise<void> }>((resolve, reject) => {
+        const req = http.get({ port, path: '/l/slow', agent }, (res) => {
+          res.resume();
+          const socketClosed = new Promise<void>((done) => res.socket.once('close', () => done()));
+          res.on('end', () => resolve({ connection: res.headers.connection, socketClosed }));
+        });
+        req.on('error', reject);
+      });
+      await new Promise((r) => setTimeout(r, 30));
+      const t0 = Date.now();
+      await app.close(3_000);
+      assert.ok(Date.now() - t0 < 1_000, 'o close() não espera o prazo de força');
+      const { connection, socketClosed } = await pending;
+      assert.equal(connection, 'close');
+      await socketClosed;
+    } finally {
+      agent.destroy();
+      await app.close();
+    }
+  });
+
   it('close() sem listen é no-op', async () => {
     await createApp().close();
   });

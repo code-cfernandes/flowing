@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { Readable } from 'node:stream';
 import { type Context, cors, createApp, Get, type Middleware, Post, Router } from 'sashiko';
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -339,6 +340,12 @@ describe('fase 4 · limpeza das respostas em andamento (P-11)', () => {
         await tick(200);
         return 'tarde';
       }
+      @Get('/stream') stream() {
+        return Readable.from(['a', 'b']);
+      }
+      @Get('/sse') sse(ctx: Context) {
+        ctx.sse().send({ data: 'oi' });
+      }
     }
     // O app, e não o retorno do mount() (um MountedGroup): o teste lê o estado interno dele.
     const app = createApp({ logger: false, shutdown: false });
@@ -356,6 +363,17 @@ describe('fase 4 · limpeza das respostas em andamento (P-11)', () => {
         });
       assert.equal(await get('/ok'), 200);
       assert.equal(await get('/boom'), 500);
+      assert.equal(await get('/stream'), 200);
+      // SSE aberto e abandonado pelo cliente.
+      await new Promise<void>((resolve) => {
+        const req = http.get({ port, path: '/sse', agent: false }, (res) => {
+          res.once('data', () => {
+            req.destroy();
+            resolve();
+          });
+        });
+        req.on('error', () => {});
+      });
       // Abortada: o cliente desiste antes da resposta.
       await new Promise<void>((resolve) => {
         const req = http.get({ port, path: '/slow', agent: false });
@@ -366,9 +384,9 @@ describe('fase 4 · limpeza das respostas em andamento (P-11)', () => {
         }, 20);
       });
       await tick(300); // a resposta abortada termina no servidor
-      // Teste de implementação: o conjunto de respostas em andamento precisa esvaziar nos três casos.
-      const inflight = (app as unknown as { runtime: { inflight: Set<unknown> } }).runtime.inflight;
-      assert.equal(inflight.size, 0, 'respostas concluídas, com erro e abortadas saem do rastreamento');
+      // Teste de implementação: o conjunto de streams abertos precisa esvaziar.
+      const streams = (app as unknown as { runtime: { streams: Set<unknown> } }).runtime.streams;
+      assert.equal(streams.size, 0, 'streams concluídos, com erro e abortados saem do rastreamento');
     } finally {
       // Sempre fecha: uma falha acima não pode deixar o servidor aberto e o processo de teste pendurado.
       await app.close(3_000);

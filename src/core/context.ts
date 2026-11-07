@@ -86,6 +86,8 @@ export interface ContextOptions {
   trustProxy?: boolean | number | undefined;
   /** Hooks `onSend` do app (F-04). */
   onSend?: readonly OnSendHook[] | undefined;
+  /** Avisado quando a resposta vira stream, para o `close()` do app cancelar streams abertos. */
+  onStream?: ((ctx: Context) => void) | undefined;
 }
 
 /**
@@ -197,6 +199,12 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     return this.streaming;
   }
 
+  private markStreaming(): void {
+    if (this.streaming) return;
+    this.streaming = true;
+    this.opts.onStream?.(this as unknown as Context);
+  }
+
   /** @internal */
   [kAbort](reason: string): void {
     void this.signal;
@@ -214,9 +222,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
    * ```
    */
   sse(opts: SseOptions = {}): SseStream {
-    return openSse(this as unknown as Context, opts, () => {
-      this.streaming = true;
-    });
+    return openSse(this as unknown as Context, opts, () => this.markStreaming());
   }
 
   /**
@@ -409,7 +415,7 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
     if (body instanceof Readable) {
       this.res.setHeader('Content-Type', type);
-      this.streaming = true;
+      this.markStreaming();
       pipeline(body, this.res).catch((err: unknown) => {
         // P-12: o cliente desistir (fechar a conexão) é normal e não é erro do servidor.
         // Pelo código do erro: o pipeline já destruiu a resposta aqui, então `res.destroyed` não distingue.
