@@ -9,9 +9,9 @@ import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
-import { type AbortCode, RequestAbortedError } from './abort.ts';
+import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
-import { kAbort, kBindResponse, kPendingSend, kRawSend, kRoute } from './symbols.ts';
+import { kAbort, kBindResponse, kPendingSend, kPhase, kRawSend, kRoute } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
@@ -129,6 +129,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
   /** @internal */
   [kRoute]: RouteInfo | undefined;
+  /** @internal */
+  [kPhase]: ErrorPhase = 'middleware';
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;

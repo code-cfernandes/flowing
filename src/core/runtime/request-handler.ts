@@ -6,7 +6,7 @@ import { compileChain, isPromiseLike, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import type { RouteInfo } from '../route-table.ts';
-import { kError, kRoute, kRouted } from '../symbols.ts';
+import { kError, kPhase, kRoute, kRouted } from '../symbols.ts';
 import type { ResponseInfo } from '../app/options.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
@@ -122,7 +122,7 @@ export class RequestHandler {
         ...(abortReason ? { abortReason } : {}),
         ...(ttfb === -1 ? {} : { ttfbMs: round(ttfb) }),
         ...(route ? { route } : {}),
-        ...(error === undefined ? {} : { error }),
+        ...(error === undefined ? {} : { error, errorPhase: ctx[kPhase] }),
       };
       if (this.core.opts.logRequests) {
         const entry = { method: ctx.method, path: ctx.path, status, ms: info.ms, ...(abortReason ? { abortReason } : {}) };
@@ -195,12 +195,14 @@ export class RequestHandler {
 
   private afterHealth(ctx: Context): Step {
     // O body chega lido aos middlewares globais (invariante 5), sem uma camada de middleware para isso.
+    ctx[kPhase] = 'validation';
     const reading = this.readBody(ctx);
     if (reading) return reading.then(() => this.afterBody(ctx));
     return this.afterBody(ctx);
   }
 
   private afterBody(ctx: Context): Step {
+    ctx[kPhase] = 'middleware';
     const step = this.chain()(ctx);
     if (step) return step.then(() => this.checkRouted(ctx));
     this.checkRouted(ctx);
@@ -275,7 +277,7 @@ export class RequestHandler {
     (ctx as unknown as Record<symbol, unknown>)[kError] = err;
     for (const h of this.core.errorHandlers) {
       try {
-        await h(err, ctx);
+        await h(err, ctx, ctx[kPhase]);
       } catch (handlerErr) {
         ctx.log.error({ err: handlerErr, method: ctx.method, path: ctx.path }, 'onError handler failed');
         break;

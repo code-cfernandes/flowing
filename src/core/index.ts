@@ -6,6 +6,7 @@ export {
   type AppOptions,
   type ListenOptions,
   type OnCloseHook,
+  type OnErrorHook,
   type OnRequestHook,
   type OnResponseHook,
   type ResponseInfo,
@@ -81,5 +82,5 @@ export {
   type RouteSchemas,
 } from './metadata.ts';
 export type { Handler, RouteInfo } from './route-table.ts';
-export { type AbortCode, RequestAbortedError } from './abort.ts';
+export { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 export type { ValidationIssue, ValidationTarget } from '../schema/validation.ts';

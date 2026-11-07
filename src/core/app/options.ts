@@ -1,4 +1,4 @@
-import type { AbortCode } from '../abort.ts';
+import type { AbortCode, ErrorPhase } from '../abort.ts';
 import type { Context } from '../context.ts';
 import type { RouteInfo } from '../route-table.ts';
 import type { ErrorFormatter } from '../errors.ts';
@@ -8,6 +8,12 @@ import type { ShutdownOptions } from '../shutdown.ts';
 import type { TlsOptions } from '../../server/tls.ts';
 import type { ProtoPoisoning } from '../../utils/safe-json.ts';
 import type { SecurityHeadersOptions, SecurityPreset } from '../../middlewares/security-headers.ts';
+
+/**
+ * Tratamento de erros (F-04). `phase` diz em que etapa a requisição estava: `middleware`, `guard`,
+ * `validation` (inclui a leitura do body), `handler` ou `response`.
+ */
+export type OnErrorHook = (err: unknown, ctx: Context, phase: ErrorPhase) => void | Promise<void>;
 
 /** Como a requisição terminou, no `onResponse` (F-04, F-38). */
 export interface ResponseInfo {
@@ -27,6 +33,8 @@ export interface ResponseInfo {
   route?: RouteInfo;
   /** O erro lançado, quando a resposta veio do tratamento de erros. */
   error?: unknown;
+  /** A etapa em que o erro chegou (a mesma do 3º argumento do `onError`). */
+  errorPhase?: ErrorPhase;
 }
 
 /**

@@ -1,3 +1,10 @@
+/**
+ * Etapa em que a requisição estava quando um erro chegou ao `onError` (F-38). No modelo onion, um erro
+ * lançado depois do `await next()` de um middleware aparece com a etapa mais recente (`handler`, `response`).
+ * `validation` inclui a leitura do body (JSON inválido, limite de tamanho).
+ */
+export type ErrorPhase = 'middleware' | 'guard' | 'validation' | 'handler' | 'response';
+
 /** Por que o `ctx.signal` de uma requisição foi cancelado (F-38). */
 export type AbortCode = 'CLIENT_DISCONNECTED' | 'SHUTDOWN' | 'TIMEOUT';
 

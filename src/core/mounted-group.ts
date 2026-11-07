@@ -15,8 +15,8 @@ import type { InjectOptions, InjectResponse } from './inject.ts';
 import type { ListenOptions } from './app.ts';
 import type { Logger } from './logger.ts';
 import type { Middleware } from './compose.ts';
-import type { Context, OnSendHook } from './context.ts';
-import type { OnCloseHook, OnRequestHook, OnResponseHook } from './app.ts';
+import type { OnSendHook } from './context.ts';
+import type { OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './app.ts';
 import type { OpenAPIOptions } from '../openapi/generate.ts';
 import type { HealthOptions } from './health.ts';
 import type { StaticOptions } from '../server/static.ts';
@@ -103,7 +103,7 @@ export class MountedGroup<T extends object> {
   openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> {
     return this.app.openapiDocument(opts);
   }
-  onError(h: (err: unknown, ctx: Context) => void | Promise<void>): SashikoApp {
+  onError(h: OnErrorHook): SashikoApp {
     return this.app.onError(h);
   }
   onSend(hook: OnSendHook): SashikoApp {

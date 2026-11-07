@@ -14,3 +14,5 @@ export const kRouted = Symbol('sashiko.routed');
 export const kRoute = Symbol('sashiko.route');
 /** @internal O erro tratado pelo pipeline de erros, para o `onResponse` (F-38). */
 export const kError = Symbol('sashiko.error');
+/** @internal Em que etapa a requisição está, para a fase do `onError` (F-38). */
+export const kPhase = Symbol('sashiko.phase');

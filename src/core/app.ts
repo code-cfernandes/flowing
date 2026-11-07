@@ -29,7 +29,7 @@ import { guardsMiddleware } from './guard.ts';
 import { consoleLogger, silentLogger, type Logger } from './logger.ts';
 import { buildSecurityHeaders } from '../middlewares/security-headers.ts';
 import type { AppCore } from './app/core.ts';
-import type { AppOptions, ListenOptions, OnCloseHook, OnRequestHook, OnResponseHook } from './app/options.ts';
+import type { AppOptions, ListenOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './app/options.ts';
 import { FrameworkRoutes } from './registry/framework-routes.ts';
 import { RouteRegistry } from './registry/registry.ts';
 import { RequestHandler } from './runtime/request-handler.ts';
@@ -39,6 +39,7 @@ export type {
   AppOptions,
   ListenOptions,
   OnCloseHook,
+  OnErrorHook,
   OnRequestHook,
   OnResponseHook,
   RequestIdOptions,
@@ -98,7 +99,7 @@ export class SashikoApp {
     return this;
   }
 
-  onError(h: (err: unknown, ctx: Context) => void | Promise<void>): this {
+  onError(h: OnErrorHook): this {
     this.core.errorHandlers.push(h);
     return this;
   }

@@ -4,7 +4,20 @@ import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { type Context, createApp, Get, RequestAbortedError, type ResponseInfo, type RouteInfo, Router } from 'sashiko';
+import { Type } from '@sinclair/typebox';
+import {
+  type Context,
+  createApp,
+  Get,
+  Guards,
+  Middlewares,
+  Post,
+  RequestAbortedError,
+  type ResponseInfo,
+  type RouteInfo,
+  Router,
+  Schema,
+} from 'sashiko';
 
 @Router('/users')
 class UserRoutes {
@@ -312,5 +325,53 @@ describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminho
     app.mount(Paths);
     await app.inject('/ok');
     assert.equal(wrapped, false);
+  });
+});
+
+describe('F-38 · onError com a fase', () => {
+  it('middleware, body, guard, validação, handler e resposta', async () => {
+    const seen: Record<string, string> = {};
+    const reached: Record<string, string | undefined> = {};
+    const fail = () => {
+      throw new Error('mw');
+    };
+    @Router('/')
+    class P {
+      @Get('/mw') @Middlewares(fail) mw() {
+        return 'x';
+      }
+      @Get('/guard') @Guards(() => false) guard() {
+        return 'x';
+      }
+      @Get('/valid') @Schema({ query: Type.Object({ n: Type.Integer() }) }) valid() {
+        return 'x';
+      }
+      @Get('/handler') handler() {
+        throw new Error('h');
+      }
+      @Get('/response') @Schema({ response: { 200: Type.Object({ n: Type.Integer() }) } }) resp() {
+        return { n: 'não é número' };
+      }
+      @Post('/body') body() {
+        return 'x';
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false });
+    app.onError((_err, ctx, phase) => void (seen[ctx.path] = phase));
+    app.onResponse((ctx, info) => void (reached[ctx.path] = info.errorPhase));
+    app.mount(P);
+    for (const url of ['/mw', '/guard', '/valid', '/handler', '/response']) await app.inject(url);
+    await app.inject({ method: 'POST', url: '/body', headers: { 'content-type': 'application/json' }, body: '{quebrado' });
+    await new Promise((r) => setTimeout(r, 20));
+    const expected = {
+      '/mw': 'middleware',
+      '/guard': 'guard',
+      '/valid': 'validation',
+      '/handler': 'handler',
+      '/response': 'response',
+      '/body': 'validation',
+    };
+    assert.deepEqual(seen, expected);
+    assert.deepEqual(reached, expected, 'o onResponse recebe a mesma fase');
   });
 });
