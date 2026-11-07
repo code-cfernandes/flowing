@@ -396,3 +396,48 @@ Em 10 s de `get` com `--trace-gc`, as coletas completas caem de 36 para 0. Em 12
 - **Headers de segurança:** com eles desligados, a vazão do `get` sobe cerca de 18% (o RSS quase não muda). Juntá-los num único `writeHead` exigiria uma forma explícita de remover um header por rota.
 - **RSS no `static`:** cerca de 207 MB, contra 150 MB do `node:http` e do Fastify. Não foi investigado.
 - **Execuções longas:** o pico do `get` sobe de 124 MB (10 s) para cerca de 158 MB (60 a 120 s) e depois estabiliza.
+
+## Observabilidade e a rodada de arquitetura (0.15.0)
+
+A observabilidade (0.15.0) acrescentou hooks, rota, trace e o `telemetry`. Uma revisão depois dela encontrou cinco problemas de estrutura, corrigidos numa rodada sem mudança de comportamento:
+
+| Problema                                                                                                 | Correção                                                                                         |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| O `Context` (modelo) importava o `telemetry` (integração) para os ids do log                             | Os ids chegam por `ContextOptions.spanIds`, fornecido pelo `telemetry`                           |
+| O `request-handler.ts` acumulava a observação (196 → 300 linhas) e chamava o `telemetry` em cinco pontos | Extraída para `runtime/observer.ts`; o pipeline só avisa os momentos                             |
+| A regra "há quem observe o fim" estava duplicada no `request-handler.ts` e no `server.ts`                | Uma só fonte: `RequestObserver.watching`                                                         |
+| A gravação do instante dos headers tinha duas implementações (`listen()` e `inject()`)                   | Uma só: `markHeadersSent()`                                                                      |
+| Estado interno por símbolos com casts `as unknown as Record<symbol, ...>` (de 4 para 10)                 | Campos tipados no `Context`; sobram 2 casts, isolados no `observer.ts`, sobre a resposta do Node |
+
+### Módulos novos ou alterados
+
+| Módulo                            | Linhas | Responsabilidade                                                                                                                                                         |
+| --------------------------------- | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `core/runtime/observer.ts`        |    121 | **Observer:** `onRequest`, `onResponse`, `logRequests` e `telemetry`; detecta o fim da requisição (`close`, com trava)                                                   |
+| `core/telemetry.ts`               |    177 | OpenTelemetry por injeção: tipos estruturais, spans e métricas. Criado pelo app; usado pelo observer e, só para entregar os `spanIds` ao `Context`, pelo request-handler |
+| `core/abort.ts`                   |     31 | `RequestAbortedError`, `AbortCode` e `ErrorPhase`                                                                                                                        |
+| `utils/trace-context.ts`          |     38 | Validação do `traceparent` (W3C)                                                                                                                                         |
+| `core/runtime/request-handler.ts` |    243 | O pipeline; avisa o observer no início, na execução, na rota resolvida e no erro                                                                                         |
+| `core/context.ts`                 |    525 | O modelo da requisição; ganhou `route`, `trace`, `abortReason` e os campos internos tipados                                                                              |
+
+```mermaid
+graph LR
+  RH[request-handler] -- início, execução, rota, erro --> OB[observer]
+  SV[server: writeHead] -- markHeadersSent, se watching --> OB
+  IN[inject] -- markHeadersSent --> OB
+  OB --> HK[onRequest / onResponse / logRequests]
+  OB --> TL[telemetry]
+  TL -. spanIds, por ContextOptions .-> CX[Context]
+```
+
+### Invariantes novas
+
+| Garantia                                                                                                                                                                    | Onde está testada                                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `onRequest` e `onResponse` exatamente uma vez por requisição, em todos os caminhos (inclusive `Host` inválido, cancelamento, shutdown, streams)                             | `test/features/observability.test.ts`                          |
+| **Custo zero sem observadores:** a resposta do `listen()` não ganha nenhuma propriedade por requisição                                                                      | `test/features/observability.test.ts` (rede real, com mutação) |
+| O `telemetry` não duplica o span da auto-instrumentação nem o encerra; o span criado por ele é encerrado uma vez                                                            | `test/features/telemetry.test.ts`                              |
+| `ctx.route.path` é sempre o template registrado, e `ctx.route.host` a regra de host, nunca valores do cliente                                                               | `test/features/observability.test.ts`                          |
+| A fase do erro é escrita só pelo pipeline, na ordem: `validation` (body) → `middleware` → `guard` (`guard.ts`) → `validation` → `handler` → `response` (`route-program.ts`) | `test/features/observability.test.ts` (com mutação no guard)   |
+
+**Regra aprendida duas vezes (0.14.0 e 0.15.0):** nada criado por requisição pode ficar pendurado numa estrutura de longa duração (o antigo `Set` de respostas) nem na própria resposta (o wrapper de `writeHead` por instância). Nos dois casos, cada resposta sobreviveu às coletas rápidas do V8, foi promovida, e o RSS de pico quase dobrou sem mudar a vazão de forma visível. Qualquer recurso novo no caminho da requisição precisa ser medido com e sem uso, contra a última versão publicada.
