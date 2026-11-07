@@ -1,6 +1,6 @@
 # Arquitetura do Sashiko
 
-> **Estado:** retrato da versão **0.12.2** e a [estrutura proposta](#estrutura-proposta) para a refatoração de desempenho. A estrutura proposta ainda **não foi implementada**; ela é aplicada fase a fase, conforme o [plano](#plano-em-fases).
+> **Estado:** as seções até "Plano em fases" são o retrato da versão **0.12.2** e a proposta feita antes da refatoração, mantidas como registro. O que foi implementado de fato, o que ficou de fora e os resultados medidos estão em [Estrutura implementada](#estrutura-implementada).
 
 ## Princípios que a arquitetura precisa preservar
 
@@ -263,3 +263,49 @@ Cada fase é um commit (ou poucos), na branch `refactor/architecture-and-perform
 | **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                                      | P-5 a P-9             | Maior ganho em `params`, `real` e `post-validate`                             |
 | **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`, desconexão do cliente fora do nível `error`           | P-4, P-10, P-11, P-12 | Ganho no `get` e na memória; logs limpos                                      |
 | **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                             | —                     | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
+
+## Estrutura implementada
+
+A refatoração seguiu o plano em fases, com todos os testes passando e o benchmark antes e depois de cada fase. As diferenças em relação à proposta estão na tabela abaixo.
+
+### Módulos
+
+| Módulo                                    |   Linhas | Responsabilidade                                                                                                   |
+| ----------------------------------------- | -------: | ------------------------------------------------------------------------------------------------------------------ |
+| `core/app.ts`                             |      327 | **Facade:** só a API pública, delegando para os módulos abaixo (era 861)                                           |
+| `core/app/core.ts`, `core/app/options.ts` | 23 + 110 | Estado compartilhado (configuração e listas de hooks) e os tipos de opções                                         |
+| `core/registry/registry.ts`               |      162 | Registro em duas fases, conflitos, paths reservados, `unreachableHosts`, `routesFor()`                             |
+| `core/registry/framework-routes.ts`       |       94 | `health()` e `openapi()`: configuração, paths reservados e o envio do documento                                    |
+| `core/registry/route-program.ts`          |       32 | **Builder:** monta, no registro, o programa de cada rota                                                           |
+| `core/runtime/request-handler.ts`         |      196 | O pipeline da requisição: rastreamento, request id, `Host`, headers de segurança, cadeia global, roteamento, erros |
+| `core/runtime/server.ts`                  |      154 | `listen`, `close`, TLS, drain, shutdown                                                                            |
+| `core/context.ts`                         |      451 | O modelo da requisição, com campos preguiçosos e memoizados (era 515, com o SSE)                                   |
+| `core/streaming/sse.ts`                   |      141 | `ctx.sse()`                                                                                                        |
+| `core/response/pipeline.ts`               |      237 | Pipeline de resposta e o `ResponsePlan` por rota                                                                   |
+| `core/compose.ts`                         |       41 | `compose` (healthchecks e OpenAPI) e `compileChain` (cadeias pré-compiladas)                                       |
+| `core/symbols.ts`                         |       14 | Símbolos internos, fora do `Context`, para quebrar os ciclos de importação                                         |
+
+Os três ciclos de importação foram quebrados: `response`, `static` e `health` dependem do `Context` só como tipo.
+
+### Proposta × implementação
+
+| Proposta                                            | O que foi feito                                                                                 | Por quê                                                                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runtime/chain.ts`                                  | `compileChain` em `core/compose.ts`                                                             | Uma função; não justificava um módulo                                                                                                        |
+| `core/context-factory.ts`                           | Um objeto de opções por listener em `request-handler.ts`, e o `id` como parâmetro do construtor | O ganho estava em não criar o objeto por requisição; um módulo próprio não acrescentava nada                                                 |
+| `response/responders.ts` (uma Strategy por formato) | `ResponsePlan` por rota (schemas, serializadores, status padrão) em `response/pipeline.ts`      | O profile não mostrou a escolha do formato como custo relevante; o que pesava eram o `Content-Type` duplo e a cópia do corpo                 |
+| `response/raw-send.ts`                              | O envio cru continua em `Context[kRawSend]`                                                     | Mesmo motivo; o ponto único de escrita já existia                                                                                            |
+| Flyweight dos headers de segurança (P-4)            | **Não feito**                                                                                   | A alternativa ao `setHeader` (`writeHead` com os headers) daria precedência ao padrão sobre o que o handler define, quebrando a invariante 2 |
+| Request id mais barato (P-10)                       | **Não feito**                                                                                   | Cerca de 1,4% do tempo; trocar o UUID mudaria o formato que os usuários recebem                                                              |
+
+### Correções de comportamento encontradas durante a refatoração
+
+1. **Host validado é o host roteado (fase 2):** um middleware que reescrevia `req.headers.host` mudava o roteamento por virtual host e podia contornar o `allowedHosts`.
+2. **Modelo onion dos middlewares globais (fase 3):** o código depois do `await next()` num `app.use()` rodava **antes** da rota, contradizendo o README.
+3. **Cadeia interrompida (fase 3):** um middleware global que não chamava `next()` nem respondia deixava a rota rodar.
+
+As três têm testes em `test/core/invariants.test.ts` e estão no CHANGELOG, com a migração.
+
+### Resultados
+
+Os números finais (matriz completa, três rodadas) e a atribuição de cada ganho entram aqui ao fechar a F-39.
