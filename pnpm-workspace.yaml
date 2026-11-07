@@ -1,2 +1,7 @@
+# O pacote publicado é a raiz. `docs` é o site (VitePress + TypeDoc, com o próprio TypeScript 5.9, porque o
+# TypeDoc ainda não suporta a 7); nada dele entra no pacote do npm.
+packages:
+  - docs
+
 allowBuilds:
   esbuild: true

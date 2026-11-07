@@ -1,0 +1,19 @@
+{
+  "name": "@sashiko/docs",
+  "private": true,
+  "type": "module",
+  "description": "Site de documentação do Sashiko (VitePress) e a referência da API gerada (TypeDoc).",
+  "scripts": {
+    "api": "typedoc",
+    "dev": "pnpm api && vitepress dev",
+    "build": "pnpm api && vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typedoc-plugin-markdown": "4.14.1",
+    "typedoc-vitepress-theme": "1.1.4",
+    "typescript": "5.9.3",
+    "vitepress": "1.6.4"
+  }
+}

@@ -104,3 +104,19 @@ jobs:
         run: |
           pnpm pack --dry-run 2>&1 | tee pack.txt
           if grep -qE '(^|/)(src|test|examples|SPECS)/' pack.txt; then echo "::error::arquivos indevidos no pacote"; exit 1; fi
+
+  docs:
+    # O site precisa construir em todo PR: o VitePress falha em links quebrados, e o TypeDoc em erros da API.
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.16.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sashiko/docs build

@@ -28,3 +28,7 @@ coverage/
 Thumbs.db
 
 SPECS/
+# Site de documentação
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/referencia/api/
