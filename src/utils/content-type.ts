@@ -1,7 +1,16 @@
 /** Media type sem parâmetros e em minúsculas: `"Application/JSON; charset=utf-8"` → `"application/json"`. */
 export function mediaType(header: string | undefined): string {
-  return header ? header.split(';', 1)[0]!.trim().toLowerCase() : '';
+  if (!header) return '';
+  let base = MEDIA_TYPES.get(header);
+  if (base === undefined) {
+    base = header.split(';', 1)[0]!.trim().toLowerCase();
+    // Memoizado com limite: os tipos vêm da configuração e dos handlers (baixa cardinalidade), mas um
+    // Content-Type montado com dado do cliente não pode fazer o mapa crescer sem fim.
+    if (MEDIA_TYPES.size < 256) MEDIA_TYPES.set(header, base);
+  }
+  return base;
 }
+const MEDIA_TYPES = new Map<string, string>();
 
 /**
  * Escolhe, entre os tipos `available` (em ordem de preferência do servidor), o melhor para o
@@ -44,11 +53,19 @@ function matches(range: string, type: string): boolean {
 
 /** Acrescenta `charset=utf-8` a tipos textuais sem charset. */
 export function withCharset(type: string): string {
-  if (/;\s*charset=/i.test(type)) return type;
-  const base = mediaType(type);
-  const textual = base.startsWith('text/') || isJsonContentType(base) || /\+xml$|\/xml$|yaml$/.test(base);
-  return textual ? `${type}; charset=utf-8` : type;
+  let out = WITH_CHARSET.get(type);
+  if (out === undefined) {
+    if (/;\s*charset=/i.test(type)) out = type;
+    else {
+      const base = mediaType(type);
+      const textual = base.startsWith('text/') || isJsonContentType(base) || /\+xml$|\/xml$|yaml$/.test(base);
+      out = textual ? `${type}; charset=utf-8` : type;
+    }
+    if (WITH_CHARSET.size < 256) WITH_CHARSET.set(type, out);
+  }
+  return out;
 }
+const WITH_CHARSET = new Map<string, string>();
 
 /** `application/json` ou `application/*+json`, com parâmetros opcionais (B-11). */
 export function isJsonContentType(header: string | undefined): boolean {
