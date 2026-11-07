@@ -1,0 +1,25 @@
+# Observabilidade
+
+Passe o `@opentelemetry/api` que a aplicação já usa. O Sashiko não depende do pacote nem prende uma versão:
+
+```ts
+import * as otel from '@opentelemetry/api';
+
+createApp({ telemetry: otel });
+```
+
+- **Com a auto-instrumentação HTTP do SDK** (o caso mais comum): o Sashiko enriquece o span SERVER que ela criou, com o nome `GET /users/:id`, o `http.route` e as exceções com a fase (`middleware`, `guard`, `validation`, `handler`, `response`). Não cria span duplicado.
+- **Sem a auto-instrumentação:** o Sashiko cria o span SERVER, continuando o `traceparent` recebido, e roda o handler dentro dele, então os spans criados pela aplicação viram filhos. Só um 5xx marca o span como erro.
+- **Métricas**, pelo `metrics.getMeter('sashiko')`, com os nomes das convenções semânticas HTTP:
+
+  | Métrica                        | Tipo                        | Atributos                                                                                        |
+  | ------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------ |
+  | `http.server.request.duration` | histograma (s), sem streams | `http.request.method`, `http.route`, `http.response.status_code`, `server.address`, `error.type` |
+  | `sashiko.stream.duration`      | histograma (s), só streams  | os mesmos                                                                                        |
+  | `http.server.active_requests`  | up-down counter             | `http.request.method`                                                                            |
+  | `sashiko.request.aborted`      | counter                     | `sashiko.abort.reason`                                                                           |
+
+  O `http.route` vem sempre do template e o `server.address` da regra de virtual host, nunca do path ou do hostname do cliente: a cardinalidade das séries fica fixa. Nenhum atributo inclui query, headers ou body.
+- **Sem `telemetry`**, os mesmos dados estão disponíveis para outra ferramenta em `ctx.route`, `ctx.trace`, `onRequest` e `onResponse`.
+
+**Custo** (benchmark de `GET` simples, SDK real com um exportador que descarta os spans): a auto-instrumentação HTTP do OpenTelemetry é a parte cara, também num `node:http` puro. Em cima dela, o `telemetry` acrescentou cerca de 5% de vazão e de memória. Sem `telemetry` e sem hooks, nada disso é carregado.

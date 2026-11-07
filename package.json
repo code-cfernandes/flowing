@@ -48,6 +48,7 @@
   "scripts": {
     "dev": "tsx watch examples/app-users/server.ts",
     "example:users": "tsx examples/app-users/server.ts",
+    "test:examples": "node --import tsx --test --test-timeout=20000 --test-reporter=spec 'examples/*/app.test.ts'",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint .",

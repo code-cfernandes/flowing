@@ -9,6 +9,14 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+### Documentação
+
+- **Site de documentação** em https://code-cfernandes.github.io/sashiko/, com os guias, a referência de `createApp(options)` e
+  a referência completa da API, gerada do código. O README passa a ser a porta de entrada, com o exemplo, os
+  requisitos e o mapa do site.
+- **Exemplos executáveis**, testados no CI: CRUD com SQLite, autenticação com JWT, chat com SSE e OpenTelemetry com
+  Jaeger.
+
 ## [0.15.1] - 2026-11-07
 
 ### Alterado
