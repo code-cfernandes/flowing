@@ -5,7 +5,6 @@ import type { AppCore } from '../app/core.ts';
 import { compileChain, isPromiseLike, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import type { RouteInfo } from '../route-table.ts';
 import { kError, kHeadersAt, kPhase, kRoute, kRouted } from '../symbols.ts';
 import { parseTraceparent } from '../../utils/trace-context.ts';
 import type { ResponseInfo } from '../app/options.ts';
@@ -114,7 +113,7 @@ export class RequestHandler {
       const round = (t: number) => Math.round((t - started) * 100) / 100;
       const abortReason = ctx.abortReason ?? (res.writableEnded ? undefined : 'CLIENT_DISCONNECTED');
       const status = res.statusCode;
-      const error = (ctx as unknown as Record<symbol, unknown>)[kError];
+      const error = ctx[kError];
       const route = ctx.route;
       // Gravado pelo `writeHead` das respostas do `listen()` e do `inject()`; num servidor próprio (`callback()`),
       // fica ausente.
@@ -220,7 +219,7 @@ export class RequestHandler {
    * Para a requisição não ficar sem resposta, 404, como no Koa.
    */
   private checkRouted(ctx: Context): void {
-    if (!(ctx as unknown as Record<symbol, boolean>)[kRouted] && !ctx.sent) {
+    if (!ctx[kRouted] && !ctx.sent) {
       ctx.log.warn({ method: ctx.method, path: ctx.path }, 'a global middleware neither called next() nor sent a response');
       sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
     }
@@ -240,7 +239,7 @@ export class RequestHandler {
 
   /** Fim da cadeia global: OpenAPI, roteamento, 404/405 e o programa da rota. */
   private route(ctx: Context): Step {
-    (ctx as unknown as Record<symbol, boolean>)[kRouted] = true;
+    ctx[kRouted] = true;
     if (ctx.sent) return undefined;
     // Só cria a Promise do OpenAPI se ele estiver configurado (F-41).
     if (this.framework.openapi) {
@@ -271,7 +270,7 @@ export class RequestHandler {
     ctx.params = match.params;
     const info = match.route.info;
     if (info) {
-      (ctx as unknown as Record<symbol, RouteInfo>)[kRoute] = info;
+      ctx[kRoute] = info;
       this.core.telemetry?.onRoute(ctx, info);
     }
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
@@ -284,7 +283,7 @@ export class RequestHandler {
    * para a resposta padrão com o erro **original** — nunca deixamos a Promise rejeitar (B-08).
    */
   private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
-    (ctx as unknown as Record<symbol, unknown>)[kError] = err;
+    ctx[kError] = err;
     this.core.telemetry?.onError(ctx, err, ctx[kPhase]);
     for (const h of this.core.errorHandlers) {
       try {

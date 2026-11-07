@@ -80,7 +80,8 @@ export interface Telemetry {
   run<T>(ctx: Context, fn: () => T): T;
 }
 
-const state = (ctx: Context): RequestTelemetry | undefined => (ctx as unknown as Record<symbol, RequestTelemetry | undefined>)[kTelemetry];
+/** O estado deste módulo no `ctx`; o campo é `unknown` no `Context`, para ele não depender do telemetry. */
+const state = (ctx: Context): RequestTelemetry | undefined => ctx[kTelemetry] as RequestTelemetry | undefined;
 
 /** Versão do Sashiko, para o nome do tracer e do meter. Lida só quando o `telemetry` é usado. */
 function packageVersion(): string | undefined {
@@ -120,7 +121,7 @@ export function createTelemetry(api: TelemetryApi, version: string | undefined =
         );
         telemetry = { span, owned: true, context: api.trace.setSpan(parent, span), activeAttrs: { 'http.request.method': ctx.method } };
       }
-      (ctx as unknown as Record<symbol, RequestTelemetry>)[kTelemetry] = telemetry;
+      ctx[kTelemetry] = telemetry;
       active?.add?.(1, telemetry.activeAttrs);
     },
 

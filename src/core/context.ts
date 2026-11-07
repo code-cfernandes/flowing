@@ -13,7 +13,7 @@ import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
 import { telemetryIds } from './telemetry.ts';
-import { kAbort, kBindResponse, kPendingSend, kPhase, kRawSend, kRoute } from './symbols.ts';
+import { kAbort, kBindResponse, kError, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
@@ -131,8 +131,14 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
   /** @internal */
   [kRoute]: RouteInfo | undefined;
-  /** @internal */
+  /** @internal Etapa atual do pipeline, para a fase do `onError` (F-38). */
   [kPhase]: ErrorPhase = 'middleware';
+  /** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
+  [kRouted] = false;
+  /** @internal O erro tratado pelo pipeline de erros, para o `onResponse` (F-38). */
+  [kError]: unknown;
+  /** @internal Estado do `telemetry` desta requisição; só o módulo do telemetry lê e escreve (F-38). */
+  [kTelemetry]: unknown;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;
