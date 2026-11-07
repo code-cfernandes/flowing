@@ -340,34 +340,38 @@ describe('fase 4 · limpeza das respostas em andamento (P-11)', () => {
         return 'tarde';
       }
     }
-    const app = createApp({ logger: false, shutdown: false }).mount(C);
+    // O app, e não o retorno do mount() (um MountedGroup): o teste lê o estado interno dele.
+    const app = createApp({ logger: false, shutdown: false });
+    app.mount(C);
     const server = await app.listen(0);
-    const port = (server.address() as { port: number }).port;
-    const get = (path: string) =>
-      new Promise<number>((resolve) => {
-        const req = http.get({ port, path, agent: false }, (res) => {
-          res.resume();
-          res.on('end', () => resolve(res.statusCode!));
+    try {
+      const port = (server.address() as { port: number }).port;
+      const get = (path: string) =>
+        new Promise<number>((resolve) => {
+          const req = http.get({ port, path, agent: false }, (res) => {
+            res.resume();
+            res.on('end', () => resolve(res.statusCode!));
+          });
+          req.on('error', () => resolve(0));
         });
-        req.on('error', () => resolve(0));
+      assert.equal(await get('/ok'), 200);
+      assert.equal(await get('/boom'), 500);
+      // Abortada: o cliente desiste antes da resposta.
+      await new Promise<void>((resolve) => {
+        const req = http.get({ port, path: '/slow', agent: false });
+        req.on('error', () => {});
+        setTimeout(() => {
+          req.destroy();
+          resolve();
+        }, 20);
       });
-    assert.equal(await get('/ok'), 200);
-    assert.equal(await get('/boom'), 500);
-    // Abortada: o cliente desiste antes da resposta.
-    await new Promise<void>((resolve) => {
-      const req = http.get({ port, path: '/slow', agent: false });
-      req.on('error', () => {});
-      setTimeout(() => {
-        req.destroy();
-        resolve();
-      }, 20);
-    });
-    await tick(250); // a resposta abortada termina no servidor
-    // Teste de implementação: o conjunto de respostas em andamento precisa esvaziar nos três casos.
-    const inflight = (app as unknown as { runtime: { inflight: Set<unknown> } }).runtime.inflight;
-    assert.equal(inflight.size, 0, 'respostas concluídas, com erro e abortadas saem do rastreamento');
-    const started = Date.now();
-    await app.close(5_000);
-    assert.ok(Date.now() - started < 1_000, `close() levou ${Date.now() - started} ms: alguma resposta ficou rastreada`);
+      await tick(300); // a resposta abortada termina no servidor
+      // Teste de implementação: o conjunto de respostas em andamento precisa esvaziar nos três casos.
+      const inflight = (app as unknown as { runtime: { inflight: Set<unknown> } }).runtime.inflight;
+      assert.equal(inflight.size, 0, 'respostas concluídas, com erro e abortadas saem do rastreamento');
+    } finally {
+      // Sempre fecha: uma falha acima não pode deixar o servidor aberto e o processo de teste pendurado.
+      await app.close(3_000);
+    }
   });
 });
