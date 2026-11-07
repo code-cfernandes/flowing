@@ -1,6 +1,6 @@
 # Arquitetura do Sashiko
 
-> **Estado:** retrato da versão **0.12.2**, feito para orientar a refatoração de desempenho (veja [Desempenho](#desempenho-ponto-de-partida)). A estrutura proposta entra neste documento numa etapa seguinte, depois de revisada.
+> **Estado:** retrato da versão **0.12.2** e a [estrutura proposta](#estrutura-proposta) para a refatoração de desempenho. A estrutura proposta ainda **não foi implementada**; ela é aplicada fase a fase, conforme o [plano](#plano-em-fases).
 
 ## Princípios que a arquitetura precisa preservar
 
@@ -161,6 +161,7 @@ Os 393 testes garantem estes comportamentos. A refatoração precisa preservá-l
 2. Os headers de segurança continuam **sobrescrevíveis** por middleware ou handler, por exemplo a CSP própria do `/docs`.
 3. Um middleware que lê `ctx.url`, `ctx.query` ou `ctx.log` em qualquer momento continua recebendo o mesmo valor, se esses campos passarem a ser preguiçosos.
 4. Headers de segurança também no preflight CORS e no 400 de `Host` inválido. Hoje funcionam, mas não têm teste.
+5. O body JSON já está lido quando os **middlewares globais** rodam (o body parser é o primeiro `use()`). Um middleware de auditoria pode depender disso.
 
 ## Desempenho: ponto de partida
 
@@ -174,3 +175,91 @@ Primeira rodada de [`sashiko-benchmarks`](https://github.com/code-cfernandes/sas
 | **Sashiko 0.12.2** |    **55.664** |          **36%** | **225 MB** |
 
 O benchmark usa `logger: false`. O custo do logger padrão (etapa 3 da tabela de custo por requisição) não está nesses números.
+
+## Estrutura proposta
+
+### Ideia central: compilar no registro, executar o mínimo na requisição
+
+Hoje cada requisição remonta o pipeline da rota, recalcula o host, cria o logger e decide o formato da resposta. A estrutura proposta move tudo que é igual para todas as requisições de uma rota para o **registro**, onde cada rota vira um **programa** pronto. A requisição só executa esse programa.
+
+```mermaid
+graph LR
+  subgraph Registro["Registro (uma vez)"]
+    D[decorators + metadata] --> CMP[compiler]
+    CMP --> B[RouteProgramBuilder]
+    B --> PRG["RouteProgram<br/>(cadeia + guards + validação<br/>+ handler + Responder)"]
+    PRG --> RT[RouteTable]
+  end
+  subgraph Requisicao["Requisição (por chamada)"]
+    RH[RequestHandler] --> CF[ContextFactory] --> CTX[Context enxuto]
+    RH --> RT2[RouteTable.find] --> RUN["program(ctx)"]
+  end
+  RT -.-> RT2
+```
+
+### Nova divisão de módulos
+
+A API pública **não muda**: `createApp`, `SashikoApp`, `Context` e os tipos exportados continuam iguais. A divisão é interna.
+
+| Hoje                           | Proposta                                                            | Responsabilidade                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `core/app.ts` (861 linhas)     | `core/app.ts` (**Facade**)                                          | Só a API pública: `use`, `mount`, `group`, `static`, `health`, `openapi`, `listen`, `close`, hooks. Delega para os módulos abaixo |
+|                                | `core/registry/registry.ts`                                         | Registro em duas fases (stage/commit), conflitos, paths reservados, `unreachableHosts`                                            |
+|                                | `core/registry/route-program.ts` (**Builder**)                      | Compila cada rota num `RouteProgram`                                                                                              |
+|                                | `core/runtime/request-handler.ts`                                   | O antigo `callback()` e `handle()`: rastreamento, request id, `Host`, headers de segurança, roteamento, erros                     |
+|                                | `core/runtime/chain.ts` (**Chain of Responsibility pré-compilada**) | Substitui o `compose` por cadeias montadas no registro                                                                            |
+|                                | `core/runtime/server.ts`                                            | `listen`, `close`, TLS, drain, shutdown                                                                                           |
+| `core/context.ts` (515 linhas) | `core/context.ts`                                                   | Só o modelo da requisição, com campos preguiçosos e memoizados (**Proxy virtual**)                                                |
+|                                | `core/context-factory.ts` (**Factory** + **Flyweight**)             | Cria o `Context` com um único objeto de configuração compartilhado pelo app                                                       |
+|                                | `core/streaming/sse.ts`                                             | `ctx.sse()` sai do `Context`, que passa a só delegar                                                                              |
+| `core/response.ts`             | `core/response/responders.ts` (**Strategy**)                        | Uma estratégia por formato (JSON com schema, JSON, texto, bytes, stream, NDJSON), escolhida no registro                           |
+|                                | `core/response/raw-send.ts`                                         | Escrita final (`onSend`, `sentBody`), o único ponto que escreve o corpo                                                           |
+
+**Ciclos de importação:** a divisão quebra os três atuais. O `Context` deixa de importar `response` e `static`: quem envia recebe o contexto, e não o contrário.
+
+### Patterns aplicados, cada um ligado a um problema
+
+Os problemas P-1 a P-11 vêm da tabela **Custo por requisição**, acima, e do profile do benchmark.
+
+| Pattern                                      | Tipo           | Onde                                                                                                                                                           | Resolve                                      |
+| -------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Builder**                                  | Criacional     | `RouteProgramBuilder` monta, no registro, a função completa de cada rota                                                                                       | P-5, P-8                                     |
+| **Factory**                                  | Criacional     | `ContextFactory`: um ponto único de criação do `Context`, sem o objeto de opções por requisição                                                                | P-11 (parte), base do P-1 a P-3              |
+| **Flyweight**                                | Estrutural     | Configuração compartilhada: headers de segurança já validados (P-4), configuração do logger com o `Set` do redact compilado uma vez (P-1), opções do `Context` | P-1, P-4                                     |
+| **Proxy virtual** (inicialização preguiçosa) | Estrutural     | `ctx.url`, `ctx.query` e `ctx.log` criados no primeiro acesso; `host`/`hostname` memoizados                                                                    | P-1, P-2, P-3                                |
+| **Facade**                                   | Estrutural     | `SashikoApp` como fachada fina sobre registry, runtime e server                                                                                                | Acoplamento do `app.ts`                      |
+| **Chain of Responsibility** (pré-compilada)  | Comportamental | `chain.ts`: cadeia montada no registro, com caminho direto quando não há middlewares                                                                           | P-5, P-6                                     |
+| **Strategy**                                 | Comportamental | `Responder` por rota (formato, status padrão, serializador) e leitura do body sem camada de middleware                                                         | P-7, P-8                                     |
+| **Observer**                                 | Comportamental | Os hooks (`onSend`, `onResponse`, `onError`) continuam assim; são a base do `instrument()` da F-38                                                             | Extensibilidade, sem custo quando não usados |
+
+**Não aplicados, por decisão:**
+
+- **Object Pool para o `Context`:** reaproveitar objetos de requisição pode vazar dados de uma requisição para outra.
+- **Singleton:** quebraria os vários apps num mesmo processo, que hoje funcionam e têm teste.
+- **Decorator (GoF) em volta do `Context`:** mais uma camada no caminho quente, sem problema medido que justifique.
+
+### Riscos de regressão e como cada fase se protege
+
+| Risco                                                                                     | Onde aparece                             | Proteção                                                                                                                                           |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Campo preguiçoso com valor diferente conforme o momento do acesso (`ctx.url`, `ctx.log`)  | Proxy virtual                            | Os valores dependem só da requisição e da configuração, que não mudam durante ela. Teste novo: o mesmo valor antes e depois dos middlewares        |
+| Estado vazando entre requisições                                                          | Factory e Flyweight                      | Só configuração **imutável** é compartilhada; o estado por requisição continua no `Context`. Teste novo de isolamento com requisições concorrentes |
+| Header de segurança deixando de ser sobrescrevível                                        | Flyweight dos headers                    | Continuar escrevendo antes do handler. Teste novo: middleware e handler sobrescrevendo a CSP                                                       |
+| Ordem do pipeline alterada (guards antes da validação, middlewares globais antes da rota) | Builder e Chain                          | A ordem fica num único lugar (o Builder) e os testes de ordem já existem                                                                           |
+| Body indisponível para middlewares globais                                                | Leitura do body sem camada de middleware | Continua sendo lido **antes** dos globais, só sem a camada extra. Teste novo (invariante 5)                                                        |
+| `onSend`, `sentBody` ou status padrão divergindo entre formatos                           | Strategy de resposta                     | Todas as estratégias terminam no mesmo `raw-send`. Os testes do pipeline único já cobrem                                                           |
+| `inject()` e hooks se comportando diferente da rede                                       | Reorganização do runtime                 | Os testes de `inject()` com `onResponse` e `signal` já existem                                                                                     |
+| Ganho de desempenho que some com o logger padrão                                          | Benchmark usa `logger: false`            | Cenário novo no benchmark com `consoleLogger`                                                                                                      |
+
+## Plano em fases
+
+Cada fase é um commit (ou poucos), na branch `refactor/architecture-and-performance`, e só avança com **todos os testes passando** e o **benchmark antes e depois** registrado no commit.
+
+| Fase                            | O que entra                                                                                                                                       | Problemas       | Resultado esperado                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
+| **0. Rede de segurança**        | Testes das cinco garantias que faltam; no benchmark, o cenário `get` com o logger padrão e uma linha de base com três rodadas                     | —               | Nenhuma mudança de desempenho. Serve de referência para todas as fases        |
+| **1. Reorganização estrutural** | Facade, `registry/`, `runtime/`, `response/`, `streaming/sse.ts`; os ciclos de importação quebrados. **Só movimentação, sem mudar comportamento** | Acoplamento     | Desempenho igual (o benchmark confirma); código pronto para as próximas fases |
+| **2. Context enxuto**           | `ContextFactory`, campos preguiçosos e memoizados, Flyweight do logger                                                                            | P-1, P-2, P-3   | Menos alocação e GC; o maior ganho com o logger padrão                        |
+| **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                             | P-5 a P-9       | Maior ganho em `params`, `real` e `post-validate`                             |
+| **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`                                               | P-4, P-10, P-11 | Ganho no `get` e na memória                                                   |
+| **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                    | —               | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
