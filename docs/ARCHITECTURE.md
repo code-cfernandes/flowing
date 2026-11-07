@@ -308,4 +308,63 @@ As três têm testes em `test/core/invariants.test.ts` e estão no CHANGELOG, co
 
 ### Resultados
 
-Os números finais (matriz completa, três rodadas) e a atribuição de cada ganho entram aqui ao fechar a F-39.
+Medidos com o [`sashiko-benchmarks`](https://github.com/code-cfernandes/sashiko-benchmarks): Node 26, i7-13700H, WSL2, autocannon com 100 conexões, pipelining 10, 10 s por medição, mediana de três rodadas, Sashiko com a configuração padrão (logger ligado). Rodada final em `results/final-f39.json`; a linha de base (0.12.2, mesmas condições) em `results/baseline-fase0.json`.
+
+**Sashiko, 0.12.2 → refatoração (perfil `defaults`):**
+
+| Cenário         | 0.12.2 (req/s) | Agora (req/s) |         Ganho | % do `node:http` | % do Fastify | Posição (de 6) |
+| --------------- | -------------: | ------------: | ------------: | ---------------: | -----------: | -------------: |
+| `get`           |         51.299 |        82.732 |    **+61,3%** |      33% → 55,5% |        54,7% |             5º |
+| `params`        |         50.320 |        80.205 |    **+59,4%** |      33% → 54,0% |        55,1% |             5º |
+| `post-validate` |         29.470 |        51.222 |    **+73,8%** |      31% → 52,2% |        67,5% |             4º |
+| `real`          |         45.430 |        66.069 |    **+45,4%** |      36% → 51,5% |        58,9% |             4º |
+| `static`        |          2.435 |         2.518 | +3,4% (ruído) |            96,9% |       104,4% |             4º |
+
+**Perfil `equivalent`** (todos enviando os mesmos headers de segurança do Sashiko), em que a comparação é de trabalho igual:
+
+| Cenário         | Sashiko (req/s) | % do `node:http` | % do Fastify | Posição (de 6) |
+| --------------- | --------------: | ---------------: | -----------: | -------------: |
+| `get`           |          80.992 |            69,6% |        88,1% |             3º |
+| `params`        |          80.896 |            67,9% |        87,4% |             3º |
+| `post-validate` |          50.055 |            60,6% |        92,9% |             3º |
+| `real`          |          57.523 |            54,6% |        75,6% |             5º |
+
+**Atribuição por fase** (cada fase medida contra a anterior, nas mesmas condições):
+
+| Fase     | O que entrou                                   |         `get` |        `real` |
+| -------- | ---------------------------------------------- | ------------: | ------------: |
+| 1        | Reorganização estrutural                       |         ruído |         ruído |
+| 2        | `Context` enxuto e logger compartilhado        |        +21,8% |        +19,8% |
+| 3        | Programa por rota e cadeia pré-compilada       | −0,3% (ruído) | −1,1% (ruído) |
+| 4 · P-11 | Callback sem closures                          |         +7,7% |         +6,7% |
+| 4 · P-8  | `Content-Type` uma vez e `sentBody` preguiçoso |         +8,8% |         +7,5% |
+| 4 · P-8  | `mediaType`/`withCharset` memoizados           |         +3,1% |         +3,6% |
+| 4 · P-12 | Desconexão do cliente em `debug` (correção)    |         ruído |         ruído |
+
+**Memória** (rodada de 3 min no `get`, com o diagnóstico dentro do processo, `results/longrun-*.json`):
+
+|                           |      req/s | RSS de pico | Heap usado (pico) | Heap depois do GC |
+| ------------------------- | ---------: | ----------: | ----------------: | ----------------: |
+| `node:http`               |    155.533 |    143,9 MB |           39,6 MB |            9,9 MB |
+| Fastify                   |    148.510 |    153,6 MB |           42,9 MB |           12,3 MB |
+| Sashiko 0.12.2            |     53.283 |    227,4 MB |          101,1 MB |           12,8 MB |
+| **Sashiko (refatoração)** | **84.048** |    224,7 MB |           95,3 MB |           11,4 MB |
+
+Sem vazamento: o heap volta a cerca de 11 MB depois do GC, e a série a cada 5 s oscila sem tendência de alta.
+
+### Metas da F-39
+
+| Meta                                     | Resultado                                  | Situação         |
+| ---------------------------------------- | ------------------------------------------ | ---------------- |
+| `get` em pelo menos 75% do `node:http`   | 55,5% (`defaults`), 69,6% (`equivalent`)   | **Não atingida** |
+| `real` e `post-validate` com 2× a 0.12.2 | 1,45× e 1,74×                              | **Não atingida** |
+| RSS de pico abaixo de 140 MB             | cerca de 225 MB, igual à 0.12.2            | **Não atingida** |
+| API pública preservada                   | Mesmos 39 exports; membros públicos iguais | Atingida         |
+| Todos os testes passando em cada fase    | 409 testes                                 | Atingida         |
+
+### Gargalos que permanecem
+
+- **Alocação por requisição:** o heap usado no pico é mais que o dobro do Fastify (95 contra 43 MB), e o GC tinha 14,6% do tempo no profile de CPU feito depois da fase 3 (não houve profile depois da fase 4). O próximo passo é medir **quais objetos** dominam, com heap snapshots sob carga, antes de mudar mais código.
+- **Custo próprio do callback e do `Context`:** ainda é o maior bloco de tempo do Sashiko no profile (rastreamento, request id, criação do `Context`, validação do `Host`).
+- **Headers:** os `setHeader` (com as validações do Node) continuam em cerca de 6%, e a forma mais barata quebraria a possibilidade de sobrescrever os headers de segurança.
+- **RSS fora do heap:** cerca de 85 MB do RSS estão fora do heap (código, buffers, estruturas do runtime); vale investigar o que o Sashiko carrega a mais que o Fastify.
