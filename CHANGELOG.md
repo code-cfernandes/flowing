@@ -9,6 +9,8 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.13.0] - 2026-11-07
+
 ### Alterado
 
 - **Incompatível: middlewares globais seguem o modelo onion do Koa, como o README já documentava.** O código depois
