@@ -2,6 +2,8 @@
 # TypeDoc ainda não suporta a 7); nada dele entra no pacote do npm.
 packages:
   - docs
+  # Exemplos com dependências próprias (o de OpenTelemetry); os demais usam só o sashiko da raiz.
+  - examples/opentelemetry
 
 allowBuilds:
   esbuild: true
