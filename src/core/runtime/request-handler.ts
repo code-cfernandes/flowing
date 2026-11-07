@@ -2,17 +2,16 @@ import { randomUUID } from 'node:crypto';
 import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
-import { compileChain, isPromiseLike, type Step } from '../compose.ts';
+import { compileChain, type Step } from '../compose.ts';
 import { bodyReader } from '../body-parser.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
-import type { RouteInfo } from '../route-table.ts';
-import { kError, kHeadersAt, kPhase, kRoute, kRouted } from '../symbols.ts';
+import { kPhase, kRoute, kRouted } from '../symbols.ts';
 import { parseTraceparent } from '../../utils/trace-context.ts';
-import type { ResponseInfo } from '../app/options.ts';
 import { Context } from '../context.ts';
 import type { FrameworkRoutes } from '../registry/framework-routes.ts';
 import type { RouteRegistry } from '../registry/registry.ts';
 import { problem, sendError, sendProblem } from '../response/pipeline.ts';
+import type { RequestObserver } from './observer.ts';
 import type { ServerLifecycle } from './server.ts';
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -27,6 +26,7 @@ export class RequestHandler {
     private readonly registry: RouteRegistry,
     private readonly framework: FrameworkRoutes,
     private readonly server: ServerLifecycle,
+    private readonly observer: RequestObserver,
   ) {
     this.readBody = bodyReader(core.opts.bodyLimit ?? 1024 * 1024, core.opts.protoPoisoning);
   }
@@ -48,6 +48,7 @@ export class RequestHandler {
       logger: this.core.log,
       trustProxy: this.core.opts.trustProxy,
       onSend: this.core.onSendHooks,
+      ...(this.core.telemetry ? { spanIds: this.core.telemetry.spanIds } : {}),
       onStream: (ctx: Context) => {
         server.streams.add(ctx);
         ctx.res.once('close', () => server.streams.delete(ctx));
@@ -55,15 +56,15 @@ export class RequestHandler {
     };
 
     const server = this.server;
+    const observer = this.observer;
     // Listener compartilhado por todas as respostas (antes, uma closure por requisição).
     const onClose = () => {
       // Durante o close(), cada resposta concluída libera as conexões que ficaram ociosas.
       server.closing?.closeIdleConnections();
     };
-    const timed = () => this.core.opts.logRequests === true || this.core.onResponseHooks.length > 0 || this.core.telemetry !== undefined;
 
     return (req, res) => {
-      const started = timed() ? performance.now() : -1;
+      const started = observer.watching ? performance.now() : -1;
       if (server.closing) res.setHeader('Connection', 'close');
       res.on('close', onClose);
       const incoming = header ? req.headers[header] : undefined;
@@ -79,9 +80,7 @@ export class RequestHandler {
       try {
         const ctx = new Context(req, res, contextOptions, id);
         // Antes da validação do Host: toda requisição observada no início também é observada no fim.
-        if (started !== -1) this.observe(ctx, started);
-        this.core.telemetry?.onRequest(ctx);
-        if (this.core.onRequestHooks.length > 0) this.runOnRequest(ctx);
+        observer.start(ctx, started);
         // S-09: Host ausente, malformado ou fora da lista permitida → 400, antes de qualquer middleware.
         // Exceção: healthchecks aceitam qualquer host válido, porque sondas chegam com o IP do pod.
         const healthProbe = this.framework.health?.bypassesHostCheck(ctx.method, ctx.path) ?? false;
@@ -91,67 +90,12 @@ export class RequestHandler {
           return;
         }
         // Síncrono no caso comum: só uma requisição que de fato ficou assíncrona recebe o handler da barreira.
-        const telemetry = this.core.telemetry;
-        const step = telemetry ? telemetry.run(ctx, () => this.run(ctx)) : this.run(ctx);
+        const step = observer.run(ctx, () => this.run(ctx));
         if (step) step.then(undefined, (err: unknown) => this.fail(err, req, res, id));
       } catch (err) {
         this.fail(err, req, res, id);
       }
     };
-  }
-
-  /**
-   * Fim da requisição para `onResponse` e `logRequests` (F-38): o evento `close` dispara em todos os caminhos
-   * (inclusive cancelamento, que não tem `finish`), e a trava garante uma única execução. Só é ligado quando
-   * há quem observe, então uma requisição sem hooks não paga nada.
-   */
-  private observe(ctx: Context, started: number): void {
-    const res = ctx.res;
-    let done = false;
-    res.once('close', () => {
-      if (done) return;
-      done = true;
-      const round = (t: number) => Math.round((t - started) * 100) / 100;
-      const abortReason = ctx.abortReason ?? (res.writableEnded ? undefined : 'CLIENT_DISCONNECTED');
-      const status = res.statusCode;
-      const error = (ctx as unknown as Record<symbol, unknown>)[kError];
-      const route = ctx.route;
-      // Gravado pelo `writeHead` das respostas do `listen()` e do `inject()`; num servidor próprio (`callback()`),
-      // fica ausente.
-      const ttfb = (res as unknown as Record<symbol, number | undefined>)[kHeadersAt] ?? -1;
-      const info: ResponseInfo = {
-        status,
-        ms: round(performance.now()),
-        outcome: abortReason ? 'aborted' : status >= 500 ? 'error' : 'completed',
-        streaming: ctx.streamingResponse,
-        ...(abortReason ? { abortReason } : {}),
-        ...(ttfb === -1 ? {} : { ttfbMs: round(ttfb) }),
-        ...(route ? { route } : {}),
-        ...(error === undefined ? {} : { error, errorPhase: ctx[kPhase] }),
-      };
-      this.core.telemetry?.onResponse(ctx, info);
-      if (this.core.opts.logRequests) {
-        const entry = { method: ctx.method, path: ctx.path, status, ms: info.ms, ...(abortReason ? { abortReason } : {}) };
-        ctx.log.info(entry, abortReason ? 'request aborted' : 'request completed');
-      }
-      for (const hook of this.core.onResponseHooks) {
-        Promise.resolve()
-          .then(() => hook(ctx, info))
-          .catch((err: unknown) => ctx.log.error({ err }, 'onResponse hook failed'));
-      }
-    });
-  }
-
-  /** `onRequest` é síncrono: uma Promise devolvida não é esperada, mas a rejeição é logada. */
-  private runOnRequest(ctx: Context): void {
-    for (const hook of this.core.onRequestHooks) {
-      try {
-        const out: unknown = hook(ctx);
-        if (isPromiseLike(out)) out.then(undefined, (err: unknown) => ctx.log.error({ err }, 'onRequest hook failed'));
-      } catch (err) {
-        ctx.log.error({ err }, 'onRequest hook failed');
-      }
-    }
   }
 
   // Última barreira (B-08): `fail` recebe o que escapar, de forma síncrona (try/catch) ou assíncrona (.then).
@@ -220,7 +164,7 @@ export class RequestHandler {
    * Para a requisição não ficar sem resposta, 404, como no Koa.
    */
   private checkRouted(ctx: Context): void {
-    if (!(ctx as unknown as Record<symbol, boolean>)[kRouted] && !ctx.sent) {
+    if (!ctx[kRouted] && !ctx.sent) {
       ctx.log.warn({ method: ctx.method, path: ctx.path }, 'a global middleware neither called next() nor sent a response');
       sendProblem(ctx, problem(404, undefined, { code: 'NOT_FOUND' }), this.core.opts.formatError);
     }
@@ -240,7 +184,7 @@ export class RequestHandler {
 
   /** Fim da cadeia global: OpenAPI, roteamento, 404/405 e o programa da rota. */
   private route(ctx: Context): Step {
-    (ctx as unknown as Record<symbol, boolean>)[kRouted] = true;
+    ctx[kRouted] = true;
     if (ctx.sent) return undefined;
     // Só cria a Promise do OpenAPI se ele estiver configurado (F-41).
     if (this.framework.openapi) {
@@ -271,8 +215,8 @@ export class RequestHandler {
     ctx.params = match.params;
     const info = match.route.info;
     if (info) {
-      (ctx as unknown as Record<symbol, RouteInfo>)[kRoute] = info;
-      this.core.telemetry?.onRoute(ctx, info);
+      ctx[kRoute] = info;
+      this.observer.routed(ctx, info);
     }
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
     const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
@@ -284,8 +228,7 @@ export class RequestHandler {
    * para a resposta padrão com o erro **original** — nunca deixamos a Promise rejeitar (B-08).
    */
   private async runErrorHandlers(err: unknown, ctx: Context): Promise<void> {
-    (ctx as unknown as Record<symbol, unknown>)[kError] = err;
-    this.core.telemetry?.onError(ctx, err, ctx[kPhase]);
+    this.observer.failed(ctx, err);
     for (const h of this.core.errorHandlers) {
       try {
         await h(err, ctx, ctx[kPhase]);

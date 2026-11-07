@@ -78,9 +78,12 @@ export interface Telemetry {
   onResponse(ctx: Context, info: ResponseInfo): void;
   /** Roda o pipeline dentro do contexto do span criado pelo Sashiko (spans do usuário viram filhos). */
   run<T>(ctx: Context, fn: () => T): T;
+  /** `traceId`/`spanId` do span da requisição, para o `ctx.log`. */
+  spanIds(ctx: Context): { traceId: string; spanId: string } | undefined;
 }
 
-const state = (ctx: Context): RequestTelemetry | undefined => (ctx as unknown as Record<symbol, RequestTelemetry | undefined>)[kTelemetry];
+/** O estado deste módulo no `ctx`; o campo é `unknown` no `Context`, para ele não depender do telemetry. */
+const state = (ctx: Context): RequestTelemetry | undefined => ctx[kTelemetry] as RequestTelemetry | undefined;
 
 /** Versão do Sashiko, para o nome do tracer e do meter. Lida só quando o `telemetry` é usado. */
 function packageVersion(): string | undefined {
@@ -120,7 +123,7 @@ export function createTelemetry(api: TelemetryApi, version: string | undefined =
         );
         telemetry = { span, owned: true, context: api.trace.setSpan(parent, span), activeAttrs: { 'http.request.method': ctx.method } };
       }
-      (ctx as unknown as Record<symbol, RequestTelemetry>)[kTelemetry] = telemetry;
+      ctx[kTelemetry] = telemetry;
       active?.add?.(1, telemetry.activeAttrs);
     },
 
@@ -166,10 +169,9 @@ export function createTelemetry(api: TelemetryApi, version: string | undefined =
       const t = state(ctx);
       return t?.context === undefined ? fn() : api.context.with(t.context, fn);
     },
-  };
-}
 
-/** `traceId`/`spanId` do span da requisição, para o `ctx.log` (F-38). */
-export function telemetryIds(ctx: Context): { traceId: string; spanId: string } | undefined {
-  return state(ctx)?.span.spanContext();
+    spanIds(ctx) {
+      return state(ctx)?.span.spanContext();
+    },
+  };
 }
