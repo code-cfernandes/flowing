@@ -6,11 +6,15 @@ import { parseJson, ProtoPoisoningError, type ProtoPoisoning } from '../utils/sa
  * Lê e parseia o body JSON, respeitando `limit` em bytes. O app chama antes dos middlewares globais, que
  * recebem o body já lido; é uma etapa direta, sem camada de middleware (F-39).
  */
-export function bodyReader(limit: number, protoPoisoning: ProtoPoisoning = 'error'): (ctx: Context) => Promise<void> | void {
-  return async (ctx) => {
-    if (ctx.method === 'GET' || ctx.method === 'HEAD') return;
-    if (!isJsonContentType(ctx.req.headers['content-type'])) return;
+export function bodyReader(limit: number, protoPoisoning: ProtoPoisoning = 'error'): (ctx: Context) => Promise<void> | undefined {
+  // Síncrono quando não há body a ler (GET, HEAD, outro Content-Type): sem Promise por requisição (F-41).
+  return (ctx) => {
+    if (ctx.method === 'GET' || ctx.method === 'HEAD') return undefined;
+    if (!isJsonContentType(ctx.req.headers['content-type'])) return undefined;
+    return read(ctx);
+  };
 
+  async function read(ctx: Context): Promise<void> {
     // B-12: rejeita cedo pelo Content-Length e fecha a conexão ao exceder,
     // para o cliente não continuar enviando um corpo que será descartado.
     const tooLarge = (): never => {
@@ -37,5 +41,5 @@ export function bodyReader(limit: number, protoPoisoning: ProtoPoisoning = 'erro
         ctx.throw(400, 'Invalid JSON', 'INVALID_JSON');
       }
     }
-  };
+  }
 }

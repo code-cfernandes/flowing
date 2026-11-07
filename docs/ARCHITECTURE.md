@@ -85,7 +85,7 @@ sequenceDiagram
   participant P as pipeline da rota
   participant S as response.ts
   N->>CB: (req, res)
-  CB->>CB: inflight.add · once('close') · request id (randomUUID) · setHeader
+  CB->>CB: on('close') compartilhado · request id (randomUUID) · setHeader
   CB->>C: new Context (parse do target, query, new URL, logger.child)
   CB->>C: valida Host (allowedHosts, exceção de healthcheck)
   CB->>CB: once('finish') se houver onResponse/logRequests
@@ -100,7 +100,7 @@ sequenceDiagram
   P->>P: validateRequest · kBindResponse · handler
   P->>S: sendResult
   S->>C: kRawSend → onSend → setHeader(Content-Type) ×2 → Buffer.from → res.end
-  N-->>CB: 'finish' / 'close' → onResponse · inflight.delete
+  N-->>CB: 'finish' / 'close' → onResponse · fecha conexões ociosas durante o close()
 ```
 
 ### Custo por requisição (`GET /` com `{ hello: 'world' }`)
@@ -109,7 +109,7 @@ Levantado por inspeção do código e confirmado pelo profile de CPU da primeira
 
 | #   | Etapa                | Trabalho e alocações                                                                                                                                                                                                                 | Necessário a cada requisição?                            |
 | --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| 1   | `callback()`         | `performance.now`, `inflight.add`, listener `close` com closure, closure `fail`                                                                                                                                                      | O rastreamento sim; as closures podem ser compartilhadas |
+| 1   | `callback()`         | `performance.now`, `inflight.add` (removido depois, ver “Memória”), listener `close` com closure, closure `fail`                                                                                                                     | O rastreamento sim; as closures podem ser compartilhadas |
 | 2   | Request id           | `randomUUID()` + `setHeader`                                                                                                                                                                                                         | O id sim; o custo do UUID pode ser reduzido              |
 | 3   | `new Context`        | Objeto de opções, `parseRequestTarget` (**1º `URL`**), objeto da query, `ctx.url` (**2º `URL`**, mais um getter de `host` e de `protocol`), `logger.child` (**objeto e closures novos**; no logger padrão, também o `Set` do redact) | Não: `url`, `query` e `log` podem ser preguiçosos        |
 | 4   | Validação do `Host`  | `ctx.host` (regex) + `ctx.hostname` (de novo) + `allowedHosts`                                                                                                                                                                       | Uma vez sim, mas hoje são **3 a 4 vezes** por requisição |
@@ -354,17 +354,45 @@ Sem vazamento: o heap volta a cerca de 11 MB depois do GC, e a série a cada 5 s
 
 ### Metas da F-39
 
-| Meta                                     | Resultado                                  | Situação         |
-| ---------------------------------------- | ------------------------------------------ | ---------------- |
-| `get` em pelo menos 75% do `node:http`   | 55,5% (`defaults`), 69,6% (`equivalent`)   | **Não atingida** |
-| `real` e `post-validate` com 2× a 0.12.2 | 1,45× e 1,74×                              | **Não atingida** |
-| RSS de pico abaixo de 140 MB             | cerca de 225 MB, igual à 0.12.2            | **Não atingida** |
-| API pública preservada                   | Mesmos 39 exports; membros públicos iguais | Atingida         |
-| Todos os testes passando em cada fase    | 409 testes                                 | Atingida         |
+| Meta                                     | Resultado                                  | Situação               |
+| ---------------------------------------- | ------------------------------------------ | ---------------------- |
+| `get` em pelo menos 75% do `node:http`   | 55,5% (`defaults`), 69,6% (`equivalent`)   | **Não atingida**       |
+| `real` e `post-validate` com 2× a 0.12.2 | 1,45× e 1,74×                              | **Não atingida**       |
+| RSS de pico abaixo de 140 MB             | cerca de 225 MB; 124 MB na 0.14.0 (`get`)  | **Atingida na 0.14.0** |
+| API pública preservada                   | Mesmos 39 exports; membros públicos iguais | Atingida               |
+| Todos os testes passando em cada fase    | 409 testes                                 | Atingida               |
+
+### Memória (0.14.0)
+
+O RSS de pico não caiu com a refatoração porque a causa não era a alocação. Os experimentos, todos no `get`:
+
+- **Headers de segurança desligados:** o pico cai só 2 a 10 MB.
+- **Heap snapshot sob carga:** o Sashiko retém só cerca de 2 MB a mais que o `node:http`.
+- **`--max-semi-space-size` menor:** o pico cai para 154 MB, mas a vazão cai cerca de 17%. Isso indicava objetos de vida curta sobrevivendo às coletas rápidas do V8.
+
+A causa era o `Set` de respostas em andamento que o `close()` usava. Sendo um objeto de longa duração que aponta para cada resposta nova, ele fazia toda resposta (com `req`, parser e headers do Node) ser promovida para a old space. Sem ele, o `close()` mantém o comportamento:
+
+- **Streams abertos:** só SSE, NDJSON e `Readable` entram num conjunto próprio, avisados pelo `Context`.
+- **`Connection: close`:** os servidores criados pelo `listen()` usam uma subclasse de `ServerResponse` cujo `writeHead` desliga o keep-alive durante o encerramento.
+- **Conexões ociosas:** o listener `close` compartilhado as fecha durante o `close()`.
+
+Rodada final em `results/final-f41.json`, mesmas condições da seção anterior:
+
+| Perfil `defaults` | req/s (0.13.0 → 0.14.0) | RSS de pico (MB) | % do `node:http` | % do Fastify |
+| ----------------- | ----------------------: | ---------------: | ---------------: | -----------: |
+| `get`             |        82.732 → 102.918 |    219,6 → 124,0 |            68,0% |        68,4% |
+| `params`          |         80.205 → 97.555 |    222,4 → 125,3 |            65,8% |        67,6% |
+| `post-validate`   |         51.222 → 56.060 |    231,6 → 140,9 |            58,1% |        70,8% |
+| `real`            |         66.069 → 79.168 |    223,3 → 156,6 |            60,8% |        67,2% |
+| `static`          |   2.518 → 2.304 (ruído) |    199,7 → 206,7 |            81,2% |        91,0% |
+
+No perfil `equivalent`, o Sashiko fica em 2º de 6 em todos os cenários: `get` com 103.392 req/s, 87,3% do `node:http` e 112,7% do Fastify, que fica em 199,3 MB contra 125,8 MB do Sashiko.
+
+Em 10 s de `get` com `--trace-gc`, as coletas completas caem de 36 para 0. Em 120 s, o pico fica em 158 MB (230 MB na 0.13.0), sem crescer com a duração.
 
 ### Gargalos que permanecem
 
-- **Alocação por requisição:** o heap usado no pico é mais que o dobro do Fastify (95 contra 43 MB), e o GC tinha 14,6% do tempo no profile de CPU feito depois da fase 3 (não houve profile depois da fase 4). O próximo passo é medir **quais objetos** dominam, com heap snapshots sob carga, antes de mudar mais código.
-- **Custo próprio do callback e do `Context`:** ainda é o maior bloco de tempo do Sashiko no profile (rastreamento, request id, criação do `Context`, validação do `Host`).
-- **Headers:** os `setHeader` (com as validações do Node) continuam em cerca de 6%, e a forma mais barata quebraria a possibilidade de sobrescrever os headers de segurança.
-- **RSS fora do heap:** cerca de 85 MB do RSS estão fora do heap (código, buffers, estruturas do runtime); vale investigar o que o Sashiko carrega a mais que o Fastify.
+- **Alocação por requisição:** cerca de 7,3 KB no `get`, contra 3,9 KB do `node:http` (perfil de alocação por amostragem). Os maiores itens próprios do Sashiko são o callback e o `Context`, o request id (`randomUUID`) e os headers de segurança.
+- **Headers de segurança:** com eles desligados, a vazão do `get` sobe cerca de 18% (o RSS quase não muda). Juntá-los num único `writeHead` exigiria uma forma explícita de remover um header por rota.
+- **RSS no `static`:** cerca de 207 MB, contra 150 MB do `node:http` e do Fastify. Não foi investigado.
+- **Execuções longas:** o pico do `get` sobe de 124 MB (10 s) para cerca de 158 MB (60 a 120 s) e depois estabiliza.

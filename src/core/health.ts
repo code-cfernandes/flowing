@@ -33,6 +33,8 @@ export interface HealthConfig {
   serve(ctx: Context, shuttingDown: boolean): Promise<boolean>;
   /** Paths das rotas ligadas, na forma canônica. */
   readonly paths: readonly string[];
+  /** A requisição é para um dos healthchecks (checagem síncrona, sem Promise). */
+  handles(method: string, path: string): boolean;
   /** A requisição é para um healthcheck que aceita qualquer host? */
   bypassesHostCheck(method: string, path: string): boolean;
 }
@@ -74,6 +76,7 @@ export function compileHealth(opts: HealthOptions, log: Logger): HealthConfig {
 
   return {
     paths: [livePath, readyPath].filter((p): p is string => p !== undefined),
+    handles: isHealth,
     bypassesHostCheck: (method, path) => anyHost && isHealth(method, path),
     async serve(ctx, shuttingDown) {
       if (!isHealth(ctx.method, ctx.path)) return false;
