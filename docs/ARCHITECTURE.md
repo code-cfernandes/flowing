@@ -6,7 +6,7 @@
 
 - **Composição explícita, sem container de DI:** `@Router` + `app.mount()` + `app.group()`.
 - **Infraestrutura pronta e segura por padrão:** headers de segurança, limites, timeouts, validação de `Host`, CSRF, shutdown gracioso.
-- **Poucas dependências de runtime** (cinco), e extensões por injeção (`logger: pino()`), não por plugins.
+- **Poucas dependências de runtime** (cinco até a 0.17; sete com o upload nativo), e extensões por injeção (`logger: pino()`), não por plugins.
 - **Erros de configuração aparecem no registro**, não na primeira requisição.
 
 ## Módulos
