@@ -5,6 +5,10 @@ import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 import { type Context, Router, createApp, Get, Post, Schema } from 'sashiko';
 
+/** Avisa quando a requisição lenta chegou ao handler: os testes de close() esperam isso, e não um tempo fixo. */
+let arrived: () => void = () => {};
+const nextArrival = () => new Promise<void>((r) => (arrived = r));
+
 @Router('/l')
 class L {
   @Get('/') hello(ctx: Context) {
@@ -14,6 +18,7 @@ class L {
     return ctx.body;
   }
   @Get('/slow') async slow() {
+    arrived();
     await new Promise((r) => setTimeout(r, 150));
     return { done: true };
   }
@@ -56,8 +61,9 @@ describe('F-09 · listen / close / callback', () => {
     const app = createApp().mount(L);
     const server = await app.listen(0);
     const { port } = server.address() as AddressInfo;
+    const arrival = nextArrival();
     const pending = fetch(`http://127.0.0.1:${port}/l/slow`);
-    await new Promise((r) => setTimeout(r, 30));
+    await arrival;
     await app.close();
     const res = await pending;
     assert.deepEqual(await res.json(), { done: true });
@@ -69,6 +75,7 @@ describe('F-09 · listen / close / callback', () => {
     const { port } = server.address() as AddressInfo;
     const agent = new http.Agent({ keepAlive: true });
     try {
+      const arrival = nextArrival();
       const pending = new Promise<{ connection: string | undefined; socketClosed: Promise<void> }>((resolve, reject) => {
         const req = http.get({ port, path: '/l/slow', agent }, (res) => {
           res.resume();
@@ -77,7 +84,7 @@ describe('F-09 · listen / close / callback', () => {
         });
         req.on('error', reject);
       });
-      await new Promise((r) => setTimeout(r, 30));
+      await arrival;
       const t0 = Date.now();
       await app.close(3_000);
       assert.ok(Date.now() - t0 < 1_000, 'o close() não espera o prazo de força');

@@ -51,6 +51,11 @@ class Uploads {
   }
 }
 
+/** Espera uma condição assíncrona (a limpeza roda no `close` da resposta), em vez de um tempo fixo. */
+const until = async (ok: () => boolean, ms = 5000) => {
+  const end = Date.now() + ms;
+  while (!ok() && Date.now() < end) await new Promise((r) => setTimeout(r, 20));
+};
 const temps = (dir: string) => readdirSync(dir).filter((n) => n.startsWith('sashiko-upload-')).length;
 const form = (entries: [string, string | File][]) => {
   const fd = new FormData();
@@ -67,8 +72,6 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
     const r = await fetch(`${server.url}/up${path}`, { method: 'POST', body, headers });
     return { status: r.status, body: (await r.json()) as Record<string, unknown> };
   };
-  /** Espera o `close` das respostas apagar os temporários. */
-  const settle = () => new Promise((r) => setTimeout(r, 50));
 
   before(async () => {
     dir = await mkdtemp(join(tmpdir(), 'sashiko-up-test-'));
@@ -218,7 +221,7 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
   });
 
   it('nenhum temporário sobra, em sucesso e em erro', async () => {
-    await settle();
+    await until(() => temps(dir) === 0);
     assert.equal(temps(dir), 0);
   });
 
@@ -239,7 +242,7 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
         resolve();
       }, 30);
     });
-    await settle();
+    await until(() => temps(dir) === 0);
     assert.equal(temps(dir), 0, 'o temporário do envio cancelado foi apagado');
     const r = await post(
       '/documentos',
@@ -436,7 +439,6 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
     await s.close();
     await rm(dir, { recursive: true, force: true });
   });
-  const wait = () => new Promise((r) => setTimeout(r, 100));
 
   it('recusa no meio do arquivo não deixa descritor aberto nem temporário', async () => {
     for (let i = 0; i < 10; i++) {
@@ -444,7 +446,7 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
       assert.equal(r.status, 413);
       await r.text();
     }
-    await wait();
+    await until(() => tmpFds() === 0 && temps(dir) === 0);
     assert.equal(tmpFds(), 0, 'descritores fechados');
     assert.equal(temps(dir), 0, 'temporários apagados');
   });
@@ -465,7 +467,7 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
     const r = await fetch(`${s.url}/b/quebra`, { method: 'POST', body: form([['arq', new File(['x'], 'a.bin')]]) });
     assert.equal(r.status, 500);
     await r.text();
-    await wait();
+    await until(() => temps(dir) === 0);
     assert.equal(temps(dir), 0);
   });
 
@@ -503,7 +505,7 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
   it('corpo multipart truncado: 400 e nenhum temporário', async () => {
     const r = await raw('/b', [...part('arq', 'metade do arquivo, sem o boundary final')]);
     assert.equal(r.status, 400);
-    await wait();
+    await until(() => temps(dir) === 0);
     assert.equal(temps(dir), 0);
   });
 
