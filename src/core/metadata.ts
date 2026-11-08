@@ -115,7 +115,7 @@ export function readOwnMetadata(Class: object): RouterMetadata | undefined {
 export function metadataFor(context: unknown, decorator: string): RouterMetadata {
   if (typeof context !== 'object' || context === null || !('kind' in context)) {
     throw new Error(
-      `[flowing] @${decorator} received legacy decorator arguments. Flowing uses standard (TC39) ` +
+      `[flowing] @${decorator} received legacy decorator arguments. FlowingTS uses standard (TC39) ` +
         `decorators: remove "experimentalDecorators" (and "emitDecoratorMetadata") from your tsconfig.json.`,
     );
   }

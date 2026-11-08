@@ -95,7 +95,7 @@ const UpdateTask = Type.Partial(Type.Omit(Task, ['id'])); // PATCH: tudo opciona
 
 ## Zod, Valibot e ArkType: o motor dos contratos
 
-O motor padrão do Flowing é o `contracts.native()`, para schemas TypeBox. Para escrever os contratos em Zod, Valibot ou ArkType (qualquer biblioteca que implemente o [Standard Schema](https://standardschema.dev)), declare o motor no app:
+O motor padrão do FlowingTS é o `contracts.native()`, para schemas TypeBox. Para escrever os contratos em Zod, Valibot ou ArkType (qualquer biblioteca que implemente o [Standard Schema](https://standardschema.dev)), declare o motor no app:
 
 ```ts
 import { z } from 'zod';

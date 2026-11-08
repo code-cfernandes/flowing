@@ -1,6 +1,6 @@
 # Formatos de entrada
 
-O Flowing lê body JSON por padrão (com `bodyLimit` e proteção contra prototype pollution) e a query string em formato plano. Os dois podem ser estendidos.
+O FlowingTS lê body JSON por padrão (com `bodyLimit` e proteção contra prototype pollution) e a query string em formato plano. Os dois podem ser estendidos.
 
 ## Outros formatos de body
 

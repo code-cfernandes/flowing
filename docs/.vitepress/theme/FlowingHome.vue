@@ -153,7 +153,7 @@ const constraints = [
       </div>
       <div class="fl-problem__answer">
         <p>
-          O Flowing nasce do equilíbrio entre os dois extremos: uma maneira consistente de construir APIs, sem impor
+          O FlowingTS nasce do equilíbrio entre os dois extremos: uma maneira consistente de construir APIs, sem impor
           uma arquitetura pesada ao seu projeto.
         </p>
         <ul class="fl-checks">
@@ -191,7 +191,7 @@ const constraints = [
     <section class="sk-section sk-section--last" aria-labelledby="sk-before">
       <div class="fl-notice">
         <p class="fl-eyebrow fl-eyebrow--violet">Antes de adotar</p>
-        <h2 id="sk-before">O que o Flowing exige do seu projeto</h2>
+        <h2 id="sk-before">O que o FlowingTS exige do seu projeto</h2>
         <dl class="fl-constraints">
           <div v-for="c in constraints" :key="c.term">
             <dt>{{ c.term }}</dt>
@@ -212,8 +212,8 @@ const constraints = [
 
 <style scoped>
 /*
- * O cenário da página inicial (identidade v2): um fundo só, do topo ao rodapé. A página é sempre escura, também no
- * modo claro, para o fluxo não ser cortado por seções de outra cor; as páginas de documentação seguem o tema.
+ * O cenário (fundo, brilhos e ondas) é do layout inteiro da página inicial, no style.css (.fl-home-page), para
+ * cobrir também o cabeçalho e o rodapé do VitePress. Aqui ficam só as cores do texto, sempre no modo escuro.
  */
 .sk-home {
   --sk-gutter: clamp(16px, 4vw, 48px);
@@ -222,29 +222,7 @@ const constraints = [
   --vp-c-brand-1: var(--fl-cyan);
   --vp-c-divider: var(--fl-border);
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
   color: var(--fl-cloud);
-  color-scheme: dark;
-  background-color: var(--fl-midnight);
-  background-image:
-    radial-gradient(900px 700px at 88% 0%, rgba(34, 211, 238, 0.14), transparent 70%),
-    radial-gradient(800px 700px at 0% 45%, rgba(139, 92, 246, 0.12), transparent 70%),
-    radial-gradient(900px 800px at 100% 100%, rgba(34, 211, 238, 0.1), transparent 70%);
-}
-
-/*
- * O feixe de ondas fica fixo na tela, atrás de tudo: o conteúdo rola por cima e as ondas acompanham a leitura,
- * do herói ao rodapé, sem corte entre as seções.
- */
-.sk-home::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: url('/flow-waves.svg') center / cover no-repeat;
-  opacity: 0.9;
 }
 
 /* O herói é transparente: o fundo é o da página inteira. */

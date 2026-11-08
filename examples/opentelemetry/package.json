@@ -2,7 +2,7 @@
   "name": "@flowing/example-opentelemetry",
   "private": true,
   "type": "module",
-  "description": "Exemplo: Flowing com OpenTelemetry (traces no Jaeger) por createApp({ telemetry }).",
+  "description": "Exemplo: FlowingTS com OpenTelemetry (traces no Jaeger) por createApp({ telemetry }).",
   "dependencies": {
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "0.223.0",

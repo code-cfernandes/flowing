@@ -1,9 +1,9 @@
 # OpenTelemetry com Jaeger
 
-Traces de uma API Flowing no Jaeger, com `createApp({ telemetry: otel })`.
+Traces de uma API FlowingTS no Jaeger, com `createApp({ telemetry: otel })`.
 
 - **`telemetry.ts`:** configura o SDK, com o exportador OTLP/HTTP e a auto-instrumentação HTTP. Ele é importado **antes** do app, no `server.ts`.
-- **Span da requisição:** a auto-instrumentação cria o span, e o Flowing o enriquece com o nome `GET /orders/:id`, o `http.route` e os erros com a fase.
+- **Span da requisição:** a auto-instrumentação cria o span, e o FlowingTS o enriquece com o nome `GET /orders/:id`, o `http.route` e os erros com a fase.
 - **Span da aplicação:** `db.find_order` vira filho do span da requisição, com o mesmo `traceId`.
 - **Logs correlacionados:** o `ctx.log` sai com `traceId` e `spanId`.
 

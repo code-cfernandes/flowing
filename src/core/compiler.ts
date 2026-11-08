@@ -225,7 +225,7 @@ function buildRoute(
 
 /**
  * Descobre o nome do método a partir da função devolvida pelo seletor.
- * Só aceita métodos com algum decorator do Flowing (a "permissão" no nível do método).
+ * Só aceita métodos com algum decorator do FlowingTS (a "permissão" no nível do método).
  */
 function resolveMethod(
   group: RouteGroup,
@@ -245,7 +245,7 @@ function resolveMethod(
   const reason = decorated
     ? `${label} has no HTTP verb decorator, so it is not an automatic route; map it manually with .get()/.post()…`
     : isMethod
-      ? `${label} has no Flowing decorator (@Get, @Schema, @Middlewares, @Guards…), so it cannot be exposed`
+      ? `${label} has no FlowingTS decorator (@Get, @Schema, @Middlewares, @Guards…), so it cannot be exposed`
       : `${label} is not a method of ${group.name}`;
   const at = where.startsWith('.') ? where : ` ${where}`;
   throw new Error(`[flowing] app.mount(${group.name})${at}: ${reason}. Available: ${available}.`);

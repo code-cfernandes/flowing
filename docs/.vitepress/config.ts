@@ -16,7 +16,7 @@ function apiSidebar() {
 
 export default defineConfig({
   lang: 'pt-BR',
-  title: 'Flowing',
+  title: 'FlowingTS',
   description: 'Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first e seguro por padrão.',
   base: '/flowing/',
   cleanUrls: true,

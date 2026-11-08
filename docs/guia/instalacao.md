@@ -5,7 +5,7 @@
 - **ESM** (`"type": "module"`).
 
 ::: warning Sem decorators legados
-Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Flowing lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.
+Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o FlowingTS lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.
 :::
 
 ```bash

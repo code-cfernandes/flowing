@@ -1,6 +1,6 @@
 # Observabilidade
 
-Passe o `@opentelemetry/api` que a aplicação já usa. O Flowing não depende do pacote nem prende uma versão:
+Passe o `@opentelemetry/api` que a aplicação já usa. O FlowingTS não depende do pacote nem prende uma versão:
 
 ```ts
 import * as otel from '@opentelemetry/api';
@@ -8,8 +8,8 @@ import * as otel from '@opentelemetry/api';
 createApp({ telemetry: otel });
 ```
 
-- **Com a auto-instrumentação HTTP do SDK** (o caso mais comum): o Flowing enriquece o span SERVER que ela criou, com o nome `GET /users/:id`, o `http.route` e as exceções com a fase (`middleware`, `guard`, `validation`, `handler`, `response`). Não cria span duplicado.
-- **Sem a auto-instrumentação:** o Flowing cria o span SERVER, continuando o `traceparent` recebido, e roda o handler dentro dele, então os spans criados pela aplicação viram filhos. Só um 5xx marca o span como erro.
+- **Com a auto-instrumentação HTTP do SDK** (o caso mais comum): o FlowingTS enriquece o span SERVER que ela criou, com o nome `GET /users/:id`, o `http.route` e as exceções com a fase (`middleware`, `guard`, `validation`, `handler`, `response`). Não cria span duplicado.
+- **Sem a auto-instrumentação:** o FlowingTS cria o span SERVER, continuando o `traceparent` recebido, e roda o handler dentro dele, então os spans criados pela aplicação viram filhos. Só um 5xx marca o span como erro.
 - **Métricas**, pelo `metrics.getMeter('flowingts')`, com os nomes das convenções semânticas HTTP:
 
   | Métrica                        | Tipo                        | Atributos                                                                                        |

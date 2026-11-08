@@ -77,6 +77,50 @@
 }
 
 /*
+ * O cenário da página inicial: um fundo só, do cabeçalho ao rodapé. A página é sempre escura, também no modo
+ * claro, para o fluxo não ser cortado; as páginas de documentação seguem o tema. As ondas ficam fixas na tela e o
+ * conteúdo rola por cima.
+ */
+.fl-home-page {
+  --vp-c-bg: var(--fl-midnight);
+  --vp-c-text-1: var(--fl-cloud);
+  --vp-c-text-2: #94a3b8;
+  --vp-c-divider: var(--fl-border);
+  --vp-nav-bg-color: rgba(11, 18, 32, 0.72);
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  color-scheme: dark;
+  background-color: var(--fl-midnight);
+  background-image:
+    radial-gradient(900px 700px at 88% 0%, rgba(34, 211, 238, 0.14), transparent 70%),
+    radial-gradient(800px 700px at 0% 45%, rgba(139, 92, 246, 0.12), transparent 70%),
+    radial-gradient(900px 800px at 100% 100%, rgba(34, 211, 238, 0.1), transparent 70%);
+}
+.fl-home-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("/flow-waves.svg") center / cover no-repeat;
+  opacity: 0.9;
+}
+.fl-home-page .VPNavBar,
+.fl-home-page .VPNavBar .content-body,
+.fl-home-page .VPFooter {
+  background: transparent;
+}
+.fl-home-page .VPNavBar {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(38, 50, 69, 0.6);
+}
+.fl-home-page .VPFooter {
+  border-top: 1px solid var(--fl-border);
+}
+
+/*
  * Tipografia (identidade v2): Inter em quatro pesos, como no guia de identidade. Regular (400) no texto, Medium
  * (500) na navegação, Semibold (600) nos títulos de seção e Bold (700) só no título da página. Quanto maior o
  * título, mais fechado o espaçamento entre as letras.

@@ -13,7 +13,7 @@ e a _patch_ só com correções.
 
 ### Mudou
 
-- **O projeto agora se chama Flowing, e o pacote, `flowingts`.** O nome antigo era difícil de escrever e de lembrar.
+- **O projeto agora se chama FlowingTS, e o pacote, `flowingts`.** O nome antigo era difícil de escrever e de lembrar.
   O código é o mesmo da 0.18.1; para migrar, troque a dependência e os imports:
 
   ```sh
