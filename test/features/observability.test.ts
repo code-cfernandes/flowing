@@ -103,14 +103,17 @@ describe('F-38 · ctx.route', () => {
 });
 
 describe('F-38 · motivo tipado do cancelamento', () => {
-  it('desconexão do cliente: RequestAbortedError com CLIENT_DISCONNECTED (mensagem de antes)', async () => {
+  it('desconexão do cliente: RequestAbortedError com CLIENT_DISCONNECTED (mensagem de antes)', async (t) => {
     let reason: unknown;
     let code: string | undefined;
     let done!: () => void;
+    let entered!: () => void;
     const aborted = new Promise<void>((r) => (done = r));
+    const inHandler = new Promise<void>((r) => (entered = r));
     @Router('/')
     class R {
       @Get('/slow') slow(ctx: Context) {
+        entered();
         ctx.signal.addEventListener('abort', () => {
           reason = ctx.signal.reason;
           code = ctx.abortReason;
@@ -122,18 +125,18 @@ describe('F-38 · motivo tipado do cancelamento', () => {
     const app = createApp({ logger: false, shutdown: false });
     app.mount(R);
     const server = await app.listen(0);
-    try {
-      const req = http.get({ port: (server.address() as AddressInfo).port, path: '/slow' });
-      req.on('error', () => {});
-      setTimeout(() => req.destroy(), 30);
-      await aborted;
-      assert.ok(reason instanceof RequestAbortedError);
-      assert.equal(reason.code, 'CLIENT_DISCONNECTED');
-      assert.equal(reason.message, 'client disconnected');
-      assert.equal(code, 'CLIENT_DISCONNECTED');
-    } finally {
-      await app.close(500);
-    }
+    // Roda mesmo se o teste estourar o tempo: um servidor aberto seguraria o processo de teste.
+    t.after(() => app.close(500));
+    const req = http.get({ port: (server.address() as AddressInfo).port, path: '/slow' });
+    req.on('error', () => {});
+    // Só derruba a conexão com o handler já rodando (um atraso fixo perde a corrida num CI carregado).
+    await inHandler;
+    req.destroy();
+    await aborted;
+    assert.ok(reason instanceof RequestAbortedError);
+    assert.equal(reason.code, 'CLIENT_DISCONNECTED');
+    assert.equal(reason.message, 'client disconnected');
+    assert.equal(code, 'CLIENT_DISCONNECTED');
   });
 
   it('close() do app: os streams abertos recebem SHUTDOWN', async () => {
@@ -171,6 +174,9 @@ describe('F-38 · motivo tipado do cancelamento', () => {
   });
 });
 
+/** Avisado quando o handler `/hang` começa: o teste só derruba a conexão depois disso. */
+let hangEntered: (() => void) | undefined;
+
 describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminhos', () => {
   const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -191,6 +197,7 @@ describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminho
       s.close();
     }
     @Get('/hang') hang() {
+      hangEntered?.();
       return new Promise(() => {});
     }
     @Get('/hold') hold(ctx: Context) {
@@ -258,13 +265,15 @@ describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminho
     assert.equal(starts.length, 2);
   });
 
-  it('rede real: cancelamento pelo cliente e shutdown com stream aberto', async () => {
+  it('rede real: cancelamento pelo cliente e shutdown com stream aberto', async (t) => {
     const { app, end } = observed();
     const server = await app.listen(0);
+    t.after(() => app.close(500));
     const port = (server.address() as AddressInfo).port;
+    const inHandler = new Promise<void>((r) => (hangEntered = r));
     const req = http.get({ port, path: '/hang' });
     req.on('error', () => {});
-    await tick(30);
+    await inHandler; // só derruba com o handler já rodando
     req.destroy();
     await new Promise<void>((resolve) => {
       http.get({ port, path: '/hold' }, (res) => {

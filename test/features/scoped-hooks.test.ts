@@ -132,7 +132,9 @@ describe('F-43 · @OnError', () => {
 });
 
 describe('F-43 · @OnResponse', () => {
-  it('exatamente uma vez, depois dos do app, inclusive cancelada e em stream; nunca fora do escopo', async () => {
+  it('exatamente uma vez, depois dos do app, inclusive cancelada e em stream; nunca fora do escopo', async (t) => {
+    let hangEntered!: () => void;
+    const inHandler = new Promise<void>((r) => (hangEntered = r));
     const seen: string[] = [];
     const infos: ResponseInfo[] = [];
     @Router('/o')
@@ -150,6 +152,7 @@ describe('F-43 · @OnResponse', () => {
         s.close();
       }
       @Get('/hang') hang() {
+        hangEntered();
         return new Promise(() => {});
       }
     }
@@ -163,6 +166,7 @@ describe('F-43 · @OnResponse', () => {
     app.onResponse((ctx) => void seen.push(`app ${ctx.path}`));
     app.mount(O).mount(Fora);
     const server = await app.listen(0);
+    t.after(() => app.close(500));
     const port = (server.address() as AddressInfo).port;
     const get = (path: string) =>
       new Promise<void>((ok) => http.get({ port, path }, (r) => r.resume().on('end', () => ok())).on('error', () => ok()));
@@ -173,7 +177,7 @@ describe('F-43 · @OnResponse', () => {
       await get('/nada');
       const req = http.get({ port, path: '/o/hang' });
       req.on('error', () => {});
-      await tick(30);
+      await inHandler; // só derruba com o handler já rodando
       req.destroy();
       await tick(50);
     } finally {
