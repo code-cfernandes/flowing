@@ -1,4 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Flowing">
-  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="5" fill="#1C2B4F" stroke="#EEF1F5" stroke-opacity="0.3" stroke-width="1.5"/>
-  <path d="M23 8.5H12.5a4 4 0 0 0 0 8h7a4 4 0 0 1 0 8H9" fill="none" stroke="#EEF1F5" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.2 2.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 40" role="img" aria-label="FlowingTS">
+  <defs>
+    <linearGradient id="fl-wave" x1="6" y1="0" x2="58" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="fl-shine" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M9 27C14 9 25 8 32 20S50 31 55 13" fill="none" stroke="url(#fl-wave)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M9 27C14 9 25 8 32 20S50 31 55 13" fill="none" stroke="url(#fl-shine)" stroke-width="10" stroke-linecap="round"/>
 </svg>

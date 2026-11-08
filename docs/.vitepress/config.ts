@@ -25,9 +25,11 @@ export default defineConfig({
   srcExclude: ['ARCHITECTURE.md'],
   // Números de linha nos blocos de código, como no protótipo da documentação.
   markdown: { lineNumbers: true },
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/logo.svg' }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/favicon.svg' }]],
   themeConfig: {
     logo: '/logo.svg',
+    // O "TS" do nome entra pelo CSS (.VPNavBarTitle), em ciano, como no logotipo.
+    siteTitle: 'Flowing',
     nav: [
       { text: 'Guia', link: '/guia/introducao', activeMatch: '/guia/' },
       { text: 'Referência', link: '/referencia/create-app', activeMatch: '/referencia/' },

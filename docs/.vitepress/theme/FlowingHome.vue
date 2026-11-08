@@ -57,12 +57,12 @@ const pillars = [
   {
     title: 'Composição flexível',
     text: 'Use só o que o projeto precisa: middlewares, guards, hooks e grupos de rotas.',
-    icon: 'M9 3h6v4a2 2 0 1 0 0 4v4h-4a2 2 0 1 1-4 0H3V9h4a2 2 0 1 0 0-4V3h2',
+    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM15.5 15.5h4v4h-4z',
   },
   {
     title: 'Infraestrutura pronta',
     text: 'Segurança, uploads, streaming, observabilidade e shutdown gracioso de fábrica.',
-    icon: 'M14 4c3 0 6 3 6 6l-6 6-6-6c0-3 3-6 6-6ZM8 16l-3 3M10 18l-2 3M6 14l-3 2M15 9.5a1 1 0 1 0 0-.01',
+    icon: 'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01M12 7h4M12 17h4',
   },
 ];
 

@@ -124,6 +124,9 @@ const related = computed(() => {
 .fl-cmds code span {
   color: #e879f9;
 }
+:root:not(.dark) .fl-cmds code span {
+  color: #a21caf;
+}
 .fl-cmds__state {
   font-size: 0.7rem;
   color: var(--vp-c-brand-1);

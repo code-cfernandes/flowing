@@ -386,3 +386,18 @@ body {
   border-radius: 2px;
   background: var(--vp-c-brand-1);
 }
+
+/* Logotipo no cabeçalho (camada 8): a onda e o nome, com o "TS" na cor de destaque. */
+.VPNavBarTitle .title {
+  gap: 10px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.VPNavBarTitle .title .logo {
+  height: 26px;
+}
+.VPNavBarTitle .title span::after {
+  content: "TS";
+  color: var(--vp-c-brand-1);
+}
