@@ -1,8 +1,6 @@
----
-
-## aprenda: O que é o FlowingTS, o problema que ele resolve e como uma rota fica com o contrato, os decorators e o handler.
-
 # Introdução
+
+<Aprenda>O que é o FlowingTS, o problema que ele resolve e como uma rota fica com o contrato, os decorators e o handler.</Aprenda>
 
 Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-first** e **seguro por padrão**.
 

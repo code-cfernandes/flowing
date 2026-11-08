@@ -1,8 +1,6 @@
----
-
-## aprenda: O equivalente de cada peça do Express no FlowingTS e como migrar aos poucos, sem reescrever tudo.
-
 # Vindo do Express
+
+<Aprenda>O equivalente de cada peça do Express no FlowingTS e como migrar aos poucos, sem reescrever tudo.</Aprenda>
 
 Um guia rápido para quem tem uma API em Express e quer experimentar o FlowingTS sem reescrever tudo de uma vez.
 

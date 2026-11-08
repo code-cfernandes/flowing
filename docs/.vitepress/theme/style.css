@@ -365,3 +365,24 @@ body {
 .VPSidebar .VPSidebarItem.level-0.has-active > .item > .text {
   color: var(--vp-c-brand-1);
 }
+
+/* "Nesta página" (camada 7): o item atual com uma barra e o fundo em ciano, como no protótipo. */
+.VPDocAsideOutline .outline-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+.VPDocAsideOutline .outline-link {
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+.VPDocAsideOutline .outline-link.active {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+.VPDocAsideOutline .outline-marker {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--vp-c-brand-1);
+}

@@ -1,8 +1,6 @@
----
-
-## aprenda: Instalar o pacote, configurar o TypeScript para os decorators padrão e subir a primeira API.
-
 # Instalação
+
+<Aprenda>Instalar o pacote, configurar o TypeScript para os decorators padrão e subir a primeira API.</Aprenda>
 
 - **Node.js 22.12+**
 - **TypeScript 5.2+**, com decorators **padrão** (TC39).

@@ -1,8 +1,6 @@
----
-
-## aprenda: Receber arquivos pelo contrato da rota, com limites, tipos conferidos pelo conteúdo e limpeza automática.
-
 # Upload de arquivos
+
+<Aprenda>Receber arquivos pelo contrato da rota, com limites, tipos conferidos pelo conteúdo e limpeza automática.</Aprenda>
 
 O upload faz parte do contrato da rota. Declare os arquivos em `files` e os campos de texto do formulário em `body`: tudo é recebido e conferido antes do handler, e o handler só roda com um arquivo válido.
 
