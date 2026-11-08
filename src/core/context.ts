@@ -12,9 +12,22 @@ import { sendResult, type ResponsePlan, type SendMode } from './response/pipelin
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
-import { kAbort, kBindResponse, kError, kHooks, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
+import {
+  kAbort,
+  kBindResponse,
+  kContracts,
+  kError,
+  kHooks,
+  kPendingSend,
+  kPhase,
+  kRawSend,
+  kRoute,
+  kRouted,
+  kTelemetry,
+} from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
+import { type Contracts, NATIVE_CONTRACTS } from './contracts.ts';
 
 export type { SseEvent, SseOptions, SseStream } from './streaming/sse.ts';
 
@@ -81,6 +94,8 @@ export interface ContextState {
 
 export interface ContextOptions {
   queryMaxKeys?: number | undefined;
+  /** O motor dos contratos do app (F-27); sem ele, o nativo. */
+  contracts?: Contracts | undefined;
   /** Parser de query próprio (F-26); sem ele, o padrão com `queryMaxKeys`. */
   queryParser?: QueryParser | undefined;
   /** Id da requisição; o app gera ou reaproveita o header recebido (F-06). */
@@ -137,6 +152,11 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
   /** @internal */
   [kRoute]: RouteInfo | undefined;
+  /** @internal O motor dos contratos do app (F-27). */
+  get [kContracts](): Contracts {
+    return this.opts.contracts ?? NATIVE_CONTRACTS;
+  }
+
   /** @internal Etapa atual do pipeline, para a fase do `onError` (F-38). */
   [kPhase]: ErrorPhase = 'middleware';
   /** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */

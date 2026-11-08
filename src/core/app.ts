@@ -37,6 +37,7 @@ import { RequestHandler } from './runtime/request-handler.ts';
 import { RequestObserver } from './runtime/observer.ts';
 import { ServerLifecycle } from './runtime/server.ts';
 import { routeHooks } from './hooks.ts';
+import { NATIVE_CONTRACTS } from './contracts.ts';
 
 export type {
   AppOptions,
@@ -80,6 +81,7 @@ export class SashikoApp {
       errorHandlers: [],
       onSendHooks: [],
       onRequestHooks: [],
+      contracts: opts.contracts ?? NATIVE_CONTRACTS,
       telemetry: opts.telemetry ? createTelemetry(opts.telemetry) : undefined,
       onResponseHooks: [],
       scopedOnResponse: 0,
@@ -306,7 +308,9 @@ export class SashikoApp {
    * host; sem `host`, só as sem host. Domínios diferentes nunca se misturam num mesmo documento.
    */
   openapiDocument(opts: OpenAPIOptions = this.framework.openapi?.opts ?? {}): Record<string, unknown> {
-    return generateOpenAPI(this.registry.routesFor(opts.host?.toLowerCase()), opts, !this.core.opts.formatError);
+    return generateOpenAPI(this.registry.routesFor(opts.host?.toLowerCase()), opts, !this.core.opts.formatError, (s) =>
+      this.core.contracts.toJsonSchema(s),
+    );
   }
 
   /** Executa o pipeline completo para um contexto já criado. */

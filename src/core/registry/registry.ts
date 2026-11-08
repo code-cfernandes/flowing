@@ -6,6 +6,7 @@ import { buildRouteProgram } from './route-program.ts';
 import { hostRank, hostReachability, NO_HOST_RANK } from '../../utils/origin-match.ts';
 import { canonicalPath } from '../../utils/path.ts';
 import { kHooks } from '../symbols.ts';
+import { isResponseContent } from '../metadata.ts';
 
 /**
  * O objeto guardado no roteador para um host: herda tudo da rota (inclusive o programa) e acrescenta o
@@ -65,6 +66,7 @@ export class RouteRegistry {
       for (const route of routes) {
         // Rotas internas (static) não têm schema por natureza: o requireSchemas vale para as da aplicação.
         if (this.core.opts.requireSchemas && !route.internal) assertSchemas(owner, route);
+        this.checkContracts(owner, route);
         if (route.method === 'GET' || route.method === 'HEAD') {
           const reservedBy = this.reservedPaths().get(canonicalPath(route.path));
           if (reservedBy) {
@@ -127,6 +129,30 @@ export class RouteRegistry {
       if (route.hooks?.onResponse.length) this.core.scopedOnResponse++;
     }
     if (batch.length > 0) this.onCommit();
+  }
+
+  /**
+   * Sem mistura de motores (F-27): todo schema da rota precisa ser do motor de contratos do app. Um schema TypeBox num
+   * app com `contracts.standard()` (ou um Zod no nativo) falharia em silêncio na validação; aqui o erro é no registro.
+   */
+  private checkContracts(owner: string, route: CompiledRoute): void {
+    const engine = this.core.contracts;
+    const { response, ...input } = route.schemas;
+    const parts: [string, unknown][] = Object.entries(input).filter(([, s]) => s !== undefined);
+    for (const [status, entry] of Object.entries(response ?? {})) {
+      const schema = isResponseContent(entry) ? entry.schema : entry;
+      if (schema !== undefined) parts.push([`response ${status}`, schema]);
+    }
+    for (const [part, schema] of parts) {
+      if (engine.owns(schema)) continue;
+      const hint =
+        engine.kind === 'native'
+          ? 'it looks like a Standard Schema (Zod, Valibot, ArkType); use createApp({ contracts: contracts.standard() })'
+          : 'it is not a Standard Schema; with contracts.standard(), every schema must be one (Zod, Valibot, ArkType)';
+      throw new Error(
+        `[sashiko] app.mount(${owner}): ${route.method} ${route.path}: the ${part} schema does not match the app's contracts: ${hint}.`,
+      );
+    }
   }
 
   /**

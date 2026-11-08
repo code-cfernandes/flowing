@@ -29,6 +29,15 @@ type Json = Record<string, unknown>;
 /** Cópia em JSON puro: tira as chaves `Symbol` do TypeBox e qualquer coisa não serializável. */
 const plain = (schema: object): Json => JSON.parse(JSON.stringify(schema)) as Json;
 
+/** Converte um schema de contrato em JSON Schema (F-27); `undefined` quando o motor não sabe converter. */
+type ToJsonSchema = (schema: object) => object | undefined;
+const nativeJson: ToJsonSchema = (schema) => schema;
+/** O schema em JSON puro, ou `{}` (qualquer valor) quando não há conversão. */
+const asJson = (schema: object, toJson: ToJsonSchema): Json => {
+  const converted = toJson(schema);
+  return converted ? plain(converted) : {};
+};
+
 /** `/:org/users/:id(^\\d+)` → `/{org}/users/{id}`; `::` → `:`; `*` → `{*}`; sem barra final (o roteador a ignora). */
 export function toOpenAPIPath(path: string): string {
   return (
@@ -56,8 +65,8 @@ const PROBLEM_SCHEMA: Json = {
   },
 };
 
-function parameters(where: 'path' | 'query' | 'header', schema: object | undefined): Json[] {
-  const json = schema ? plain(schema) : undefined;
+function parameters(where: 'path' | 'query' | 'header', schema: object | undefined, toJson: ToJsonSchema): Json[] {
+  const json = schema ? asJson(schema, toJson) : undefined;
   const props = json?.properties as Record<string, Json> | undefined;
   if (!props) return [];
   const required = new Set((json!.required as string[] | undefined) ?? []);
@@ -69,20 +78,24 @@ function parameters(where: 'path' | 'query' | 'header', schema: object | undefin
   }));
 }
 
-function responseContent(entry: ResponseEntry): Json | undefined {
+function responseContent(entry: ResponseEntry, toJson: ToJsonSchema): Json | undefined {
   if (isResponseContent(entry)) {
     const types = typeof entry.contentType === 'string' ? [entry.contentType] : entry.contentType;
-    return Object.fromEntries(types.map((t) => [t, entry.schema ? { schema: plain(entry.schema) } : {}]));
+    return Object.fromEntries(types.map((t) => [t, entry.schema ? { schema: asJson(entry.schema, toJson) } : {}]));
   }
-  return { 'application/json': { schema: plain(entry) } };
+  return { 'application/json': { schema: asJson(entry, toJson) } };
 }
 
-function operation(route: CompiledRoute, problemErrors: boolean): Json {
+function operation(route: CompiledRoute, problemErrors: boolean, toJson: ToJsonSchema): Json {
   const { schemas } = route;
-  const params = [...parameters('path', schemas.params), ...parameters('query', schemas.query), ...parameters('header', schemas.headers)];
+  const params = [
+    ...parameters('path', schemas.params, toJson),
+    ...parameters('query', schemas.query, toJson),
+    ...parameters('header', schemas.headers, toJson),
+  ];
   const responses: Json = {};
   for (const [status, entry] of Object.entries(schemas.response ?? {})) {
-    const content = Number(status) === 204 ? undefined : responseContent(entry);
+    const content = Number(status) === 204 ? undefined : responseContent(entry, toJson);
     responses[status] = { description: STATUS_CODES[Number(status)] ?? 'Response', ...(content ? { content } : {}) };
   }
   if (Object.keys(responses).length === 0) responses['200'] = { description: 'OK' };
@@ -94,22 +107,28 @@ function operation(route: CompiledRoute, problemErrors: boolean): Json {
     operationId: `${route.owner}.${route.handlerName}`,
     tags: [route.owner],
     ...(params.length ? { parameters: params } : {}),
-    ...(schemas.body ? { requestBody: { required: true, content: { 'application/json': { schema: plain(schemas.body) } } } } : {}),
+    ...(schemas.body ? { requestBody: { required: true, content: { 'application/json': { schema: asJson(schemas.body, toJson) } } } } : {}),
     responses,
   };
 }
 
 /**
  * Gera o documento OpenAPI 3.1 a partir das rotas registradas (F-16). Os schemas TypeBox já são
- * JSON Schema, então entram como estão. Schemas que não são JSON Schema (Zod etc.) não são convertidos.
+ * JSON Schema, então entram como estão. Com outro motor de contratos (F-27), `toJson` os converte; sem conversão,
+ * o schema sai como `{}` (qualquer valor).
  */
-export function generateOpenAPI(routes: readonly CompiledRoute[], opts: OpenAPIOptions, problemErrors: boolean): Json {
+export function generateOpenAPI(
+  routes: readonly CompiledRoute[],
+  opts: OpenAPIOptions,
+  problemErrors: boolean,
+  toJson: ToJsonSchema = nativeJson,
+): Json {
   const paths: Record<string, Json> = {};
   const ids = new Map<string, number>();
   for (const route of routes) {
     if (route.internal) continue;
     const path = toOpenAPIPath(route.path);
-    const op = operation(route, problemErrors);
+    const op = operation(route, problemErrors, toJson);
     // A mesma classe montada em dois prefixos gera o mesmo id; o OpenAPI exige ids únicos.
     const base = op.operationId as string;
     const n = (ids.get(base) ?? 0) + 1;

@@ -67,6 +67,7 @@ export class RequestHandler {
     const contextOptions = {
       queryMaxKeys: this.core.opts.queryMaxKeys,
       queryParser: this.core.opts.queryParser,
+      contracts: this.core.contracts,
       logger: this.core.log,
       trustProxy: this.core.opts.trustProxy,
       onSend: this.core.onSendHooks,

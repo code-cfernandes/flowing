@@ -11,6 +11,7 @@ import type { ProtoPoisoning } from '../../utils/safe-json.ts';
 import type { SecurityHeadersOptions, SecurityPreset } from '../../middlewares/security-headers.ts';
 import type { QueryParser } from '../../utils/query.ts';
 import type { BodyParser } from '../body-parser.ts';
+import type { Contracts } from '../contracts.ts';
 
 /**
  * Tratamento de erros (F-04). `phase` diz em que etapa a requisição estava: `middleware`, `guard`,
@@ -117,6 +118,11 @@ export interface AppOptions {
    * parser: o `queryMaxKeys` vale só para o padrão.
    */
   queryParser?: QueryParser;
+  /**
+   * O motor dos contratos das rotas (F-27), um para o app inteiro. Sem a opção, `contracts.native()` (schemas
+   * TypeBox). Para Zod, Valibot ou ArkType: `contracts.standard()`. Um schema de outro motor é recusado no registro.
+   */
+  contracts?: Contracts;
   /**
    * Parsers de body por tipo de mídia (F-12), além do JSON nativo:
    * `createApp({ parsers: { 'application/yaml': (raw) => YAML.parse(raw.toString('utf8')) } })`.
