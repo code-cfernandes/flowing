@@ -190,11 +190,8 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     const fail = (err: HttpError) => {
       if (failed || settled) return;
       failed = err;
-      // Como no limite do body JSON (B-12): o cliente não deve continuar enviando um corpo que será descartado.
-      ctx.res.setHeader('Connection', 'close');
       ctx.req.unpipe(parser);
-      ctx.req.resume();
-      reject(err);
+      discardRest(ctx, () => reject(err));
     };
 
     let parser: BusboyInstance;
@@ -304,6 +301,39 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     ctx.req.once('error', () => fail(new HttpError(400, 'Upload aborted', 'UPLOAD_ABORTED')));
     ctx.req.pipe(parser);
   });
+}
+
+/** Quanto do corpo recusado ainda vale ler e descartar antes de responder, para manter a conexão. */
+const DRAIN_LIMIT = 1024 * 1024;
+
+/**
+ * Depois de recusar um upload, descarta o resto do corpo antes de responder. Responder e fechar com o cliente ainda
+ * enviando faz o cliente receber EPIPE em vez do 400/413. Acima de `DRAIN_LIMIT`, responde já com
+ * `Connection: close` (como o limite do body JSON, B-12): não vale gastar banda com o que será jogado fora.
+ */
+function discardRest(ctx: Context, respond: () => void): void {
+  const req = ctx.req;
+  if (req.readableEnded || req.destroyed) {
+    respond();
+    return;
+  }
+  let drained = 0;
+  let done = false;
+  const finish = (close: boolean) => {
+    if (done) return;
+    done = true;
+    req.off('data', onData);
+    if (close && !ctx.res.headersSent) ctx.res.setHeader('Connection', 'close');
+    respond();
+  };
+  const onData = (chunk: Buffer) => {
+    drained += chunk.length;
+    if (drained > DRAIN_LIMIT) finish(true);
+  };
+  req.on('data', onData);
+  req.once('end', () => finish(false));
+  req.once('close', () => finish(true));
+  req.resume();
 }
 
 /** Confere o tipo declarado e, quando possível, o conteúdo; depois o `verify`. Devolve o tipo detectado. */
