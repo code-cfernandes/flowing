@@ -4,22 +4,6 @@ import { withBase } from 'vitepress';
 
 const installCommand = 'pnpm add sashiko';
 
-/**
- * A luz sobre o tecido acompanha o ponteiro. Só atualiza duas variáveis CSS, uma vez por quadro, e não faz
- * nada para quem pediu menos movimento.
- */
-const hero = ref<HTMLElement | null>(null);
-let frame = 0;
-function moveLight(event: PointerEvent) {
-  const el = hero.value;
-  if (!el || frame || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  frame = requestAnimationFrame(() => {
-    frame = 0;
-    const box = el.getBoundingClientRect();
-    el.style.setProperty('--sk-light-x', `${event.clientX - box.left}px`);
-    el.style.setProperty('--sk-light-y', `${event.clientY - box.top}px`);
-  });
-}
 const copied = ref(false);
 
 async function copyInstall() {
@@ -68,7 +52,7 @@ const constraints = [
 
 <template>
   <div class="sk-home">
-    <section ref="hero" class="sk-hero" aria-labelledby="sk-title" @pointermove="moveLight">
+    <section class="sk-hero" aria-labelledby="sk-title">
       <div class="sk-hero__inner">
         <div class="sk-hero__text">
           <p class="sk-mark"><span>Sashiko</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
@@ -86,6 +70,8 @@ const constraints = [
           </div>
         </div>
 
+        <div class="sk-code-wrap">
+        <div class="sk-glow" aria-hidden="true"></div>
         <figure class="sk-code" aria-label="Exemplo de rota com schema">
           <pre><code><span class="t-k">const</span> create = {
   body: Type.<span class="t-f">Object</span>({
@@ -103,6 +89,7 @@ const constraints = [
 }</code></pre>
           <figcaption>Os decorators são os pontos: organizam a classe e prendem o contrato à rota.</figcaption>
         </figure>
+        </div>
       </div>
     </section>
 
@@ -149,30 +136,31 @@ const constraints = [
 .sk-hero {
   position: relative;
   isolation: isolate;
-  --sk-light-x: 30%;
-  --sk-light-y: 20%;
-  /* A luz desliza até o ponteiro, em vez de saltar. */
-  transition:
-    --sk-light-x 0.5s ease-out,
-    --sk-light-y 0.5s ease-out;
-  background-color: var(--sk-indigo);
-  /* Fileiras de pontos corridos, desencontradas como no bordado à mão. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E");
+  overflow: hidden;
   color: var(--sk-thread);
-}
-/* Registradas para poderem ser animadas (variáveis comuns não têm transição). */
-@property --sk-light-x {
-  syntax: '<length-percentage>';
-  inherits: true;
-  initial-value: 30%;
-}
-@property --sk-light-y {
-  syntax: '<length-percentage>';
-  inherits: true;
-  initial-value: 20%;
+  /*
+   * Índigo anodizado: faixas de luz em diagonal, como o reflexo numa superfície metálica, sobre uma textura
+   * escovada finíssima. As fileiras de pontos corridos ficam por cima.
+   */
+  background-color: var(--sk-indigo);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E"),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px),
+    linear-gradient(
+      112deg,
+      #141f3b 0%,
+      #1f2f57 18%,
+      #33497c 31%,
+      #22335d 40%,
+      #1a2849 54%,
+      #2d4272 70%,
+      #3b5388 76%,
+      #1f2e54 86%,
+      #141f3b 100%
+    );
 }
 
-/* A luz que bate no índigo: um brilho largo e suave, que acompanha o ponteiro. */
+/* O reflexo especular: uma faixa clara e estreita, parada, que dá o aspecto de metal. */
 .sk-hero::before {
   content: '';
   position: absolute;
@@ -180,9 +168,11 @@ const constraints = [
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(640px circle at var(--sk-light-x) var(--sk-light-y), rgba(160, 190, 235, 0.16), transparent 62%),
-    linear-gradient(165deg, rgba(255, 255, 255, 0.05), transparent 40%);
+    linear-gradient(112deg, transparent 24%, rgba(205, 220, 245, 0.1) 30%, transparent 37%),
+    linear-gradient(112deg, transparent 68%, rgba(205, 220, 245, 0.08) 75%, transparent 81%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 30%, transparent 70%, rgba(0, 0, 0, 0.18));
 }
+
 .sk-hero__inner {
   max-width: 1152px;
   margin: 0 auto;
@@ -278,7 +268,22 @@ const constraints = [
 }
 
 /* O código sobre o tecido; as linhas de decorator recebem o ponto corrido. */
+.sk-code-wrap {
+  position: relative;
+}
+/* Luz fixa que sai de baixo da caixa de código, refletida no metal. */
+.sk-glow {
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  bottom: -30%;
+  height: 58%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 35%, rgba(170, 200, 250, 0.62), rgba(120, 160, 230, 0.24) 42%, transparent 70%);
+  filter: blur(30px);
+}
 .sk-code {
+  position: relative;
   margin: 0;
   /* Filete de luz na borda, mais forte no canto de cima, como vidro sobre o tecido. */
   border: 1px solid transparent;
