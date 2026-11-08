@@ -142,45 +142,51 @@ const constraints = [
   --sk-gutter: clamp(16px, 4vw, 48px);
 }
 
-/* O tecido: índigo com uma trama de pontos corridos quase invisível. */
+/*
+ * Fundo do herói (camada 1 da identidade v2): azul-meia-noite com dois brilhos difusos, ciano e violeta, e o feixe
+ * de ondas em linhas finas que atravessa a página.
+ */
 .sk-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  color: var(--sk-thread);
-  /*
-   * Índigo anodizado: faixas de luz em diagonal, como o reflexo numa superfície metálica, sobre uma textura
-   * escovada finíssima. As fileiras de pontos corridos ficam por cima.
-   */
-  background-color: var(--sk-indigo);
+  color: var(--fl-cloud);
+  background-color: var(--fl-midnight);
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E"),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px),
-    linear-gradient(
-      112deg,
-      #141f3b 0%,
-      #1f2f57 18%,
-      #33497c 31%,
-      #22335d 40%,
-      #1a2849 54%,
-      #2d4272 70%,
-      #3b5388 76%,
-      #1f2e54 86%,
-      #141f3b 100%
-    );
+    radial-gradient(60% 70% at 85% 10%, rgba(34, 211, 238, 0.16), transparent 70%),
+    radial-gradient(50% 60% at 10% 90%, rgba(139, 92, 246, 0.14), transparent 70%);
 }
 
-/* O reflexo especular: uma faixa clara e estreita, parada, que dá o aspecto de metal. */
+/* O feixe de ondas: um SVG de linhas finas, fixo atrás do conteúdo, com um esmaecimento nas bordas. */
 .sk-hero::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    linear-gradient(112deg, transparent 24%, rgba(205, 220, 245, 0.1) 30%, transparent 37%),
-    linear-gradient(112deg, transparent 68%, rgba(205, 220, 245, 0.08) 75%, transparent 81%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 30%, transparent 70%, rgba(0, 0, 0, 0.18));
+  background: url('/flow-waves.svg') center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 85%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 85%, transparent 100%);
+}
+
+/* Uma grade em perspectiva quase invisível, só na base, como o piso por onde o fluxo passa. */
+.sk-hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: perspective(600px) rotateX(55deg);
+  transform-origin: bottom;
+  -webkit-mask-image: linear-gradient(0deg, #000, transparent);
+  mask-image: linear-gradient(0deg, #000, transparent);
 }
 
 .sk-hero__inner {

@@ -1,60 +1,78 @@
 /*
- * Identidade do Flowing: o bordado de pontos corridos em linha de algodão sobre tecido tingido de índigo
- * (aizome). As cores vêm do tingimento, e o ponto corrido é o único ornamento.
+ * Identidade do FlowingTS (v2): fluxo contínuo sobre um fundo noturno. Ciano e violeta são os acentos; o fundo é
+ * azul-meia-noite. A paleta vem do guia de identidade; os tons claros são a mesma família, para o modo claro.
  */
 :root {
-  --sk-indigo: #1c2b4f; /* o tecido */
-  --sk-indigo-night: #121b33; /* o tecido no escuro */
-  --sk-indigo-mid: #3a5a99; /* links no claro */
-  --sk-indigo-faded: #7fa6d3; /* índigo desbotado: links no escuro */
-  --sk-thread: #eef1f5; /* a linha de algodão */
-  --sk-ink: #18213a; /* texto no claro */
+  --fl-midnight: #0b1220; /* fundo principal */
+  --fl-surface: #121b2b; /* superfícies */
+  --fl-border: #263245; /* bordas e divisórias */
+  --fl-cyan: #22d3ee; /* destaques principais */
+  --fl-violet: #8b5cf6; /* acentos e degradês */
+  --fl-cloud: #e2e8f0; /* texto principal no escuro */
+  --fl-cyan-deep: #0e7490; /* ciano legível sobre fundo claro */
+  --fl-violet-deep: #6d28d9;
+  --fl-gradient: linear-gradient(90deg, var(--fl-cyan), var(--fl-violet));
+
+  /* Compatibilidade com a página inicial antiga, até a camada dela ser refeita. */
+  --sk-indigo: var(--fl-midnight);
+  --sk-indigo-night: var(--fl-midnight);
+  --sk-indigo-mid: var(--fl-cyan-deep);
+  --sk-indigo-faded: var(--fl-cyan);
+  --sk-thread: var(--fl-cloud);
+  --sk-ink: #0f172a;
 
   --vp-font-family-base: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
   --vp-font-family-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --vp-c-brand-1: var(--sk-indigo-mid);
-  --vp-c-brand-2: #2f4d88;
-  --vp-c-brand-3: var(--sk-indigo);
-  --vp-c-brand-soft: rgba(58, 90, 153, 0.12);
+  --vp-c-bg: #f8fafc;
+  --vp-c-bg-alt: #eef2f7;
+  --vp-c-bg-soft: #e8edf4;
+  --vp-c-divider: #dbe2ec;
   --vp-c-text-1: var(--sk-ink);
-  --vp-c-bg-alt: #f3f5f8;
-  --vp-home-hero-name-color: var(--sk-thread);
-  --vp-button-brand-bg: var(--sk-indigo);
-  --vp-button-brand-hover-bg: #26386a;
-  --vp-button-brand-active-bg: var(--sk-indigo-night);
+  --vp-c-text-2: #475569;
+  --vp-c-brand-1: var(--fl-cyan-deep);
+  --vp-c-brand-2: #155e75;
+  --vp-c-brand-3: var(--fl-cyan-deep);
+  --vp-c-brand-soft: rgba(14, 116, 144, 0.12);
+  --vp-home-hero-name-color: var(--fl-cloud);
+  --vp-button-brand-text: var(--fl-midnight);
+  --vp-button-brand-bg: var(--fl-cyan);
+  --vp-button-brand-hover-text: var(--fl-midnight);
+  --vp-button-brand-hover-bg: #67e8f9;
+  --vp-button-brand-active-bg: #06b6d4;
 
-  /* Avisos de alerta no tom da linha vermelha (aka-ito), e não no amarelo padrão do tema. */
   --vp-custom-block-warning-border: transparent;
   --vp-custom-block-warning-text: var(--vp-c-text-1);
-  --vp-custom-block-warning-bg: #f7eef0;
-  --vp-custom-block-warning-code-bg: rgba(168, 50, 72, 0.1);
+  --vp-custom-block-warning-bg: #f5f0ff;
+  --vp-custom-block-warning-code-bg: rgba(109, 40, 217, 0.1);
   --vp-custom-block-danger-border: transparent;
   --vp-custom-block-danger-text: var(--vp-c-text-1);
-  --vp-custom-block-danger-bg: #f7eef0;
-  --vp-custom-block-danger-code-bg: rgba(168, 50, 72, 0.1);
+  --vp-custom-block-danger-bg: #fdf0f3;
+  --vp-custom-block-danger-code-bg: rgba(190, 18, 60, 0.1);
   --vp-custom-block-tip-border: transparent;
   --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
   --vp-custom-block-info-border: transparent;
 }
 
 .dark {
-  --vp-custom-block-warning-bg: #2a2340;
-  --vp-custom-block-warning-code-bg: rgba(232, 140, 156, 0.14);
-  --vp-custom-block-danger-bg: #2a2340;
-  --vp-custom-block-danger-code-bg: rgba(232, 140, 156, 0.14);
-  --vp-c-bg: var(--sk-indigo-night);
-  --vp-c-bg-alt: #0e1528;
-  --vp-c-bg-elv: #17223f;
-  --vp-c-bg-soft: #18244a;
-  --vp-c-text-1: var(--sk-thread);
-  --vp-c-text-2: #b7c3d6;
-  --vp-c-brand-1: var(--sk-indigo-faded);
-  --vp-c-brand-2: #9dbbe0;
-  --vp-c-brand-3: #5f85bd;
-  --vp-c-brand-soft: rgba(127, 166, 211, 0.16);
-  --vp-c-divider: rgba(238, 241, 245, 0.12);
-  --vp-code-block-bg: #0e1528;
+  --vp-c-bg: var(--fl-midnight);
+  --vp-c-bg-alt: #0e1626;
+  --vp-c-bg-elv: var(--fl-surface);
+  --vp-c-bg-soft: var(--fl-surface);
+  --vp-c-divider: var(--fl-border);
+  --vp-c-gutter: #070c16;
+  --vp-c-text-1: var(--fl-cloud);
+  --vp-c-text-2: #94a3b8;
+  --vp-c-text-3: #64748b;
+  --vp-c-brand-1: var(--fl-cyan);
+  --vp-c-brand-2: #67e8f9;
+  --vp-c-brand-3: #06b6d4;
+  --vp-c-brand-soft: rgba(34, 211, 238, 0.14);
+  --vp-code-block-bg: #0a1020;
+  --vp-custom-block-warning-bg: rgba(139, 92, 246, 0.12);
+  --vp-custom-block-warning-code-bg: rgba(139, 92, 246, 0.18);
+  --vp-custom-block-danger-bg: rgba(244, 63, 94, 0.1);
+  --vp-custom-block-danger-code-bg: rgba(244, 63, 94, 0.16);
 }
 
 /* Títulos com o peso e o espaçamento da fonte, não do tema padrão. */
