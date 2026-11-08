@@ -1,6 +1,6 @@
 {
   "name": "flowingts",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
   "keywords": [
     "http",
