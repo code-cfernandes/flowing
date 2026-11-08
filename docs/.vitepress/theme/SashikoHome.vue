@@ -42,11 +42,15 @@ const included = [
   { term: 'Erros', text: 'Problem Details em toda resposta de erro, com a fase em que o erro aconteceu para quem observa.' },
 ];
 
+/** O que o projeto precisa aceitar antes de adotar: dito de frente, para ninguém descobrir depois. */
 const constraints = [
-  'Decorators padrão do TC39. O Sashiko não convive no mesmo projeto com bibliotecas que exigem experimentalDecorators, como NestJS e TypeORM.',
-  'ESM e Node.js 22 ou mais recente.',
-  'Sem container de DI: as dependências entram pelo construtor, no ponto em que o app é montado.',
-  'Versão 0.x: a API ainda pode mudar entre versões minor, sempre com a migração descrita no CHANGELOG.',
+  {
+    term: 'Só decorators padrão (TC39)',
+    text: 'Não convive no mesmo projeto com bibliotecas que exigem experimentalDecorators, como NestJS e TypeORM.',
+  },
+  { term: 'ESM e Node.js 22+', text: 'Sem CommonJS. Versões anteriores do Node não são suportadas.' },
+  { term: 'Sem container de DI', text: 'As dependências entram pelo construtor, no ponto em que o app é montado.' },
+  { term: 'API em 0.x', text: 'Pode mudar entre versões minor, sempre com a migração descrita no CHANGELOG.' },
 ];
 </script>
 
@@ -97,7 +101,7 @@ const constraints = [
       <h2 id="sk-contract">Um schema, usado quatro vezes</h2>
       <p class="sk-section__lede">O contrato é escrito uma vez, com TypeBox, e o framework o usa em cada etapa da requisição.</p>
       <ol class="sk-thread">
-        <li v-for="step in contract" :key="step.title">
+        <li v-for="step in contract" :key="step.title" class="sk-patch">
           <h3>{{ step.title }}</h3>
           <p>{{ step.text }}</p>
         </li>
@@ -107,7 +111,7 @@ const constraints = [
     <section class="sk-section" aria-labelledby="sk-included">
       <h2 id="sk-included">O que já vem no lugar</h2>
       <dl class="sk-included">
-        <div v-for="item in included" :key="item.term">
+        <div v-for="item in included" :key="item.term" class="sk-patch">
           <dt>{{ item.term }}</dt>
           <dd>{{ item.text }}</dd>
         </div>
@@ -115,10 +119,16 @@ const constraints = [
     </section>
 
     <section class="sk-section sk-section--last" aria-labelledby="sk-before">
-      <h2 id="sk-before">Antes de adotar</h2>
-      <ul class="sk-constraints">
-        <li v-for="c in constraints" :key="c">{{ c }}</li>
-      </ul>
+      <div class="sk-notice">
+        <h2 id="sk-before">Antes de adotar</h2>
+        <p class="sk-notice__lede">O que o Sashiko exige do seu projeto.</p>
+        <dl class="sk-constraints">
+          <div v-for="c in constraints" :key="c.term">
+            <dt>{{ c.term }}</dt>
+            <dd>{{ c.text }}</dd>
+          </div>
+        </dl>
+      </div>
       <p class="sk-section__more">
         <a :href="withBase('/guia/instalacao')">Requisitos e instalação</a>
         <a :href="withBase('/guia/exemplos')">Exemplos completos</a>
@@ -383,39 +393,84 @@ const constraints = [
   line-height: 1.7;
 }
 
-/* Quatro etapas ligadas por uma linha de pontos corridos, na ordem do pipeline. */
+/*
+ * Os cards são remendos (boro): um pedaço do mesmo índigo metalizado do herói, com a borda costurada por dentro
+ * em ponto corrido. No claro, o remendo é de algodão cru com a costura em índigo.
+ */
+.sk-patch {
+  position: relative;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f7f9fc 0%, #edf1f7 55%, #f4f6fa 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 12px 28px -18px rgba(28, 43, 79, 0.45),
+    0 0 0 1px rgba(28, 43, 79, 0.08);
+  --sk-stitch: rgba(58, 90, 153, 0.45);
+  --sk-stitch-hover: rgba(58, 90, 153, 0.9);
+}
+:global(.dark .sk-patch) {
+  background:
+    linear-gradient(112deg, transparent 30%, rgba(205, 220, 245, 0.06) 42%, transparent 54%),
+    linear-gradient(150deg, #22335d 0%, #1a2849 50%, #213260 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 18px 36px -20px rgba(2, 6, 18, 0.9),
+    0 0 0 1px rgba(238, 241, 245, 0.07);
+  --sk-stitch: rgba(238, 241, 245, 0.28);
+  --sk-stitch-hover: rgba(238, 241, 245, 0.7);
+}
+/* A costura da borda, por dentro do remendo. */
+.sk-patch::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1.5px dashed var(--sk-stitch);
+  border-radius: 7px;
+  pointer-events: none;
+  transition: border-color 0.25s ease;
+}
+.sk-patch:hover::before {
+  border-color: var(--sk-stitch-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-patch::before {
+    transition: none;
+  }
+}
+
+/* Quatro remendos pendurados na mesma linha de pontos, na ordem do pipeline. */
 .sk-thread {
   list-style: none;
   margin: 40px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px;
+  gap: 20px;
   position: relative;
 }
 .sk-thread::before {
   content: '';
   position: absolute;
-  top: 7px;
+  top: 0;
   left: 0;
   right: 0;
   border-top: 2px dashed var(--vp-c-brand-1);
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .sk-thread li {
-  position: relative;
-  padding-top: 32px;
+  margin-top: 22px;
+  padding: 30px 24px 26px;
 }
-.sk-thread li::before {
+/* O nó que prende o remendo à linha. */
+.sk-thread li::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--vp-c-bg);
-  border: 2px solid var(--vp-c-brand-1);
+  top: -30px;
+  left: 26px;
+  width: 2px;
+  height: 30px;
+  background: repeating-linear-gradient(180deg, var(--vp-c-brand-1) 0 4px, transparent 4px 7px);
+  opacity: 0.7;
 }
 .sk-thread h3 {
   margin: 0;
@@ -424,70 +479,117 @@ const constraints = [
   color: var(--vp-c-text-1);
 }
 .sk-thread p {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: 0.95rem;
   line-height: 1.65;
   color: var(--vp-c-text-2);
 }
 
-/* Lista de definição em duas colunas; o marcador é o ponto em cruz (jūjizashi). */
+/* O que já vem pronto: remendos em três colunas, com o ponto em cruz (jūjizashi) no título. */
 .sk-included {
   margin: 36px 0 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px 56px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
 .sk-included div {
-  position: relative;
-  padding-left: 28px;
-}
-.sk-included div::before,
-.sk-included div::after {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 0.62em;
-  width: 14px;
-  border-top: 2px dashed var(--vp-c-brand-1);
-}
-.sk-included div::after {
-  transform: rotate(90deg);
+  padding: 28px 26px 26px;
 }
 .sk-included dt {
+  position: relative;
+  padding-left: 26px;
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--vp-c-text-1);
 }
-.sk-included dd {
-  margin: 6px 0 0;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
-  max-width: 54ch;
-}
-
-.sk-constraints {
-  list-style: none;
-  margin: 28px 0 0;
-  padding: 0;
-  max-width: 72ch;
-  color: var(--vp-c-text-2);
-  line-height: 1.75;
-}
-.sk-constraints li {
-  position: relative;
-  padding-left: 28px;
-}
-.sk-constraints li::before {
+.sk-included dt::before,
+.sk-included dt::after {
   content: '';
   position: absolute;
-  left: 2px;
-  top: 0.85em;
+  left: 0;
+  top: 0.62em;
   width: 14px;
   border-top: 2px dashed var(--vp-c-brand-1);
 }
-.sk-constraints li + li {
-  margin-top: 10px;
+.sk-included dt::after {
+  transform: rotate(90deg);
 }
+.sk-included dd {
+  margin: 10px 0 0;
+  line-height: 1.65;
+  color: var(--vp-c-text-2);
+}
+
+/*
+ * O aviso é um remendo costurado com linha vermelha (aka-ito), também tradicional no sashiko: se destaca dos
+ * cards de recursos sem sair da identidade.
+ */
+.sk-notice {
+  position: relative;
+  padding: clamp(28px, 4vw, 40px);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fbf6f7 0%, #f5edef 100%);
+  box-shadow: 0 0 0 1px rgba(160, 50, 70, 0.14);
+  --sk-red: #a83248;
+}
+:global(.dark .sk-notice) {
+  background: linear-gradient(150deg, #2a2340 0%, #231c35 100%);
+  box-shadow: 0 0 0 1px rgba(232, 140, 156, 0.18);
+  --sk-red: #e88c9c;
+}
+.sk-notice::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed var(--sk-red);
+  border-radius: 8px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.sk-notice h2 {
+  color: var(--vp-c-text-1);
+}
+.sk-notice__lede {
+  margin: 8px 0 0;
+  color: var(--vp-c-text-2);
+}
+.sk-constraints {
+  margin: 28px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 40px;
+}
+.sk-constraints div {
+  position: relative;
+  padding-left: 22px;
+}
+/* Um ponto vermelho de costura ao lado de cada exigência. */
+.sk-constraints div::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 3px;
+  height: calc(100% - 0.6em);
+  background: repeating-linear-gradient(180deg, var(--sk-red) 0 6px, transparent 6px 10px);
+  border-radius: 2px;
+}
+.sk-constraints dt {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--vp-c-text-1);
+}
+.sk-constraints dd {
+  margin: 6px 0 0;
+  line-height: 1.65;
+  color: var(--vp-c-text-2);
+}
+@media (max-width: 640px) {
+  .sk-constraints {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .sk-section__more {
   display: flex;
   flex-wrap: wrap;
@@ -506,11 +608,17 @@ const constraints = [
   .sk-hero__inner {
     grid-template-columns: minmax(0, 1fr);
   }
-  .sk-thread {
+  .sk-thread,
+  .sk-included {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .sk-thread::before {
+  /* Em duas linhas, a linha de pontos não liga mais os remendos na ordem: some, junto com os nós. */
+  .sk-thread::before,
+  .sk-thread li::after {
     display: none;
+  }
+  .sk-thread li {
+    margin-top: 0;
   }
 }
 @media (max-width: 640px) {
