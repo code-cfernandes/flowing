@@ -9,6 +9,21 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.16.1] - 2026-11-08
+
+### Corrigido
+
+- **Projetos CommonJS conseguem usar o pacote.** Os `exports` do `package.json` só declaravam a condição `import`, e um
+  `require('sashiko')` falhava com `ERR_PACKAGE_PATH_NOT_EXPORTED`. Com a condição `default`, um projeto CommonJS
+  (inclusive TypeScript compilando para CommonJS) carrega o Sashiko pelo `require()` do Node.js 22.12 ou mais recente.
+  O CI passa a conferir isso nas três versões do Node.
+
+### Documentação
+
+- Guia "Vindo do Express": equivalências, projeto em CommonJS, schemas em Zod como contrato da rota e middlewares do
+  Express (como o `multer`) dentro do Sashiko.
+- Guia de schemas: entrada e saída são schemas diferentes (um POST que responde só com uma mensagem, ou só com o status).
+
 ## [0.16.0] - 2026-11-07
 
 ### Adicionado
