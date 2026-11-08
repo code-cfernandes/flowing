@@ -64,6 +64,7 @@ export function parseCustomQuery(parser: QueryParser, search: string): Record<st
   } catch {
     throw new InvalidQueryError('query parser failed');
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new InvalidQueryError('query parser returned a non-object');
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    throw new InvalidQueryError('query parser returned a non-object');
   return dropUnsafe(parsed, new WeakSet(), 0) as Record<string, unknown>;
 }
