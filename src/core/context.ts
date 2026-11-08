@@ -1,6 +1,6 @@
 import type { IncomingMessage, OutgoingHttpHeader, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { ReadStream } from 'node:fs';
 import { HttpError } from './errors.ts';
 import { type ParsedQuery, parseCustomQuery, parseQuery, type QueryParser } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
@@ -41,6 +41,32 @@ type RawBody = string | Uint8Array | Readable;
 const CLIENT_GONE = new Set(['ECONNRESET', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'ERR_STREAM_UNABLE_TO_PIPE', 'ERR_STREAM_DESTROYED']);
 function isClientDisconnect(err: unknown): boolean {
   return typeof err === 'object' && err !== null && CLIENT_GONE.has((err as { code?: string }).code ?? '');
+}
+
+/**
+ * Envia um stream para a resposta (F-45). `.pipe()` em vez do `pipeline()`: o `pipeline()` alocava promessas e
+ * listeners por resposta que, num download em andamento, sobreviviam às coletas rápidas do V8 e eram promovidos;
+ * no cenário de arquivos estáticos, era o maior responsável pelo RSS de pico. O que o `pipeline()` fazia continua:
+ * erro na origem loga e destrói a resposta; resposta fechada antes do fim (cliente desistiu) destrói a origem,
+ * liberando o descritor do arquivo.
+ */
+function pipeStream(ctx: Context, body: Readable): void {
+  const res = ctx.res;
+  body.once('error', (err: unknown) => {
+    // P-12: o cliente desistir é normal e não é erro do servidor.
+    const clientGone = isClientDisconnect(err);
+    ctx.log[clientGone ? 'debug' : 'error'](
+      { err, method: ctx.method, path: ctx.path },
+      clientGone ? 'client disconnected during stream' : 'stream failed',
+    );
+    res.destroy(err as Error);
+  });
+  res.once('close', () => {
+    if (res.writableFinished || body.destroyed) return;
+    ctx.log.debug({ method: ctx.method, path: ctx.path }, 'client disconnected during stream');
+    body.destroy();
+  });
+  body.pipe(res);
 }
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
@@ -524,17 +550,10 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
     if (body instanceof Readable) {
       this.res.setHeader('Content-Type', type);
-      this.markStreaming();
-      pipeline(body, this.res).catch((err: unknown) => {
-        // P-12: o cliente desistir (fechar a conexão) é normal e não é erro do servidor.
-        // Pelo código do erro: o pipeline já destruiu a resposta aqui, então `res.destroyed` não distingue.
-        const clientGone = isClientDisconnect(err);
-        this.log[clientGone ? 'debug' : 'error'](
-          { err, method: this.method, path: this.path },
-          clientGone ? 'client disconnected during stream' : 'stream failed',
-        );
-        this.res.destroy(err as Error);
-      });
+      // Arquivo do disco termina sozinho: fica fora do conjunto que o `close()` cancela (F-45).
+      if (body instanceof ReadStream) this.streaming = true;
+      else this.markStreaming();
+      pipeStream(this as unknown as Context, body);
       return this;
     }
     // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).
