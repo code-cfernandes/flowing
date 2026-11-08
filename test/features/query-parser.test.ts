@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import qs from 'qs';
-import { type Context, createApp, Get, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, createApp, Get, Router, type RouteSchemas, Type } from 'flowingts';
 
 const list = {
   query: Type.Object({

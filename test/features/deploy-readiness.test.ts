@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { describe, it, mock } from 'node:test';
-import { consoleLogger, createApp, Get, type Middleware, Router, unauthorized } from 'sashiko';
+import { consoleLogger, createApp, Get, type Middleware, Router, unauthorized } from 'flowingts';
 
 @Router('/')
 class Api {

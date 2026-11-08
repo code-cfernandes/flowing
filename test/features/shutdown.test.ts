@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { describe, it, mock } from 'node:test';
-import { createApp, Get, Router } from 'sashiko';
+import { createApp, Get, Router } from 'flowingts';
 
 // O handler avisa quando começou, para o teste enviar o sinal com a requisição de fato em andamento.
 let markStarted: () => void = () => {};

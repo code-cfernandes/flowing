@@ -1,4 +1,4 @@
-import type { Middleware } from 'sashiko';
+import type { Middleware } from 'flowingts';
 
 interface Entry {
   body: Buffer;

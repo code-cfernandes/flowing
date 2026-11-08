@@ -1,4 +1,4 @@
-import { type Context, createApp, Get, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, createApp, Get, Post, Router, type RouteSchemas, Type } from 'flowingts';
 import type { ChatHub } from './hub.ts';
 
 const post = {

@@ -7,8 +7,8 @@
 
     // Path aliases (resolvidos pelo tsx em dev; o build da lib usa só imports relativos)
     "paths": {
-      "sashiko": ["./src/index.ts"],
-      "sashiko/*": ["./src/*"]
+      "flowingts": ["./src/index.ts"],
+      "flowingts/*": ["./src/*"]
     },
 
     // Environment Settings

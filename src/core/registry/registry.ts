@@ -72,7 +72,7 @@ export class RouteRegistry {
           const reservedBy = this.reservedPaths().get(canonicalPath(route.path));
           if (reservedBy) {
             throw new Error(
-              `[sashiko] app.mount(${owner}): GET ${route.path} is served by ${reservedBy} and would never be reached; choose another path.`,
+              `[flowing] app.mount(${owner}): GET ${route.path} is served by ${reservedBy} and would never be reached; choose another path.`,
             );
           }
         }
@@ -86,7 +86,7 @@ export class RouteRegistry {
           if (taken) {
             const where = host ? ` on host ${host}` : '';
             throw new Error(
-              `[sashiko] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
+              `[flowing] app.mount(${owner}): ${route.method} ${route.path}${where} is already registered. ` +
                 `Use a different "prefix" or "host" to mount the same class twice.`,
             );
           }
@@ -113,7 +113,7 @@ export class RouteRegistry {
           try {
             this.router.on(route.method, route.path, withInfo(route, host), host);
           } catch (err) {
-            throw new Error(`[sashiko] app.mount(${owner}): ${route.method} ${route.path} conflicts with a registered route.`, {
+            throw new Error(`[flowing] app.mount(${owner}): ${route.method} ${route.path} conflicts with a registered route.`, {
               cause: err,
             });
           }
@@ -153,7 +153,7 @@ export class RouteRegistry {
           ? 'it looks like a Standard Schema (Zod, Valibot, ArkType); use createApp({ contracts: contracts.standard() })'
           : 'it is not a Standard Schema; with contracts.standard(), every schema must be one (Zod, Valibot, ArkType)';
       throw new Error(
-        `[sashiko] app.mount(${owner}): ${route.method} ${route.path}: the ${part} schema does not match the app's contracts: ${hint}.`,
+        `[flowing] app.mount(${owner}): ${route.method} ${route.path}: the ${part} schema does not match the app's contracts: ${hint}.`,
       );
     }
   }
@@ -173,7 +173,7 @@ export class RouteRegistry {
       const where = `app.mount(${owner}): ${route.method} ${route.path} uses host ${host.label}`;
       if (verdict === 'no' && mode === 'error') {
         throw new Error(
-          `[sashiko] ${where}, which no allowedHosts rule accepts; the route is unreachable. Add it to allowedHosts, or set unreachableHosts: 'warn'.`,
+          `[flowing] ${where}, which no allowedHosts rule accepts; the route is unreachable. Add it to allowedHosts, or set unreachableHosts: 'warn'.`,
         );
       }
       const key = `${owner} ${host.key}`;
@@ -182,8 +182,8 @@ export class RouteRegistry {
       this.core.log.warn(
         { host: host.label },
         verdict === 'no'
-          ? `[sashiko] ${where}, which no allowedHosts rule accepts; the route is unreachable.`
-          : `[sashiko] ${where}; could not verify it against allowedHosts (RegExp).`,
+          ? `[flowing] ${where}, which no allowedHosts rule accepts; the route is unreachable.`
+          : `[flowing] ${where}; could not verify it against allowedHosts (RegExp).`,
       );
     }
   }

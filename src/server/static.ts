@@ -44,11 +44,11 @@ const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86_400 };
 export function parseMaxAge(value: number | string | undefined): number {
   if (value === undefined) return 0;
   if (typeof value === 'number') {
-    if (!Number.isFinite(value) || value < 0) throw new Error(`[sashiko] invalid maxAge ${value}.`);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`[flowing] invalid maxAge ${value}.`);
     return Math.floor(value);
   }
   const m = /^(\d+)\s*([smhd])$/.exec(value.trim());
-  if (!m) throw new Error(`[sashiko] invalid maxAge "${value}"; use seconds or "10s", "30m", "12h", "7d".`);
+  if (!m) throw new Error(`[flowing] invalid maxAge "${value}"; use seconds or "10s", "30m", "12h", "7d".`);
   return Number(m[1]) * UNITS[m[2]!]!;
 }
 
@@ -58,9 +58,9 @@ export function resolveRoot(root: string): string {
   try {
     real = realpathSync(resolve(root));
   } catch {
-    throw new Error(`[sashiko] static root "${root}" does not exist.`);
+    throw new Error(`[flowing] static root "${root}" does not exist.`);
   }
-  if (!statSync(real).isDirectory()) throw new Error(`[sashiko] static root "${root}" is not a directory.`);
+  if (!statSync(real).isDirectory()) throw new Error(`[flowing] static root "${root}" is not a directory.`);
   return real;
 }
 
@@ -200,7 +200,7 @@ export async function sendFile(ctx: Context, path: string, opts: SendFileOptions
   if (opts.root !== undefined) {
     full = await insideRoot(resolveRoot(opts.root), path, 'deny');
   } else {
-    if (!isAbsolute(path)) throw new Error('[sashiko] ctx.sendFile(): use an absolute path, or pass { root } with a relative one.');
+    if (!isAbsolute(path)) throw new Error('[flowing] ctx.sendFile(): use an absolute path, or pass { root } with a relative one.');
     full = path;
   }
   const s = full ? await fileStat(full) : undefined;

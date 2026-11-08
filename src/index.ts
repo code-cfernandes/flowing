@@ -1,4 +1,4 @@
-// Ponto de entrada público do Sashiko.
+// Ponto de entrada público do Flowing.
 // O shim precisa ser avaliado antes de qualquer decorator rodar.
 import './shims/symbol-metadata.ts';
 

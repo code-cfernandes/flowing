@@ -7,7 +7,7 @@ import { stripToSchema, validate, type ValidationIssue, type ValidationTarget } 
  * Um schema que não pertence ao motor do app é recusado no registro da rota: não há mistura.
  */
 export interface Contracts {
-  /** `native` (o padrão do Sashiko) ou `standard` (Zod, Valibot, ArkType). */
+  /** `native` (o padrão do Flowing) ou `standard` (Zod, Valibot, ArkType). */
   readonly kind: 'native' | 'standard';
   /** O schema é deste motor? Conferido no registro de cada rota. */
   owns(schema: unknown): boolean;
@@ -53,7 +53,7 @@ const NATIVE: Contracts = {
 // (https://standardschema.dev), como ela recomenda: nenhuma dependência.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** O mínimo da especificação Standard Schema v1 que o Sashiko usa. */
+/** O mínimo da especificação Standard Schema v1 que o Flowing usa. */
 export interface StandardSchemaV1<Input = unknown, Output = Input> {
   readonly '~standard': {
     readonly version: 1;
@@ -96,7 +96,7 @@ const isThenable = (value: unknown): value is PromiseLike<unknown> =>
 function checkSync(schema: unknown, data: unknown): CheckResult {
   const result = (schema as StandardSchemaV1)['~standard'].validate(data);
   if (isThenable(result)) {
-    throw new Error('[sashiko] contracts.standard(): response schemas must validate synchronously (no async refinements).');
+    throw new Error('[flowing] contracts.standard(): response schemas must validate synchronously (no async refinements).');
   }
   return toCheck(result);
 }
@@ -138,7 +138,7 @@ function standard(opts: StandardContractsOptions = {}): Contracts {
 }
 
 /**
- * Os motores de contrato do Sashiko (F-27):
+ * Os motores de contrato do Flowing (F-27):
  * - `contracts.native()`: o padrão (schemas TypeBox / JSON Schema, validados pelo Ajv, saída pelo serializador
  *   compilado). Usado quando o app não declara nada.
  * - `contracts.standard()`: schemas Standard Schema (Zod, Valibot, ArkType). Sem coerção automática: em `params`

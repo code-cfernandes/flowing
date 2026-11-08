@@ -12,7 +12,7 @@ import {
   unauthorized,
   Middlewares,
   Guards,
-} from 'sashiko';
+} from 'flowingts';
 
 const mark =
   (name: string): Middleware =>
@@ -128,7 +128,7 @@ describe('F-28 · @Router e app.mount()', () => {
   it('nome que não é método de rota gera erro com a lista disponível', () => {
     assert.throws(
       () => createApp().mount(ItemRoutes, { only: (r) => [r.helper] }),
-      /app\.mount\(ItemRoutes\) only: "helper" has no Sashiko decorator .* Available: list, getById, remove\./,
+      /app\.mount\(ItemRoutes\) only: "helper" has no Flowing decorator .* Available: list, getById, remove\./,
     );
   });
 

@@ -1,7 +1,7 @@
 import type http from 'node:http';
 import type https from 'node:https';
 import type { TlsOptions } from '../server/tls.ts';
-import type { SashikoApp } from './app.ts';
+import type { FlowingApp } from './app.ts';
 import {
   ROOT_SCOPE,
   type GroupOptions,
@@ -33,13 +33,13 @@ import type { StaticOptions } from '../server/static.ts';
  * ```
  */
 export class MountedGroup<T extends object> {
-  readonly app: SashikoApp;
+  readonly app: FlowingApp;
   readonly #group: RouteGroup;
   readonly #register: (group: RouteGroup, method: string, path: string, select: MethodSelector<object>, opts?: ManualRouteOptions) => void;
 
   /** @internal Criado por `app.mount()`. */
   constructor(
-    app: SashikoApp,
+    app: FlowingApp,
     group: RouteGroup,
     register: (group: RouteGroup, method: string, path: string, select: MethodSelector<object>, opts?: ManualRouteOptions) => void,
     scope: RouteScope = ROOT_SCOPE,
@@ -91,31 +91,31 @@ export class MountedGroup<T extends object> {
     this.app.groupIn(this.#scope, options, define);
     return this;
   }
-  use(mw: Middleware): SashikoApp {
+  use(mw: Middleware): FlowingApp {
     return this.app.use(mw);
   }
-  openapi(opts?: OpenAPIOptions): SashikoApp {
+  openapi(opts?: OpenAPIOptions): FlowingApp {
     return this.app.openapi(opts);
   }
-  health(opts?: HealthOptions): SashikoApp {
+  health(opts?: HealthOptions): FlowingApp {
     return this.app.health(opts);
   }
   openapiDocument(opts?: OpenAPIOptions): Record<string, unknown> {
     return this.app.openapiDocument(opts);
   }
-  onError(h: OnErrorHook): SashikoApp {
+  onError(h: OnErrorHook): FlowingApp {
     return this.app.onError(h);
   }
-  onSend(hook: OnSendHook): SashikoApp {
+  onSend(hook: OnSendHook): FlowingApp {
     return this.app.onSend(hook);
   }
-  onRequest(hook: OnRequestHook): SashikoApp {
+  onRequest(hook: OnRequestHook): FlowingApp {
     return this.app.onRequest(hook);
   }
-  onResponse(hook: OnResponseHook): SashikoApp {
+  onResponse(hook: OnResponseHook): FlowingApp {
     return this.app.onResponse(hook);
   }
-  onClose(hook: OnCloseHook): SashikoApp {
+  onClose(hook: OnCloseHook): FlowingApp {
     return this.app.onClose(hook);
   }
   listen(options: ListenOptions & { tls: TlsOptions }): Promise<https.Server>;
@@ -145,11 +145,11 @@ export class MountedGroup<T extends object> {
  * do grupo. Middlewares globais e hooks continuam no app (`app.use()`, `app.onError()`…).
  */
 export class RouteGroupScope {
-  readonly #app: SashikoApp;
+  readonly #app: FlowingApp;
   readonly #scope: RouteScope;
 
   /** @internal Criado por `app.group()`. */
-  constructor(app: SashikoApp, scope: RouteScope) {
+  constructor(app: FlowingApp, scope: RouteScope) {
     this.#app = app;
     this.#scope = scope;
   }

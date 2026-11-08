@@ -17,7 +17,7 @@ Ligado por padrão:
 Opt-in:
 
 ```ts
-import { cors, createApp, csrf, rateLimit } from 'sashiko';
+import { cors, createApp, csrf, rateLimit } from 'flowingts';
 
 createApp({
   requireSchemas: true,

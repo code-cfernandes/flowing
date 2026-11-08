@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, type MountedGroup, Post, type RouteGroupScope, Router, Type } from 'sashiko';
+import { type Context, createApp, Get, type MountedGroup, Post, type RouteGroupScope, Router, Type } from 'flowingts';
 import { compileRouteHost, hostReachability } from '../../src/utils/origin-match.ts';
 
 const at = (host: string, extra: Record<string, string> = {}) => ({ headers: { host, ...extra } });

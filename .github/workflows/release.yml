@@ -68,7 +68,7 @@ jobs:
       # O npm usa o OIDC sozinho e anexa a provenance; `stage publish` deixa a versão aguardando aprovação.
       - name: Enviar ao npm (em estágio)
         working-directory: ${{ runner.temp }}/pkg
-        run: npx --yes npm@12 stage publish ./sashiko-*.tgz --access public
+        run: npx --yes npm@12 stage publish ./flowing-*.tgz --access public
 
       - name: Criar a GitHub Release
         env:

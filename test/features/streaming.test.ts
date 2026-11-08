@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, Router, Type } from 'sashiko';
+import { type Context, createApp, Get, Router, Type } from 'flowingts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 

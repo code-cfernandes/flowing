@@ -5,11 +5,11 @@
 - **ESM** (`"type": "module"`).
 
 ::: warning Sem decorators legados
-Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Sashiko lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.
+Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Flowing lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.
 :::
 
 ```bash
-pnpm add sashiko
+pnpm add flowingts
 ```
 _(O TypeBox já vem incluído e re-exportado como `Type`, `Static` e `TSchema`)_
 
@@ -25,4 +25,4 @@ _(O TypeBox já vem incluído e re-exportado como `Type`, `Static` e `TSchema`)_
 }
 ```
 
-Importe `sashiko` **antes** de declarar as classes de rotas: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Router } from 'sashiko'` isso já acontece.
+Importe `flowingts` **antes** de declarar as classes de rotas: o pacote instala o shim de `Symbol.metadata`, necessário para os decorators guardarem as rotas. Com `import { Router } from 'flowingts'` isso já acontece.

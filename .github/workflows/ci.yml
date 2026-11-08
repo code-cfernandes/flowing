@@ -34,8 +34,8 @@ jobs:
       - run: pnpm test:coverage # falha abaixo dos limites mínimos (F-19)
       - run: pnpm build
       # Projetos CommonJS carregam o pacote com require() (Node 22.12+), pelo nome, como um consumidor real.
-      - name: require('sashiko') a partir de CommonJS
-        run: node -e "const s = require('sashiko'); if (typeof s.createApp !== 'function') process.exit(1); console.log('ok')"
+      - name: require('flowingts') a partir de CommonJS
+        run: node -e "const s = require('flowingts'); if (typeof s.createApp !== 'function') process.exit(1); console.log('ok')"
 
   lint:
     # F-21: lint e formatação (Biome); `pnpm format` corrige a formatação localmente
@@ -122,7 +122,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @sashiko/docs build
+      - run: pnpm --filter @flowing/docs build
 
   examples:
     # Os exemplos da documentação rodam no CI, para não ficarem desatualizados em relação à API.

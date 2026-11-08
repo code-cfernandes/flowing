@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Readable } from 'node:stream';
-import { type Context, cors, createApp, Get, type Middleware, Post, Router } from 'sashiko';
+import { type Context, cors, createApp, Get, type Middleware, Post, Router } from 'flowingts';
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -205,7 +205,7 @@ describe('fase 2 · Context enxuto (campos preguiçosos)', () => {
   });
 
   it('filhos do consoleLogger compartilham a configuração (redact e nível)', async () => {
-    const { consoleLogger } = await import('sashiko');
+    const { consoleLogger } = await import('flowingts');
     const lines: unknown[] = [];
     const original = console.info;
     console.info = (...args: unknown[]) => {

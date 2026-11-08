@@ -1,5 +1,5 @@
 {
-  "name": "sashiko",
+  "name": "flowingts",
   "version": "0.18.1",
   "description": "Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first (TypeBox + Ajv) e defaults seguros.",
   "keywords": [
@@ -18,11 +18,11 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/code-cfernandes/sashiko.git"
+    "url": "git+https://github.com/code-cfernandes/flowing.git"
   },
-  "homepage": "https://github.com/code-cfernandes/sashiko#readme",
+  "homepage": "https://github.com/code-cfernandes/flowing#readme",
   "bugs": {
-    "url": "https://github.com/code-cfernandes/sashiko/issues"
+    "url": "https://github.com/code-cfernandes/flowing/issues"
   },
   "type": "module",
   "main": "./dist/index.js",

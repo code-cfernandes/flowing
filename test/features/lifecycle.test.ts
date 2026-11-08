@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
-import { type Context, Router, createApp, Get, Post, Schema } from 'sashiko';
+import { type Context, Router, createApp, Get, Post, Schema } from 'flowingts';
 
 /** Avisa quando a requisição lenta chegou ao handler: os testes de close() esperam isso, e não um tempo fixo. */
 let arrived: () => void = () => {};

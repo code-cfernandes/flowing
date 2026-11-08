@@ -4,9 +4,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { type Context, createApp, Get, Router } from 'sashiko';
+import { type Context, createApp, Get, Router } from 'flowingts';
 
-const base = mkdtempSync(join(tmpdir(), 'sashiko-static-'));
+const base = mkdtempSync(join(tmpdir(), 'flowing-static-'));
 const root = join(base, 'public');
 const secret = join(base, 'secret.txt');
 

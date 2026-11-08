@@ -1,6 +1,6 @@
 # Autenticação com JWT
 
-Login com senha (hash `scrypt`), token JWT HS256 e rotas protegidas pelo `bearerAuth` do Sashiko.
+Login com senha (hash `scrypt`), token JWT HS256 e rotas protegidas pelo `bearerAuth` do Flowing.
 
 - **`POST /auth/login`:** devolve o token. E-mail inexistente e senha errada recebem a mesma resposta, para não revelar quem tem conta.
 - **`@Guards(bearerAuth(...))` na classe:** protege todas as rotas de `/me`. O usuário do token fica em `ctx.state.user`.

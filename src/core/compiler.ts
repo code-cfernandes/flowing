@@ -27,7 +27,7 @@ export type HostOption = MatchRule | readonly MatchRule[];
 export function compileHostOption(host: HostOption | undefined): RouteHostRule[] {
   if (host === undefined) return [];
   const list = Array.isArray(host) ? host : [host as MatchRule];
-  if (list.length === 0) throw new Error('[sashiko] host: the list cannot be empty.');
+  if (list.length === 0) throw new Error('[flowing] host: the list cannot be empty.');
   return list.map(compileRouteHost);
 }
 
@@ -103,7 +103,7 @@ function scopedHosts(where: string, inherited: readonly RouteHostRule[], own: Ho
   if (own === undefined) return inherited;
   if (inherited.length > 0) {
     throw new Error(
-      `[sashiko] ${where}: "host" is already set by an outer group (${inherited.map((h) => h.label).join(', ')}); ` +
+      `[flowing] ${where}: "host" is already set by an outer group (${inherited.map((h) => h.label).join(', ')}); ` +
         'set it in only one place.',
     );
   }
@@ -146,11 +146,11 @@ export function createGroup(ref: RouterRef, options: MountOptions = {}, scope: R
   const meta = readOwnMetadata(Class);
   if (!meta?.isRouter) {
     throw new Error(
-      `[sashiko] Class ${Class.name} is not decorated with @Router('/prefix'). ` + `Add it to register the class with app.mount().`,
+      `[flowing] Class ${Class.name} is not decorated with @Router('/prefix'). ` + `Add it to register the class with app.mount().`,
     );
   }
   if (options.only && options.except) {
-    throw new Error(`[sashiko] app.mount(${Class.name}): use either "only" or "except", not both.`);
+    throw new Error(`[flowing] app.mount(${Class.name}): use either "only" or "except", not both.`);
   }
   // Instâncias permitem injetar dependências pelo construtor: app.mount(new UserRoutes(repo))
   const instance = isClass ? new Class() : ref;
@@ -225,7 +225,7 @@ function buildRoute(
 
 /**
  * Descobre o nome do método a partir da função devolvida pelo seletor.
- * Só aceita métodos com algum decorator do Sashiko (a "permissão" no nível do método).
+ * Só aceita métodos com algum decorator do Flowing (a "permissão" no nível do método).
  */
 function resolveMethod(
   group: RouteGroup,
@@ -245,10 +245,10 @@ function resolveMethod(
   const reason = decorated
     ? `${label} has no HTTP verb decorator, so it is not an automatic route; map it manually with .get()/.post()…`
     : isMethod
-      ? `${label} has no Sashiko decorator (@Get, @Schema, @Middlewares, @Guards…), so it cannot be exposed`
+      ? `${label} has no Flowing decorator (@Get, @Schema, @Middlewares, @Guards…), so it cannot be exposed`
       : `${label} is not a method of ${group.name}`;
   const at = where.startsWith('.') ? where : ` ${where}`;
-  throw new Error(`[sashiko] app.mount(${group.name})${at}: ${reason}. Available: ${available}.`);
+  throw new Error(`[flowing] app.mount(${group.name})${at}: ${reason}. Available: ${available}.`);
 }
 
 /**
@@ -260,7 +260,7 @@ function checkPath(where: string, method: string, path: string, params: object |
   try {
     names = pathParams(path);
   } catch (err) {
-    throw new Error(`[sashiko] ${where} (${method} ${path}): ${(err as Error).message}.`);
+    throw new Error(`[flowing] ${where} (${method} ${path}): ${(err as Error).message}.`);
   }
   const props = (params as { properties?: unknown } | undefined)?.properties;
   if (!props || typeof props !== 'object') return;
@@ -272,5 +272,5 @@ function checkPath(where: string, method: string, path: string, params: object |
     missing.length ? `missing in params schema: ${missing.map((n) => `"${n}"`).join(', ')}` : '',
     extra.length ? `not in path: ${extra.map((n) => `"${n}"`).join(', ')}` : '',
   ].filter(Boolean);
-  throw new Error(`[sashiko] ${where} (${method} ${path}): params schema does not match the path; ${parts.join('; ')}.`);
+  throw new Error(`[flowing] ${where} (${method} ${path}): params schema does not match the path; ${parts.join('; ')}.`);
 }

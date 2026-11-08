@@ -62,31 +62,31 @@ function safeDecode(value: string): string {
 
 /** Monta o valor de um header `Set-Cookie`, aplicando os padrões seguros. */
 export function serializeCookie(name: string, value: string, opts: CookieOptions = {}): string {
-  if (!TOKEN.test(name)) throw new Error(`[sashiko] invalid cookie name "${name}".`);
+  if (!TOKEN.test(name)) throw new Error(`[flowing] invalid cookie name "${name}".`);
 
   const httpOnly = opts.httpOnly ?? true;
   const secure = opts.secure ?? true;
   const sameSite = opts.sameSite ?? 'Lax';
   const path = opts.path ?? '/';
 
-  if (!ATTR_VALUE.test(path)) throw new Error(`[sashiko] invalid cookie path "${path}".`);
+  if (!ATTR_VALUE.test(path)) throw new Error(`[flowing] invalid cookie path "${path}".`);
   if (opts.domain !== undefined && (!opts.domain || !ATTR_VALUE.test(opts.domain))) {
-    throw new Error(`[sashiko] invalid cookie domain "${opts.domain}".`);
+    throw new Error(`[flowing] invalid cookie domain "${opts.domain}".`);
   }
-  if (sameSite === 'None' && !secure) throw new Error(`[sashiko] cookie "${name}": SameSite=None requires secure.`);
-  if (opts.partitioned && !secure) throw new Error(`[sashiko] cookie "${name}": partitioned requires secure.`);
-  if (name.startsWith('__Secure-') && !secure) throw new Error(`[sashiko] cookie "${name}": the __Secure- prefix requires secure.`);
+  if (sameSite === 'None' && !secure) throw new Error(`[flowing] cookie "${name}": SameSite=None requires secure.`);
+  if (opts.partitioned && !secure) throw new Error(`[flowing] cookie "${name}": partitioned requires secure.`);
+  if (name.startsWith('__Secure-') && !secure) throw new Error(`[flowing] cookie "${name}": the __Secure- prefix requires secure.`);
   if (name.startsWith('__Host-') && (!secure || path !== '/' || opts.domain !== undefined)) {
-    throw new Error(`[sashiko] cookie "${name}": the __Host- prefix requires secure, path "/" and no domain.`);
+    throw new Error(`[flowing] cookie "${name}": the __Host- prefix requires secure, path "/" and no domain.`);
   }
 
   let out = `${name}=${encodeURIComponent(value)}`;
   if (opts.maxAge !== undefined) {
-    if (!Number.isFinite(opts.maxAge)) throw new Error(`[sashiko] cookie "${name}": invalid maxAge.`);
+    if (!Number.isFinite(opts.maxAge)) throw new Error(`[flowing] cookie "${name}": invalid maxAge.`);
     out += `; Max-Age=${Math.floor(opts.maxAge)}`;
   }
   if (opts.expires) {
-    if (Number.isNaN(opts.expires.getTime())) throw new Error(`[sashiko] cookie "${name}": invalid expires.`);
+    if (Number.isNaN(opts.expires.getTime())) throw new Error(`[flowing] cookie "${name}": invalid expires.`);
     out += `; Expires=${opts.expires.toUTCString()}`;
   }
   if (opts.domain !== undefined) out += `; Domain=${opts.domain}`;

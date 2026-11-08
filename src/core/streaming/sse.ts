@@ -39,8 +39,8 @@ export interface SseOptions {
  * ter U+0000, que faz o navegador ignorar o campo.
  */
 const sseField = (name: string, value: string) => {
-  if (/[\r\n]/.test(value)) throw new Error(`[sashiko] ctx.sse(): "${name}" cannot contain line breaks.`);
-  if (name === 'id' && value.includes('\0')) throw new Error('[sashiko] ctx.sse(): "id" cannot contain U+0000.');
+  if (/[\r\n]/.test(value)) throw new Error(`[flowing] ctx.sse(): "${name}" cannot contain line breaks.`);
+  if (name === 'id' && value.includes('\0')) throw new Error('[flowing] ctx.sse(): "id" cannot contain U+0000.');
   return `${name}: ${value}\n`;
 };
 
@@ -50,7 +50,7 @@ const MAX_TIMER_MS = 2_147_483_647;
 /** `retry` e `heartbeatMs`: inteiro não negativo, como o protocolo exige, e dentro do limite dos timers. */
 const nonNegativeInt = (name: string, value: number): number => {
   if (!Number.isInteger(value) || value < 0 || value > MAX_TIMER_MS) {
-    throw new Error(`[sashiko] ctx.sse(): "${name}" must be an integer between 0 and ${MAX_TIMER_MS} (got ${value}).`);
+    throw new Error(`[flowing] ctx.sse(): "${name}" must be an integer between 0 and ${MAX_TIMER_MS} (got ${value}).`);
   }
   return value;
 };
@@ -62,15 +62,15 @@ function sseData(data: unknown): string {
   try {
     text = JSON.stringify(data);
   } catch (err) {
-    throw new Error(`[sashiko] ctx.sse(): "data" is not JSON-serializable (${(err as Error).message}).`, { cause: err });
+    throw new Error(`[flowing] ctx.sse(): "data" is not JSON-serializable (${(err as Error).message}).`, { cause: err });
   }
-  if (text === undefined) throw new Error(`[sashiko] ctx.sse(): "data" of type ${typeof data} is not JSON-serializable.`);
+  if (text === undefined) throw new Error(`[flowing] ctx.sse(): "data" of type ${typeof data} is not JSON-serializable.`);
   return text;
 }
 
 /** Abre a conexão SSE de `ctx`. `markStreaming` marca a resposta como stream (estado privado do `Context`). */
 export function openSse(ctx: Context, opts: SseOptions, markStreaming: () => void): SseStream {
-  if (ctx.sent) throw new Error('[sashiko] ctx.sse(): the response was already sent.');
+  if (ctx.sent) throw new Error('[flowing] ctx.sse(): the response was already sent.');
   // Valida antes de abrir a resposta: um erro aqui ainda vira um 500 normal.
   const heartbeatMs = nonNegativeInt('heartbeatMs', opts.heartbeatMs ?? 15_000);
   if (opts.retry !== undefined) nonNegativeInt('retry', opts.retry);
@@ -115,7 +115,7 @@ export function openSse(ctx: Context, opts: SseOptions, markStreaming: () => voi
       if (e.event !== undefined) out += sseField('event', e.event);
       if (e.id !== undefined) out += sseField('id', e.id);
       if (e.retry !== undefined) out += `retry: ${nonNegativeInt('retry', e.retry)}\n`;
-      if (e.data === undefined) throw new Error('[sashiko] ctx.sse(): "data" is required; use "" for an empty event.');
+      if (e.data === undefined) throw new Error('[flowing] ctx.sse(): "data" is required; use "" for an empty event.');
       const text = sseData(e.data);
       for (const line of text.split(/\r\n|\r|\n/)) out += `data: ${line}\n`;
       write(`${out}\n`);

@@ -9,6 +9,27 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.19.0] - 2026-11-08
+
+### Mudou
+
+- **O projeto agora se chama Flowing, e o pacote, `flowingts`.** O nome antigo era difícil de escrever e de lembrar.
+  O código é o mesmo da 0.18.1; para migrar, troque a dependência e os imports:
+
+  ```sh
+  pnpm remove sashiko && pnpm add flowingts
+  ```
+
+  ```ts
+  import { createApp, Get, Router } from 'flowingts'; // antes: from 'sashiko'
+  ```
+
+  Também mudam o tipo `SashikoApp` (agora `FlowingApp`), o prefixo das mensagens de erro (`[flowing]`), os atributos
+  do OpenTelemetry (`flowing.*`, antes `sashiko.*`), o nome do tracer e do meter (`flowingts`) e o prefixo dos
+  arquivos temporários de upload (`flowing-upload-`). O repositório passou para `code-cfernandes/flowing` (os links
+  antigos redirecionam) e a documentação, para `code-cfernandes.github.io/flowing`. O pacote `sashiko` fica depreciado,
+  apontando para o novo.
+
 ## [0.18.1] - 2026-11-08
 
 ### Corrigido
@@ -621,10 +642,10 @@ Primeira versão pública.
 - Node.js 22 ou superior.
 - TypeScript 5.2 ou superior, com decorators padrão (TC39), sem `experimentalDecorators`.
 
-[Não lançado]: https://github.com/code-cfernandes/sashiko/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/code-cfernandes/sashiko/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/code-cfernandes/sashiko/compare/v0.3.1...v0.4.0
-[0.3.1]: https://github.com/code-cfernandes/sashiko/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/code-cfernandes/sashiko/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/code-cfernandes/sashiko/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/code-cfernandes/sashiko/releases/tag/v0.1.0
+[Não lançado]: https://github.com/code-cfernandes/flowing/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/code-cfernandes/flowing/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/code-cfernandes/flowing/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/code-cfernandes/flowing/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/code-cfernandes/flowing/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/code-cfernandes/flowing/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/code-cfernandes/flowing/releases/tag/v0.1.0

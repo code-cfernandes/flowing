@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { type Context, createApp, Get, Router } from 'sashiko';
+import { type Context, createApp, Get, Router } from 'flowingts';
 import { isValidHost, parseRequestTarget, pickForwarded } from '../../src/utils/request-target.ts';
 
 @Router('/')

@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { safeEqual } from 'sashiko';
+import { safeEqual } from 'flowingts';
 
 /**
  * JWT HS256 mínimo com `node:crypto`, para o exemplo não depender de biblioteca. Em produção, prefira uma

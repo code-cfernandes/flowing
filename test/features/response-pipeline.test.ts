@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, Middlewares, type Middleware, Post, Router, type RouteSchemas } from 'sashiko';
+import { type Context, createApp, Get, Middlewares, type Middleware, Post, Router, type RouteSchemas } from 'flowingts';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const leaky = { id: '1', name: 'Ana', password: 'hash' };

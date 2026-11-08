@@ -11,7 +11,7 @@ import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 
 const provider = new NodeTracerProvider({
-  resource: resourceFromAttributes({ 'service.name': process.env.OTEL_SERVICE_NAME ?? 'sashiko-exemplo' }),
+  resource: resourceFromAttributes({ 'service.name': process.env.OTEL_SERVICE_NAME ?? 'flowing-exemplo' }),
   // OTEL_EXPORTER_OTLP_ENDPOINT muda o destino; o padrão é http://localhost:4318.
   spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
 });

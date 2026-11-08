@@ -1,4 +1,4 @@
-import { type Context, createApp, Delete, Get, notFound, Patch, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, createApp, Delete, Get, notFound, Patch, Post, Router, type RouteSchemas, Type } from 'flowingts';
 import type { TaskRepository } from './db.ts';
 
 const Task = Type.Object({ id: Type.Integer(), title: Type.String(), done: Type.Boolean() });

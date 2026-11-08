@@ -13,7 +13,7 @@ app.use(async (ctx, next) => {
 Por classe ou por método, use `@Middlewares` e `@Guards`; para um grupo inteiro ou uma rota manual, use as opções `middlewares` e `guards`, com os mesmos nomes em todos os níveis. Um guard retorna `true` para seguir, `false` para responder 403, ou lança um `HttpError` (por exemplo, `unauthorized()` para 401).
 
 ```ts
-declare module 'sashiko' {
+declare module 'flowingts' {
   interface ContextState {
     user?: { id: string; role: 'admin' | 'user' };
   } // ctx.state tipado

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, Post, Router } from 'sashiko';
+import { type Context, createApp, Get, Post, Router } from 'flowingts';
 import { compileRouteHost } from '../../src/utils/origin-match.ts';
 
 @Router('/users')

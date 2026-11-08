@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type BodyParser, type Context, createApp, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type BodyParser, type Context, createApp, Post, Router, type RouteSchemas, Type } from 'flowingts';
 
 const form: BodyParser = (raw) => Object.fromEntries(new URLSearchParams(raw.toString('utf8')));
 const contato = {

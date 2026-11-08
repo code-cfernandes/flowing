@@ -52,11 +52,11 @@ export interface CompiledTls {
 export function compileTls(tls: TlsOptions, lookup?: { current: SniTable }): CompiledTls {
   const minVersion = tls.minVersion ?? 'TLSv1.2';
   if (!ALLOWED_MIN.has(minVersion)) {
-    throw new Error(`[sashiko] tls.minVersion must be 'TLSv1.2' or 'TLSv1.3' (got '${minVersion}').`);
+    throw new Error(`[flowing] tls.minVersion must be 'TLSv1.2' or 'TLSv1.3' (got '${minVersion}').`);
   }
   const { sni, minVersion: _m, ...mainCert } = tls;
   const main = hasCert(mainCert) ? contextOptions(mainCert, minVersion) : undefined;
-  if (!main && !sni) throw new Error('[sashiko] tls needs a certificate: { key, cert }, { pfx } or { sni }.');
+  if (!main && !sni) throw new Error('[flowing] tls needs a certificate: { key, cert }, { pfx } or { sni }.');
   if (main) createSecureContext(main); // valida já
 
   const table = buildSniTable(sni ?? {}, minVersion);
@@ -79,9 +79,9 @@ function buildSniTable(entries: Record<string, TlsCertificate>, minVersion: stri
   const wildcard = new Map<string, SecureContext>();
   for (const [rawName, cert] of Object.entries(entries)) {
     const name = rawName.toLowerCase();
-    if (!hasCert(cert)) throw new Error(`[sashiko] tls.sni["${rawName}"] needs { key, cert } or { pfx }.`);
+    if (!hasCert(cert)) throw new Error(`[flowing] tls.sni["${rawName}"] needs { key, cert } or { pfx }.`);
     const valid = /^(\*\.)?([a-z0-9-]+\.)*[a-z0-9-]+$/.test(name);
-    if (!valid) throw new Error(`[sashiko] tls.sni: invalid domain "${rawName}"; use "api.exemplo.com" or "*.exemplo.dev".`);
+    if (!valid) throw new Error(`[flowing] tls.sni: invalid domain "${rawName}"; use "api.exemplo.com" or "*.exemplo.dev".`);
     const ctx = createSecureContext(contextOptions(cert, minVersion));
     if (name.startsWith('*.')) wildcard.set(name.slice(2), ctx);
     else exact.set(name, ctx);

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { describe, it, mock } from 'node:test';
-import { createApp, Get, type Middleware, Router, type RouteSchemas } from 'sashiko';
+import { createApp, Get, type Middleware, Router, type RouteSchemas } from 'flowingts';
 
 const one = { response: { 200: Type.Object({ id: Type.String() }) } } satisfies RouteSchemas;
 let calls = 0;

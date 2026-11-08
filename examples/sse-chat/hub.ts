@@ -1,4 +1,4 @@
-import type { SseStream } from 'sashiko';
+import type { SseStream } from 'flowingts';
 
 export interface Message {
   id: number;

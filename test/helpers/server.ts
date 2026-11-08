@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
-import type { SashikoApp } from 'sashiko';
+import type { FlowingApp } from 'flowingts';
 
 /** O app ou o retorno de `app.mount()`: os dois têm `listen` e `close`. */
-type Listenable = Pick<SashikoApp, 'listen' | 'close'>;
+type Listenable = Pick<FlowingApp, 'listen' | 'close'>;
 
 export interface TestServer {
   url: string;

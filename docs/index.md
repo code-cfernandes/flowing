@@ -1,7 +1,7 @@
 ---
 layout: page
-title: Sashiko
+title: Flowing
 titleTemplate: Framework HTTP para Node.js com contratos
 ---
 
-<SashikoHome />
+<FlowingHome />

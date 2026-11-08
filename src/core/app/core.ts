@@ -9,7 +9,7 @@ import type { AppOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHoo
 import type { Contracts } from '../contracts.ts';
 
 /**
- * Estado compartilhado do app entre a fachada (`SashikoApp`) e os componentes internos (registro,
+ * Estado compartilhado do app entre a fachada (`FlowingApp`) e os componentes internos (registro,
  * servidor, pipeline da requisição). Só configuração e listas de hooks; nada por requisição.
  */
 export interface AppCore {

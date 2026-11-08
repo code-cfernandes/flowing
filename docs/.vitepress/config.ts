@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { defineConfig } from 'vitepress';
 
 const require = createRequire(import.meta.url);
-const repo = 'https://github.com/code-cfernandes/sashiko';
+const repo = 'https://github.com/code-cfernandes/flowing';
 const { version } = require('../../package.json') as { version: string };
 
 /** Barra lateral da referência, gerada pelo TypeDoc (`pnpm api`). */
@@ -16,14 +16,14 @@ function apiSidebar() {
 
 export default defineConfig({
   lang: 'pt-BR',
-  title: 'Sashiko',
+  title: 'Flowing',
   description: 'Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first e seguro por padrão.',
-  base: '/sashiko/',
+  base: '/flowing/',
   cleanUrls: true,
   lastUpdated: true,
   // Documento interno (cita os IDs do backlog), mantido no repositório e fora do site.
   srcExclude: ['ARCHITECTURE.md'],
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/sashiko/logo.svg' }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/logo.svg' }]],
   themeConfig: {
     logo: '/logo.svg',
     nav: [
@@ -33,7 +33,7 @@ export default defineConfig({
         text: `v${version}`,
         items: [
           { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
-          { text: 'npm', link: 'https://www.npmjs.com/package/sashiko' },
+          { text: 'npm', link: 'https://www.npmjs.com/package/flowingts' },
         ],
       },
     ],

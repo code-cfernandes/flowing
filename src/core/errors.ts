@@ -15,7 +15,7 @@ export interface HttpErrorOptions {
 
 /**
  * Corpo de erro no formato Problem Details (RFC 9457), enviado como `application/problem+json`.
- * `code` e `details` são membros de extensão do Sashiko.
+ * `code` e `details` são membros de extensão do Flowing.
  */
 export interface ProblemDetails {
   /** URI do tipo do problema. `'about:blank'` quando o status já diz tudo. */

@@ -52,7 +52,7 @@ Erros de registro aparecem na inicialização, com mensagem clara, e **não deix
 - seletor em `only`/`except` que não aponta para um método de rota;
 - a mesma classe registrada duas vezes com o mesmo prefixo.
 
-> **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e o Sashiko não tem um sistema de plugins (veja abaixo).
+> **Por que `mount` e não `register`?** O método monta um grupo de rotas sob um prefixo, quantas vezes for preciso, como o `koa-mount` e os routers do Express. No Fastify, `register` significa plugin encapsulado, e o Flowing não tem um sistema de plugins (veja abaixo).
 
 ### Grupos: `app.group()`
 
@@ -93,7 +93,7 @@ createApp({ allowedHosts: ['api.exemplo.com', 'admin.exemplo.com', '*.clientes.e
 **Pacotes reutilizáveis, sem sistema de plugins.** Uma função que recebe o app basta, sem API nova, registro de nomes nem ciclo de vida próprio:
 
 ```ts
-export function audit(app: SashikoApp, opts: { store: AuditStore }) {
+export function audit(app: FlowingApp, opts: { store: AuditStore }) {
   return app.group({ prefix: '/audit', guards: [isAdmin] }, (g) => g.mount(new AuditRoutes(opts.store))).onClose(() => opts.store.flush());
 }
 
@@ -120,7 +120,7 @@ app
 ```
 
 - **Seletor:** funciona com instância (inclusive inline, `mount(new X(repo))`) e com a classe. "Ir para a definição" e renomear no editor funcionam.
-- **Permissão por método:** só podem ser mapeados métodos com algum decorator do Sashiko (verbo, `@Schema`, `@Middlewares` ou `@Guards`). Um método sem decorator gera erro no registro.
+- **Permissão por método:** só podem ser mapeados métodos com algum decorator do Flowing (verbo, `@Schema`, `@Middlewares` ou `@Guards`). Um método sem decorator gera erro no registro.
 - **Regras herdadas:** a rota manual usa os schemas e os `@Middlewares`/`@Guards` do método, e as regras do grupo.
 - **Opções da rota:** `{ middlewares, guards }` em objeto, e não uma lista de funções, para que middleware, guard e seletor nunca se confundam.
 - **Só mapeamento manual:** `mount(x, { auto: false })` não registra as rotas declaradas na classe.

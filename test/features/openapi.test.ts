@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Delete, Get, type Middleware, Post, Router, toOpenAPIPath, Type, unauthorized } from 'sashiko';
+import { type Context, createApp, Delete, Get, type Middleware, Post, Router, toOpenAPIPath, Type, unauthorized } from 'flowingts';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 

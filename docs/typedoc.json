@@ -10,7 +10,7 @@
   "readme": "none",
   "hidePageHeader": true,
   "githubPages": false,
-  "sourceLinkTemplate": "https://github.com/code-cfernandes/sashiko/blob/main/{path}#L{line}",
+  "sourceLinkTemplate": "https://github.com/code-cfernandes/flowing/blob/main/{path}#L{line}",
   "gitRevision": "main",
   "lang": "pt",
   "locales": {

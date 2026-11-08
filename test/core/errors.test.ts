@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it, mock } from 'node:test';
-import { type Context, Router, createApp, Get, HttpError, internal, notFound, Post } from 'sashiko';
+import { type Context, Router, createApp, Get, HttpError, internal, notFound, Post } from 'flowingts';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 @Router('/t')
@@ -147,7 +147,7 @@ describe('tratamento de erros', () => {
 
 describe('HttpError', () => {
   it('guarda cause e details; isHttpError identifica', async () => {
-    const { isHttpError } = await import('sashiko');
+    const { isHttpError } = await import('flowingts');
     const root = new Error('raiz');
     const err = new HttpError(422, 'inválido', 'UNPROCESSABLE', { cause: root, details: [{ path: '/x' }] });
     assert.equal(err.cause, root);

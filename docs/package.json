@@ -1,8 +1,8 @@
 {
-  "name": "@sashiko/docs",
+  "name": "@flowing/docs",
   "private": true,
   "type": "module",
-  "description": "Site de documentação do Sashiko (VitePress) e a referência da API gerada (TypeDoc).",
+  "description": "Site de documentação do Flowing (VitePress) e a referência da API gerada (TypeDoc).",
   "scripts": {
     "api": "typedoc",
     "dev": "pnpm api && vitepress dev",

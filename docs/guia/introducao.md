@@ -2,12 +2,12 @@
 
 Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-first** e **seguro por padrão**.
 
-> **Sashiko** (刺し子) é uma técnica japonesa de bordado em que os pontos decorativos também **reforçam** o tecido. É a ideia do framework: os decorators organizam a API e, ao mesmo tempo, trazem validação e proteções seguras por padrão.
+> **Por que Flowing:** num projeto Express que passa por muitas mãos, cada pessoa declara rotas do seu jeito, e quem chega precisa reaprender cada pedaço. O NestJS resolve a padronização, mas traz junto uma estrutura que muitos projetos não precisam. O Flowing dá **uma forma só de declarar rotas**, que qualquer pessoa da equipe reconhece, com o contrato de cada rota validado como no Fastify e sem tirar a liberdade do Express. O código flui igual, não importa quem o escreveu.
 
-Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e sete dependências de runtime.
+Flowing combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e sete dependências de runtime.
 
 ```ts
-import { type Context, createApp, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, createApp, Post, Router, type RouteSchemas, Type } from 'flowingts';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });
 const create = {

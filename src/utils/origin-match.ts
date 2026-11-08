@@ -41,7 +41,7 @@ export function normalizeOrigin(value: string): string | undefined {
 function parseWildcardOrigin(rule: string): WildcardOrigin {
   const match = /^([a-z][a-z0-9+.-]*:)\/\/\*\.([^/:]+)(?::(\d+))?\/?$/i.exec(rule);
   if (!match) {
-    throw new Error(`[sashiko] invalid origin rule "${rule}": "*" is only allowed as the first label, e.g. "https://*.exemplo.dev".`);
+    throw new Error(`[flowing] invalid origin rule "${rule}": "*" is only allowed as the first label, e.g. "https://*.exemplo.dev".`);
   }
   const [, protocol, domain, port = ''] = match;
   // Normaliza o domínio (maiúsculas, IDN → punycode) e a porta padrão do esquema.
@@ -64,7 +64,7 @@ export function compileOriginMatcher(rules: readonly MatchRule[]): (origin: stri
       continue;
     }
     if (rule === '*') {
-      throw new Error(`[sashiko] cors: "*" inside a list is not allowed; use origin: '*' to allow any origin.`);
+      throw new Error(`[flowing] cors: "*" inside a list is not allowed; use origin: '*' to allow any origin.`);
     }
     if (rule.includes('*')) {
       wildcards.push(parseWildcardOrigin(rule));
@@ -72,7 +72,7 @@ export function compileOriginMatcher(rules: readonly MatchRule[]): (origin: stri
     }
     const normalized = normalizeOrigin(rule);
     if (!normalized) {
-      throw new Error(`[sashiko] invalid origin rule "${rule}": use the full origin with scheme, e.g. "https://app.exemplo.com".`);
+      throw new Error(`[flowing] invalid origin rule "${rule}": use the full origin with scheme, e.g. "https://app.exemplo.com".`);
     }
     exact.add(normalized);
   }
@@ -100,7 +100,7 @@ function normalizeHostRule(rule: string): { hostname: string } {
     if (url.pathname !== '/' || url.search || url.username) throw new Error('not a host');
     return { hostname: url.hostname };
   } catch {
-    throw new Error(`[sashiko] invalid allowedHosts rule "${rule}": use a host like "api.exemplo.com" or "*.exemplo.dev".`);
+    throw new Error(`[flowing] invalid allowedHosts rule "${rule}": use a host like "api.exemplo.com" or "*.exemplo.dev".`);
   }
 }
 
@@ -119,7 +119,7 @@ export function compileHostMatcher(rules: readonly MatchRule[]): (hostname: stri
     } else if (rule.startsWith('*.')) {
       suffixes.push(`.${normalizeHostRule(rule.slice(2)).hostname}`);
     } else if (rule.includes('*')) {
-      throw new Error(`[sashiko] invalid allowedHosts rule "${rule}": "*" is only allowed as "*.domain".`);
+      throw new Error(`[flowing] invalid allowedHosts rule "${rule}": "*" is only allowed as "*.domain".`);
     } else {
       const { hostname } = normalizeHostRule(rule);
       // Com porta, a regra exige a porta exata (mesmo a padrão); sem porta, aceita qualquer uma.
@@ -163,8 +163,8 @@ export function compileRouteHost(rule: MatchRule): RouteHostRule {
     const suffix = `.${base}`;
     return { label: rule, kind: 'wildcard', base, key: `*.${base}`, test: (h) => h.endsWith(suffix) && h.length > suffix.length };
   }
-  if (rule.includes('*')) throw new Error(`[sashiko] invalid host rule "${rule}": "*" is only allowed as "*.domain".`);
-  if (rule.includes(':')) throw new Error(`[sashiko] invalid host rule "${rule}": use the hostname without the port.`);
+  if (rule.includes('*')) throw new Error(`[flowing] invalid host rule "${rule}": "*" is only allowed as "*.domain".`);
+  if (rule.includes(':')) throw new Error(`[flowing] invalid host rule "${rule}": use the hostname without the port.`);
   const { hostname } = normalizeHostRule(rule);
   return { label: rule, kind: 'exact', base: hostname, key: hostname, test: (h) => h === hostname };
 }

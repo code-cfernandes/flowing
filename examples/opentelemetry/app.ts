@@ -1,5 +1,5 @@
 import * as otel from '@opentelemetry/api';
-import { type AppOptions, type Context, createApp, Get, notFound, Router, type RouteSchemas, Type } from 'sashiko';
+import { type AppOptions, type Context, createApp, Get, notFound, Router, type RouteSchemas, Type } from 'flowingts';
 
 const Order = Type.Object({ id: Type.String(), total: Type.Number() });
 const getOrder = { params: Type.Object({ id: Type.String() }), response: { 200: Order } } satisfies RouteSchemas;
@@ -24,7 +24,7 @@ export class OrderRoutes {
   }
 }
 
-/** `telemetry: otel` liga spans e métricas do Sashiko; sem a opção, nada disso é carregado. */
+/** `telemetry: otel` liga spans e métricas do Flowing; sem a opção, nada disso é carregado. */
 export function buildApp(options: Pick<AppOptions, 'logger'> = {}) {
   const app = createApp({ telemetry: otel, ...options });
   app.mount(OrderRoutes);

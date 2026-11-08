@@ -13,9 +13,9 @@ import {
   unauthorized,
   Middlewares,
   Guards,
-} from 'sashiko';
+} from 'flowingts';
 
-declare module 'sashiko' {
+declare module 'flowingts' {
   interface ContextState {
     trail?: string[];
     user?: { id: string; role: 'admin' | 'user' };

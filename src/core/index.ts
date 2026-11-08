@@ -2,7 +2,7 @@ import '../shims/symbol-metadata.ts';
 
 export {
   createApp,
-  SashikoApp,
+  FlowingApp,
   type AppOptions,
   type ListenOptions,
   type OnCloseHook,
