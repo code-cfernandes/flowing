@@ -33,6 +33,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:coverage # falha abaixo dos limites mínimos (F-19)
       - run: pnpm build
+      # Projetos CommonJS carregam o pacote com require() (Node 22.12+), pelo nome, como um consumidor real.
+      - name: require('sashiko') a partir de CommonJS
+        run: node -e "const s = require('sashiko'); if (typeof s.createApp !== 'function') process.exit(1); console.log('ok')"
 
   lint:
     # F-21: lint e formatação (Biome); `pnpm format` corrige a formatação localmente
