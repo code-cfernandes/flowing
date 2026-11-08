@@ -45,6 +45,7 @@ export default defineConfig({
             { text: 'Introdução', link: '/guia/introducao' },
             { text: 'Instalação', link: '/guia/instalacao' },
             { text: 'Exemplos', link: '/guia/exemplos' },
+            { text: 'Vindo do Express', link: '/guia/vindo-do-express' },
           ],
         },
         {

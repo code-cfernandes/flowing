@@ -59,4 +59,36 @@ list(ctx: Context<typeof list>) {
 - **Status sem schema:** se a rota declara schemas de resposta e o handler devolve um status sem schema, a resposta é **500**, com o motivo no log, e não o objeto sem filtro.
 - **Sem corpo:** retornar `undefined` (por exemplo, num 204) dispensa schema.
 
+## Entrada e saída são schemas diferentes
+
+O contrato de uma rota não obriga a resposta a espelhar a entrada. `params`, `query`, `headers` e `body` descrevem o que chega; `response` descreve, **para cada status**, o que sai. Um POST que recebe um pedido inteiro e responde só com uma mensagem:
+
+```ts
+const Order = Type.Object({ product: Type.String(), quantity: Type.Integer({ minimum: 1 }) }, { additionalProperties: false });
+
+const submit = {
+  body: Order, // entrada: o pedido inteiro
+  response: { 202: Type.Object({ message: Type.String() }) }, // saída: só a mensagem
+} satisfies RouteSchemas;
+
+@Post('/', submit)
+submit(ctx: Context<typeof submit>) {
+  queue.push(ctx.body);
+  return { message: 'Pedido recebido' }; // 202: o único status de sucesso declarado
+}
+```
+
+- **Só o status, sem corpo:** `response: { 204: Type.Null() }`, e o handler não retorna nada.
+- **Proteção:** se o handler devolver mais do que o schema da saída declara (o pedido salvo, com `id` e um custo interno), só os campos declarados saem.
+- **Mais de um desfecho de sucesso** (`201` quando cria, `200` quando já existia): declare os dois e escolha com `ctx.status()`. Ele só aceita os status declarados, e o corpo precisa corresponder ao schema escolhido.
+- **Na saída, o schema serializa e filtra, mas não é uma validação completa:** a garantia é que nada além do declarado sai. A validação rigorosa (`minLength`, `format`…) é a da entrada.
+
+Para não repetir campos, derive um schema do outro com o TypeBox:
+
+```ts
+const Task = Type.Object({ id: Type.Integer(), title: Type.String(), done: Type.Boolean() });
+const CreateTask = Type.Omit(Task, ['id', 'done']); // POST: só o que o cliente envia
+const UpdateTask = Type.Partial(Type.Omit(Task, ['id'])); // PATCH: tudo opcional, sem o id
+```
+
 **Modo estrito.** `createApp({ requireSchemas: true })` falha na inicialização se alguma rota não tiver schema de `response`, ou se um POST/PUT/PATCH não tiver schema de `body`.
