@@ -9,6 +9,20 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.18.1] - 2026-11-08
+
+### Corrigido
+
+- **Upload recusado deixava o temporário aberto:** cada recusa no meio do arquivo (tamanho, tipo, campo inesperado)
+  mantinha o descritor do arquivo temporário aberto, até esgotar os descritores do processo. Agora as gravações em
+  andamento são fechadas na recusa.
+- **Corpo multipart truncado derrubava o processo:** o erro do leitor de multipart não era tratado e virava exceção não
+  capturada. Agora responde 400 `INVALID_MULTIPART`.
+- **Descarte do corpo recusado com prazo:** além do limite de 1 MB, o descarte para depois de 2 segundos, e a resposta
+  sai com `Connection: close`; um cliente lento não segura a conexão.
+
+Quem usa a 0.18.0 com rotas de upload deve atualizar.
+
 ## [0.18.0] - 2026-11-08
 
 ### Adicionado
