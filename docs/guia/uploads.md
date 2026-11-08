@@ -1,5 +1,7 @@
 # Upload de arquivos
 
+<Aprenda>Receber arquivos pelo contrato da rota, com limites, tipos conferidos pelo conteúdo e limpeza automática.</Aprenda>
+
 O upload faz parte do contrato da rota. Declare os arquivos em `files` e os campos de texto do formulário em `body`: tudo é recebido e conferido antes do handler, e o handler só roda com um arquivo válido.
 
 ```ts
@@ -68,7 +70,7 @@ Termine de ler o `stream()` (salvar no disco, enviar para o S3) **antes** de o h
 
 ## Conferência do conteúdo
 
-Com `types`, o Flowing confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado. A conferência lê uma cópia do começo do arquivo; o `stream()` entregue ao handler começa do primeiro byte.
+Com `types`, o FlowingTS confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado. A conferência lê uma cópia do começo do arquivo; o `stream()` entregue ao handler começa do primeiro byte.
 
 O que cada camada garante:
 
@@ -154,5 +156,5 @@ async enviar(ctx: Context<typeof enviar>) {
 
 - **CSRF:** o navegador envia `multipart/form-data` de outro site sem preflight. Em rotas com sessão por cookie, use o middleware `csrf()`.
 - **Nome do arquivo:** o temporário tem nome gerado, e o caminho enviado pelo cliente é descartado. Ao salvar, gere o nome você também.
-- **Corpo recusado:** quando um arquivo é recusado no meio do envio, o Flowing lê e descarta o resto do corpo, sem guardá-lo, até 1 MB ou 2 segundos, para o cliente receber o 400 ou o 413. Acima disso, responde e fecha a conexão.
+- **Corpo recusado:** quando um arquivo é recusado no meio do envio, o FlowingTS lê e descarta o resto do corpo, sem guardá-lo, até 1 MB ou 2 segundos, para o cliente receber o 400 ou o 413. Acima disso, responde e fecha a conexão.
 - **Rotas sem `files`** não leem o multipart: o corpo fica intacto em `ctx.req`, e o `multer` continua funcionando como antes (veja [Vindo do Express](./vindo-do-express)).

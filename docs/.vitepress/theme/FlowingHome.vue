@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { withBase } from 'vitepress';
 
-const installCommand = 'pnpm add flowingts';
+const installCommand = 'npm install flowingts';
 
 const copied = ref(false);
 
@@ -18,7 +18,7 @@ async function copyInstall() {
 
 /** Um schema, usado em quatro etapas da requisição (é a ordem real do pipeline). */
 const contract = [
-  { title: 'Valida a entrada', text: 'body, params e query passam pelo Ajv antes do handler. Um erro vira 400 em Problem Details.' },
+  { title: 'Valida a entrada', text: 'body, params e query são validados antes do handler. Um erro vira 400 em Problem Details.' },
   { title: 'Tipa o ctx', text: 'ctx.body e ctx.params chegam com os tipos do schema, sem declarar nada duas vezes.' },
   { title: 'Filtra a resposta', text: 'Campos fora do schema não saem. Um password esquecido no objeto não vaza.' },
   { title: 'Documenta a API', text: 'O mesmo schema gera o OpenAPI 3.1 e a página /docs.' },
@@ -42,13 +42,40 @@ const included = [
   { term: 'Erros', text: 'Problem Details em toda resposta de erro, com a fase em que o erro aconteceu para quem observa.' },
 ];
 
+/** Os quatro pilares do mockup, cada um com o ícone (traço de 24 px). */
+const pillars = [
+  {
+    title: 'Rotas declarativas',
+    text: 'Uma forma consistente de declarar rotas, que qualquer pessoa da equipe reconhece.',
+    icon: 'M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16',
+  },
+  {
+    title: 'Contratos e validação',
+    text: 'Um contrato por rota valida a entrada, tipa o ctx, filtra a resposta e gera o OpenAPI.',
+    icon: 'M12 3 3 7.5l9 4.5 9-4.5L12 3ZM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5',
+  },
+  {
+    title: 'Composição flexível',
+    text: 'Use só o que o projeto precisa: middlewares, guards, hooks e grupos de rotas.',
+    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM15.5 15.5h4v4h-4z',
+  },
+  {
+    title: 'Infraestrutura pronta',
+    text: 'Segurança, uploads, streaming, observabilidade e shutdown gracioso de fábrica.',
+    icon: 'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01M12 7h4M12 17h4',
+  },
+];
+
+/** As tecnologias e recursos em destaque, em pílulas no fim da página. */
+const pills = ['TypeScript', 'Decorators TC39', 'Validação', 'OpenAPI 3.1', 'Observabilidade', 'Uploads'];
+
 /** O que o projeto precisa aceitar antes de adotar: dito de frente, para ninguém descobrir depois. */
 const constraints = [
   {
     term: 'Só decorators padrão (TC39)',
     text: 'Não convive no mesmo projeto com bibliotecas que exigem experimentalDecorators, como NestJS e TypeORM.',
   },
-  { term: 'ESM e Node.js 22+', text: 'Sem CommonJS. Versões anteriores do Node não são suportadas.' },
+  { term: 'Node.js 22.12+', text: 'ESM ou CommonJS (pelo require de módulos ESM do Node). Versões anteriores não são suportadas.' },
   { term: 'Sem container de DI', text: 'As dependências entram pelo construtor, no ponto em que o app é montado.' },
   { term: 'API em 0.x', text: 'Pode mudar entre versões minor, sempre com a migração descrita no CHANGELOG.' },
 ];
@@ -59,49 +86,91 @@ const constraints = [
     <section class="sk-hero" aria-labelledby="sk-title">
       <div class="sk-hero__inner">
         <div class="sk-hero__text">
-          <p class="sk-mark"><span>Flowing</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
-          <h1 id="sk-title" class="sk-title">Framework HTTP para Node.js com um contrato em cada rota.</h1>
+          <p class="fl-badge">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2"/></svg>
+            Framework HTTP para Node.js
+          </p>
+          <h1 id="sk-title" class="fl-title">Structure that <em>flows.</em></h1>
+          <p class="fl-subtitle">Consistency without complexity.</p>
           <p class="sk-lede">
-            Decorators padrão organizam as rotas. O schema de cada uma valida a entrada, filtra a resposta, tipa o
-            <code>ctx</code> e gera o OpenAPI. Segurança, shutdown e observabilidade já vêm ligados.
+            Rotas declarativas, contratos explícitos e composição flexível. Toda a equipe declara rotas do mesmo jeito,
+            sem a estrutura pesada que o projeto não precisa.
           </p>
           <div class="sk-actions">
-            <a class="sk-button" :href="withBase('/guia/introducao')">Ler o guia</a>
-            <button type="button" class="sk-install" :aria-label="`Copiar o comando ${installCommand}`" @click="copyInstall">
-              <code>{{ installCommand }}</code>
-              <span class="sk-install__state" aria-live="polite">{{ copied ? 'Copiado' : 'Copiar' }}</span>
-            </button>
+            <a class="fl-button fl-button--primary" :href="withBase('/guia/introducao')">
+              Começar agora
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+            <a class="fl-button fl-button--ghost" href="https://github.com/code-cfernandes/flowing">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+              Ver no GitHub
+            </a>
           </div>
+          <button type="button" class="fl-install" :aria-label="`Copiar o comando ${installCommand}`" @click="copyInstall">
+            <span class="fl-install__prompt" aria-hidden="true">$</span>
+            <code>{{ installCommand }}</code>
+            <span class="fl-install__state" aria-live="polite">{{ copied ? 'Copiado' : 'Copiar' }}</span>
+          </button>
         </div>
 
-        <div class="sk-code-wrap">
-        <div class="sk-glow" aria-hidden="true"></div>
-        <figure class="sk-code" aria-label="Exemplo de rota com schema">
-          <pre><code><span class="t-k">const</span> create = {
-  body: Type.<span class="t-f">Object</span>({
-    name: Type.<span class="t-f">String</span>({ minLength: <span class="t-n">1</span> }),
+        <figure class="fl-window" aria-label="Exemplo de rota com contrato">
+          <div class="fl-window__bar">
+            <span class="fl-window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="fl-window__tab"><b>TS</b> user.routes.ts</span>
+          </div>
+          <pre><code><span class="t-k">const</span> buscar = {
+  params: Type.<span class="t-f">Object</span>({
+    id: Type.<span class="t-f">String</span>({ format: <span class="t-s">'uuid'</span> }),
   }),
-  response: { <span class="t-n">201</span>: User },
+  response: { <span class="t-n">200</span>: User },
 } <span class="t-k">satisfies</span> RouteSchemas;
 
-<span class="sk-stitch">@<span class="t-f">Router</span>(<span class="t-s">'/users'</span>)</span>
-<span class="t-k">class</span> UserRoutes {
-  <span class="sk-stitch">@<span class="t-f">Post</span>(<span class="t-s">'/'</span>, create)</span>
-  <span class="t-f">create</span>(ctx: Context&lt;<span class="t-k">typeof</span> create&gt;) {
-    <span class="t-k">return</span> { id: <span class="t-f">randomUUID</span>(), ...ctx.body };
+<span class="t-d">@Router</span>(<span class="t-s">'/users'</span>)
+<span class="t-k">export class</span> <span class="t-c">UserRoutes</span> {
+  <span class="t-d">@Get</span>(<span class="t-s">'/:id'</span>, buscar)
+  <span class="t-k">async</span> <span class="t-f">getById</span>(ctx: <span class="t-c">Context</span>&lt;<span class="t-k">typeof</span> buscar&gt;) {
+    <span class="t-k">return</span> users.<span class="t-f">find</span>(ctx.params.id);
   }
 }</code></pre>
-          <figcaption>Os decorators são os pontos: organizam a classe e prendem o contrato à rota.</figcaption>
         </figure>
-        </div>
+      </div>
+    </section>
+
+    <section class="sk-section" aria-label="Recursos principais">
+      <ul class="fl-pillars">
+        <li v-for="p in pillars" :key="p.title">
+          <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path :d="p.icon" /></svg>
+          <h3>{{ p.title }}</h3>
+          <p>{{ p.text }}</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="sk-section fl-problem" aria-labelledby="fl-problem">
+      <div>
+        <p class="fl-eyebrow">O problema</p>
+        <h2 id="fl-problem">Liberdade sem convenção gera inconsistência. Arquitetura obrigatória gera complexidade.</h2>
+      </div>
+      <div class="fl-problem__answer">
+        <p>
+          O FlowingTS nasce do equilíbrio entre os dois extremos: uma maneira consistente de construir APIs, sem impor
+          uma arquitetura pesada ao seu projeto.
+        </p>
+        <ul class="fl-checks">
+          <li>Padrão claro para toda a equipe.</li>
+          <li>Recursos integrados, sem excesso.</li>
+          <li>Flexibilidade para evoluir do seu jeito.</li>
+        </ul>
       </div>
     </section>
 
     <section class="sk-section" aria-labelledby="sk-contract">
+      <p class="fl-eyebrow">O contrato</p>
       <h2 id="sk-contract">Um schema, usado quatro vezes</h2>
-      <p class="sk-section__lede">O contrato é escrito uma vez, com TypeBox, e o framework o usa em cada etapa da requisição.</p>
-      <ol class="sk-thread">
-        <li v-for="step in contract" :key="step.title" class="sk-patch">
+      <p class="sk-section__lede">O contrato é escrito uma vez, com TypeBox ou Zod, e o framework o usa em cada etapa da requisição.</p>
+      <ol class="fl-steps">
+        <li v-for="(step, i) in contract" :key="step.title" class="fl-card">
+          <span class="fl-steps__n" aria-hidden="true">{{ i + 1 }}</span>
           <h3>{{ step.title }}</h3>
           <p>{{ step.text }}</p>
         </li>
@@ -109,9 +178,10 @@ const constraints = [
     </section>
 
     <section class="sk-section" aria-labelledby="sk-included">
+      <p class="fl-eyebrow">De fábrica</p>
       <h2 id="sk-included">O que já vem no lugar</h2>
-      <dl class="sk-included">
-        <div v-for="item in included" :key="item.term" class="sk-patch">
+      <dl class="fl-included">
+        <div v-for="item in included" :key="item.term" class="fl-card">
           <dt>{{ item.term }}</dt>
           <dd>{{ item.text }}</dd>
         </div>
@@ -119,16 +189,19 @@ const constraints = [
     </section>
 
     <section class="sk-section sk-section--last" aria-labelledby="sk-before">
-      <div class="sk-notice">
-        <h2 id="sk-before">Antes de adotar</h2>
-        <p class="sk-notice__lede">O que o Flowing exige do seu projeto.</p>
-        <dl class="sk-constraints">
+      <div class="fl-notice">
+        <p class="fl-eyebrow fl-eyebrow--violet">Antes de adotar</p>
+        <h2 id="sk-before">O que o FlowingTS exige do seu projeto</h2>
+        <dl class="fl-constraints">
           <div v-for="c in constraints" :key="c.term">
             <dt>{{ c.term }}</dt>
             <dd>{{ c.text }}</dd>
           </div>
         </dl>
       </div>
+      <ul class="fl-pills" aria-label="Tecnologias">
+        <li v-for="pill in pills" :key="pill">{{ pill }}</li>
+      </ul>
       <p class="sk-section__more">
         <a :href="withBase('/guia/instalacao')">Requisitos e instalação</a>
         <a :href="withBase('/guia/exemplos')">Exemplos completos</a>
@@ -138,456 +211,472 @@ const constraints = [
 </template>
 
 <style scoped>
+/*
+ * O cenário (fundo, brilhos e ondas) é do layout inteiro da página inicial, no style.css (.fl-home-page), para
+ * cobrir também o cabeçalho e o rodapé do VitePress. Aqui ficam só as cores do texto, sempre no modo escuro.
+ */
 .sk-home {
   --sk-gutter: clamp(16px, 4vw, 48px);
+  --vp-c-text-1: var(--fl-cloud);
+  --vp-c-text-2: #94a3b8;
+  --vp-c-brand-1: var(--fl-cyan);
+  --vp-c-divider: var(--fl-border);
+  position: relative;
+  color: var(--fl-cloud);
 }
 
-/* O tecido: índigo com uma trama de pontos corridos quase invisível. */
+/* O herói é transparente: o fundo é o da página inteira. */
 .sk-hero {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  color: var(--sk-thread);
-  /*
-   * Índigo anodizado: faixas de luz em diagonal, como o reflexo numa superfície metálica, sobre uma textura
-   * escovada finíssima. As fileiras de pontos corridos ficam por cima.
-   */
-  background-color: var(--sk-indigo);
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E"),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px),
-    linear-gradient(
-      112deg,
-      #141f3b 0%,
-      #1f2f57 18%,
-      #33497c 31%,
-      #22335d 40%,
-      #1a2849 54%,
-      #2d4272 70%,
-      #3b5388 76%,
-      #1f2e54 86%,
-      #141f3b 100%
-    );
-}
-
-/* O reflexo especular: uma faixa clara e estreita, parada, que dá o aspecto de metal. */
-.sk-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    linear-gradient(112deg, transparent 24%, rgba(205, 220, 245, 0.1) 30%, transparent 37%),
-    linear-gradient(112deg, transparent 68%, rgba(205, 220, 245, 0.08) 75%, transparent 81%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 30%, transparent 70%, rgba(0, 0, 0, 0.18));
+  color: var(--fl-cloud);
 }
 
 .sk-hero__inner {
   max-width: 1152px;
   margin: 0 auto;
-  padding: clamp(48px, 9vw, 112px) var(--sk-gutter) clamp(48px, 8vw, 96px);
+  padding: clamp(48px, 8vw, 104px) var(--sk-gutter) clamp(48px, 7vw, 88px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-  gap: clamp(32px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 64px);
   align-items: center;
 }
-.sk-mark {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin: 0 0 20px;
-  font-size: 1.05rem;
-  font-weight: 700;
+
+/* O selo acima do título: uma pílula com borda ciano. */
+.fl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 6px 14px;
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  border-radius: 999px;
+  background: rgba(34, 211, 238, 0.06);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--fl-cloud);
 }
-.sk-mark__ja {
-  font-weight: 400;
-  opacity: 0.7;
+.fl-badge svg {
+  color: var(--fl-cyan);
 }
-.sk-title {
+
+/* O título: "flows" em itálico com o degradê da marca, do ciano ao azul. */
+.fl-title {
   margin: 0;
-  max-width: 20ch;
-  text-wrap: balance;
-  font-size: clamp(2.1rem, 4.4vw, 3.3rem);
-  line-height: 1.12;
+  font-size: clamp(2.4rem, 4.6vw, 3.45rem);
+  line-height: 1.05;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+}
+.fl-title em {
+  font-style: italic;
+  padding-right: 0.06em;
+  background: linear-gradient(90deg, var(--fl-cyan), #60a5fa 70%, var(--fl-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.fl-subtitle {
+  margin: 10px 0 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: #a5b4fc;
 }
 .sk-lede {
-  margin: 24px 0 0;
-  max-width: 52ch;
-  font-size: 1.12rem;
+  margin: 22px 0 0;
+  max-width: 50ch;
+  font-size: 1.08rem;
   line-height: 1.7;
-  color: rgba(238, 241, 245, 0.86);
-}
-.sk-lede code {
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.92em;
-  color: var(--sk-thread);
+  color: #cbd5e1;
 }
 .sk-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
   margin-top: 32px;
 }
-.sk-button,
-.sk-install {
+
+.fl-button {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  min-height: 46px;
-  padding: 0 20px;
-  border-radius: 6px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 8px;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.sk-button {
-  background: var(--sk-thread);
-  color: var(--sk-indigo);
+.fl-button--primary {
+  background: var(--fl-cyan);
+  color: var(--fl-midnight);
+  box-shadow: 0 8px 28px -10px rgba(34, 211, 238, 0.7);
 }
-.sk-button:hover {
-  background: #ffffff;
+.fl-button--primary:hover {
+  background: #67e8f9;
 }
-.sk-install {
-  background: transparent;
-  color: var(--sk-thread);
-  border: 2px dashed rgba(238, 241, 245, 0.55);
+.fl-button--ghost {
+  border: 1px solid rgba(226, 232, 240, 0.35);
+  color: var(--fl-cloud);
+  background: rgba(11, 18, 32, 0.4);
+}
+.fl-button--ghost:hover {
+  border-color: var(--fl-cloud);
+}
+
+/* O comando de instalação: um campo de terminal com o botão de copiar. */
+.fl-install {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 420px);
+  margin-top: 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--fl-border);
+  border-radius: 8px;
+  background: rgba(18, 27, 43, 0.75);
+  color: var(--fl-cloud);
   cursor: pointer;
+  text-align: left;
 }
-.sk-install:hover {
-  border-color: var(--sk-thread);
+.fl-install:hover {
+  border-color: rgba(34, 211, 238, 0.5);
 }
-.sk-install code {
+.fl-install__prompt {
+  font-family: var(--vp-font-family-mono);
+  color: var(--fl-violet);
+}
+.fl-install code {
+  flex: 1;
   font-family: var(--vp-font-family-mono);
   font-size: 0.95rem;
   background: none;
   color: inherit;
   padding: 0;
 }
-.sk-install__state {
-  font-size: 0.85rem;
-  opacity: 0.75;
-  min-width: 6ch;
+.fl-install__state {
+  font-size: 0.8rem;
+  color: #94a3b8;
 }
-.sk-button:focus-visible,
-.sk-install:focus-visible {
-  outline: 3px solid var(--sk-indigo-faded);
+.fl-button:focus-visible,
+.fl-install:focus-visible {
+  outline: 3px solid var(--fl-cyan);
   outline-offset: 3px;
 }
 
-/* O código sobre o tecido; as linhas de decorator recebem o ponto corrido. */
-.sk-code-wrap {
-  position: relative;
-}
-/* Luz fixa que sai de baixo da caixa de código, refletida no metal. */
-.sk-glow {
-  position: absolute;
-  left: 2%;
-  right: 2%;
-  bottom: -30%;
-  height: 58%;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 35%, rgba(170, 200, 250, 0.62), rgba(120, 160, 230, 0.24) 42%, transparent 70%);
-  filter: blur(30px);
-}
-.sk-code {
-  position: relative;
+/* A janela de código: barra com os três pontos e a aba do arquivo, sobre vidro fosco. */
+.fl-window {
   margin: 0;
-  /* Filete de luz na borda, mais forte no canto de cima, como vidro sobre o tecido. */
-  border: 1px solid transparent;
-  background:
-    linear-gradient(rgba(14, 21, 40, 0.8), rgba(14, 21, 40, 0.8)) padding-box,
-    linear-gradient(150deg, rgba(220, 230, 245, 0.55), rgba(220, 230, 245, 0.08) 35%, rgba(220, 230, 245, 0.04) 70%, rgba(220, 230, 245, 0.22)) border-box;
-  border-radius: 10px;
-  /* Vidro fosco: a luz do tecido atravessa o bloco, sem atrapalhar a leitura. */
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  background: rgba(11, 18, 32, 0.78);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
   box-shadow:
-    0 24px 48px -20px rgba(4, 8, 20, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 30px 60px -24px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(34, 211, 238, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
 }
-.sk-code pre {
+.fl-window__bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px 0;
+  background: rgba(18, 27, 43, 0.9);
+  border-bottom: 1px solid var(--fl-border);
+}
+.fl-window__dots {
+  display: inline-flex;
+  gap: 7px;
+  padding-bottom: 10px;
+}
+.fl-window__dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #f87171;
+}
+.fl-window__dots i:nth-child(2) {
+  background: #fbbf24;
+}
+.fl-window__dots i:nth-child(3) {
+  background: #4ade80;
+}
+.fl-window__tab {
+  padding: 8px 16px 10px;
+  border: 1px solid var(--fl-border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: rgba(11, 18, 32, 0.9);
+  margin-bottom: -1px;
+  font-size: 0.85rem;
+  color: var(--fl-cloud);
+}
+.fl-window__tab b {
+  margin-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #60a5fa;
+}
+.fl-window pre {
   margin: 0;
-  padding: 24px 24px 20px;
+  padding: 22px 24px 26px;
   overflow-x: auto;
   font-family: var(--vp-font-family-mono);
   font-size: 0.86rem;
-  line-height: 1.75;
-  color: #d5deeb;
+  line-height: 1.8;
+  color: #cbd5e1;
 }
-.sk-code figcaption {
-  padding: 0 24px 20px;
-  font-size: 0.86rem;
-  color: rgba(238, 241, 245, 0.62);
-}
-.t-k { color: #9dbbe0; }
-.t-f { color: #f0d9a8; }
-.t-s { color: #b8d8b0; }
-.t-n { color: #e7b7a0; }
+/* Cores de sintaxe na paleta: violeta nas palavras-chave, ciano nas funções, verde nos decorators. */
+.t-k { color: #c4b5fd; }
+.t-f { color: #67e8f9; }
+.t-s { color: #fda4af; }
+.t-n { color: #fcd34d; }
+.t-d { color: #4ade80; }
+.t-c { color: #93c5fd; }
 
-.sk-stitch {
-  position: relative;
-  color: var(--sk-thread);
-}
-.sk-stitch::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -4px;
-  height: 2px;
-  /* Linha de prata (gin-ito): o ponto corrido recortado de um degradê metálico. */
-  background: linear-gradient(90deg, #b9c6da 0%, #eef2f8 30%, #ffffff 42%, #9fb1cc 55%, #dfe6f1 75%, #b9c6da 100%);
-  background-size: 300% 100%;
-  background-position: 100% 0;
-  -webkit-mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 9px);
-  mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 9px);
-  /* A costura passa uma vez, e depois o reflexo da prata corre uma vez pela linha. */
-  clip-path: inset(0 100% 0 0);
-  animation:
-    sk-sew 900ms cubic-bezier(0.6, 0, 0.3, 1) forwards,
-    sk-sheen 1400ms ease-in-out 1100ms forwards;
-}
-.sk-stitch:nth-of-type(2)::after {
-  animation-delay: 450ms, 1550ms;
-}
-@keyframes sk-sew {
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-@keyframes sk-sheen {
-  to {
-    background-position: 0% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .sk-stitch::after {
-    animation: none;
-    clip-path: none;
+@media (max-width: 960px) {
+  .sk-hero__inner {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* Seções sobre o fundo claro (ou o tecido escuro no tema escuro). */
+/* As seções ficam sobre o cenário da página; os cards são vidro fosco sobre as ondas. */
 .sk-section {
   max-width: 1152px;
   margin: 0 auto;
-  padding: clamp(56px, 8vw, 88px) var(--sk-gutter) 0;
+  padding: clamp(56px, 8vw, 96px) var(--sk-gutter) 0;
 }
 .sk-section--last {
-  padding-bottom: clamp(64px, 9vw, 104px);
+  padding-bottom: clamp(64px, 9vw, 112px);
 }
 .sk-section h2 {
   margin: 0;
-  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--vp-c-text-1);
+  font-size: clamp(1.6rem, 2.8vw, 2.1rem);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--fl-cloud);
 }
 .sk-section__lede {
   margin: 12px 0 0;
-  max-width: 60ch;
-  color: var(--vp-c-text-2);
+  max-width: 62ch;
+  color: #94a3b8;
   line-height: 1.7;
 }
-
-/*
- * Os cards são remendos (boro): um pedaço do mesmo índigo metalizado do herói, com a borda costurada por dentro
- * em ponto corrido. No claro, o remendo é de algodão cru com a costura em índigo.
- */
-.sk-patch {
-  position: relative;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f7f9fc 0%, #edf1f7 55%, #f4f6fa 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 12px 28px -18px rgba(28, 43, 79, 0.45),
-    0 0 0 1px rgba(28, 43, 79, 0.08);
-  --sk-stitch: rgba(58, 90, 153, 0.45);
-  --sk-stitch-hover: rgba(58, 90, 153, 0.9);
+.fl-eyebrow {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fl-cyan);
 }
-:global(.dark .sk-patch) {
-  background:
-    linear-gradient(112deg, transparent 30%, rgba(205, 220, 245, 0.06) 42%, transparent 54%),
-    linear-gradient(150deg, #22335d 0%, #1a2849 50%, #213260 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.07) inset,
-    0 18px 36px -20px rgba(2, 6, 18, 0.9),
-    0 0 0 1px rgba(238, 241, 245, 0.07);
-  --sk-stitch: rgba(238, 241, 245, 0.28);
-  --sk-stitch-hover: rgba(238, 241, 245, 0.7);
-}
-/* A costura da borda, por dentro do remendo. */
-.sk-patch::before {
-  content: '';
-  position: absolute;
-  inset: 7px;
-  border: 1.5px dashed var(--sk-stitch);
-  border-radius: 7px;
-  pointer-events: none;
-  transition: border-color 0.25s ease;
-}
-.sk-patch:hover::before {
-  border-color: var(--sk-stitch-hover);
-}
-@media (prefers-reduced-motion: reduce) {
-  .sk-patch::before {
-    transition: none;
-  }
+.fl-eyebrow--violet {
+  color: #a78bfa;
 }
 
-/* Quatro remendos pendurados na mesma linha de pontos, na ordem do pipeline. */
-.sk-thread {
-  list-style: none;
-  margin: 40px 0 0;
-  padding: 0;
+/* Superfície comum dos cards. */
+.fl-card,
+.fl-pillars,
+.fl-notice {
+  border: 1px solid var(--fl-border);
+  border-radius: 14px;
+  background: rgba(18, 27, 43, 0.72);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.fl-card {
+  padding: 22px 22px 20px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.fl-card:hover {
+  border-color: rgba(34, 211, 238, 0.45);
+  transform: translateY(-2px);
+}
+
+/* Os quatro pilares num painel só, separados por divisórias, como no guia de identidade. */
+.fl-pillars {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-  position: relative;
-}
-.sk-thread::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  border-top: 2px dashed var(--vp-c-brand-1);
-  opacity: 0.55;
-}
-.sk-thread li {
-  margin-top: 22px;
-  padding: 30px 24px 26px;
-}
-/* O nó que prende o remendo à linha. */
-.sk-thread li::after {
-  content: '';
-  position: absolute;
-  top: -30px;
-  left: 26px;
-  width: 2px;
-  height: 30px;
-  background: repeating-linear-gradient(180deg, var(--vp-c-brand-1) 0 4px, transparent 4px 7px);
-  opacity: 0.7;
-}
-.sk-thread h3 {
   margin: 0;
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: var(--vp-c-text-1);
+  padding: 0;
+  list-style: none;
 }
-.sk-thread p {
-  margin: 10px 0 0;
+.fl-pillars li {
+  padding: 28px 26px;
+}
+.fl-pillars li + li {
+  border-left: 1px solid var(--fl-border);
+}
+.fl-pillars svg {
+  color: var(--fl-cyan);
+}
+.fl-pillars h3 {
+  margin: 14px 0 6px;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--fl-cloud);
+}
+.fl-pillars p {
+  margin: 0;
   font-size: 0.95rem;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
+  line-height: 1.6;
+  color: #94a3b8;
 }
 
-/* O que já vem pronto: remendos em três colunas, com o ponto em cruz (jūjizashi) no título. */
-.sk-included {
-  margin: 36px 0 0;
+/* O problema: a frase à esquerda, a resposta à direita, com uma divisória entre elas. */
+.fl-problem {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+.fl-problem h2 {
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  line-height: 1.2;
+}
+.fl-problem__answer {
+  padding-left: clamp(0px, 4vw, 48px);
+  border-left: 1px solid var(--fl-border);
+}
+.fl-problem__answer p {
+  margin: 0;
+  line-height: 1.75;
+  color: #cbd5e1;
+}
+.fl-checks {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fl-checks li {
+  position: relative;
+  padding-left: 30px;
+  margin-top: 10px;
+  color: var(--fl-cloud);
+}
+.fl-checks li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.35em;
+  width: 14px;
+  height: 8px;
+  border-left: 2px solid var(--fl-cyan);
+  border-bottom: 2px solid var(--fl-cyan);
+  transform: rotate(-45deg);
+}
+
+/* O contrato em quatro passos numerados. */
+.fl-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fl-steps__n {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--fl-cyan);
+  color: var(--fl-midnight);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.fl-steps h3 {
+  margin: 14px 0 6px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--fl-cloud);
+}
+.fl-steps p {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+
+.fl-included {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  gap: 16px;
+  margin: 32px 0 0;
 }
-.sk-included div {
-  padding: 28px 26px 26px;
-}
-.sk-included dt {
-  position: relative;
-  padding-left: 26px;
-  font-weight: 700;
+.fl-included dt {
   font-size: 1.05rem;
-  color: var(--vp-c-text-1);
+  font-weight: 600;
+  color: var(--fl-cloud);
 }
-.sk-included dt::before,
-.sk-included dt::after {
+.fl-included dt::before {
   content: '';
-  position: absolute;
-  left: 0;
-  top: 0.62em;
-  width: 14px;
-  border-top: 2px dashed var(--vp-c-brand-1);
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--fl-gradient);
+  vertical-align: 0.1em;
 }
-.sk-included dt::after {
-  transform: rotate(90deg);
-}
-.sk-included dd {
-  margin: 10px 0 0;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
+.fl-included dd {
+  margin: 8px 0 0;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: #94a3b8;
 }
 
-/*
- * O aviso é um remendo costurado com linha vermelha (aka-ito), também tradicional no sashiko: se destaca dos
- * cards de recursos sem sair da identidade.
- */
-.sk-notice {
-  position: relative;
+/* Antes de adotar: o mesmo vidro, com a borda e o título em violeta para se destacar dos recursos. */
+.fl-notice {
   padding: clamp(28px, 4vw, 40px);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #fbf6f7 0%, #f5edef 100%);
-  box-shadow: 0 0 0 1px rgba(160, 50, 70, 0.14);
-  --sk-red: #a83248;
+  border-color: rgba(139, 92, 246, 0.4);
+  background:
+    linear-gradient(135deg, rgba(139, 92, 246, 0.1), transparent 60%),
+    rgba(18, 27, 43, 0.75);
 }
-:global(.dark .sk-notice) {
-  background: linear-gradient(150deg, #2a2340 0%, #231c35 100%);
-  box-shadow: 0 0 0 1px rgba(232, 140, 156, 0.18);
-  --sk-red: #e88c9c;
-}
-.sk-notice::before {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border: 2px dashed var(--sk-red);
-  border-radius: 8px;
-  opacity: 0.55;
-  pointer-events: none;
-}
-.sk-notice h2 {
-  color: var(--vp-c-text-1);
-}
-.sk-notice__lede {
-  margin: 8px 0 0;
-  color: var(--vp-c-text-2);
-}
-.sk-constraints {
-  margin: 28px 0 0;
+.fl-constraints {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px 40px;
+  margin: 28px 0 0;
 }
-.sk-constraints div {
-  position: relative;
-  padding-left: 22px;
+.fl-constraints div {
+  padding-left: 16px;
+  border-left: 2px solid rgba(139, 92, 246, 0.6);
 }
-/* Um ponto vermelho de costura ao lado de cada exigência. */
-.sk-constraints div::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.45em;
-  width: 3px;
-  height: calc(100% - 0.6em);
-  background: repeating-linear-gradient(180deg, var(--sk-red) 0 6px, transparent 6px 10px);
-  border-radius: 2px;
+.fl-constraints dt {
+  font-weight: 600;
+  color: var(--fl-cloud);
 }
-.sk-constraints dt {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--vp-c-text-1);
-}
-.sk-constraints dd {
+.fl-constraints dd {
   margin: 6px 0 0;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: #94a3b8;
 }
-@media (max-width: 640px) {
-  .sk-constraints {
-    grid-template-columns: minmax(0, 1fr);
-  }
+
+/* As pílulas de tecnologia. */
+.fl-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fl-pills li {
+  padding: 9px 16px;
+  border: 1px solid var(--fl-border);
+  border-radius: 10px;
+  background: rgba(18, 27, 43, 0.72);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--fl-cloud);
 }
 
 .sk-section__more {
@@ -598,40 +687,57 @@ const constraints = [
 }
 .sk-section__more a {
   font-weight: 500;
-  color: var(--vp-c-brand-1);
+  color: var(--fl-cyan);
+  text-decoration: none;
+}
+.sk-section__more a:hover {
   text-decoration: underline;
-  text-decoration-style: dashed;
-  text-underline-offset: 5px;
 }
 
 @media (max-width: 960px) {
-  .sk-hero__inner {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .sk-thread,
-  .sk-included {
+  .fl-pillars,
+  .fl-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  /* Em duas linhas, a linha de pontos não liga mais os remendos na ordem: some, junto com os nós. */
-  .sk-thread::before,
-  .sk-thread li::after {
-    display: none;
+  .fl-pillars li:nth-child(3) {
+    border-left: none;
   }
-  .sk-thread li {
-    margin-top: 0;
+  .fl-pillars li:nth-child(n + 3) {
+    border-top: 1px solid var(--fl-border);
+  }
+  .fl-included {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fl-problem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fl-problem__answer {
+    padding-left: 0;
+    border-left: none;
   }
 }
 @media (max-width: 640px) {
-  .sk-code pre {
-    padding: 20px 16px 16px;
-    font-size: 0.78rem;
-  }
-  .sk-code figcaption {
-    padding: 0 16px 16px;
-  }
-  .sk-thread,
-  .sk-included {
+  .fl-pillars,
+  .fl-steps,
+  .fl-included,
+  .fl-constraints {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .fl-pillars li + li {
+    border-left: none;
+    border-top: 1px solid var(--fl-border);
+  }
+  .fl-window pre {
+    padding: 18px 16px 20px;
+    font-size: 0.8rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-card {
+    transition: none;
+  }
+  .fl-card:hover {
+    transform: none;
   }
 }
 </style>

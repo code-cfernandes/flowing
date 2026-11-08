@@ -98,7 +98,7 @@ const cache =
 app.mount(products, { middlewares: [cache(60_000)] });
 ```
 
-| Fastify      | Flowing                                                           |
+| Fastify      | FlowingTS                                                         |
 | ------------ | ----------------------------------------------------------------- |
 | `onRequest`  | `app.onRequest` (observação) ou middlewares (para interromper)    |
 | `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |

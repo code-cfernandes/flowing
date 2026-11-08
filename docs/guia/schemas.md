@@ -1,5 +1,7 @@
 # Schemas: validação, serialização e tipos
 
+<Aprenda>Escrever o contrato de uma rota e como ele valida a entrada, tipa o ctx, filtra a resposta e gera o OpenAPI.</Aprenda>
+
 Os schemas da rota (`params`, `query`, `headers`, `body` e `response`) são escritos em [TypeBox](https://github.com/sinclairzx81/typebox) (JSON Schema) e podem ser declarados de duas formas equivalentes:
 
 ```ts
@@ -95,7 +97,7 @@ const UpdateTask = Type.Partial(Type.Omit(Task, ['id'])); // PATCH: tudo opciona
 
 ## Zod, Valibot e ArkType: o motor dos contratos
 
-O motor padrão do Flowing é o `contracts.native()`, para schemas TypeBox. Para escrever os contratos em Zod, Valibot ou ArkType (qualquer biblioteca que implemente o [Standard Schema](https://standardschema.dev)), declare o motor no app:
+O motor padrão do FlowingTS é o `contracts.native()`, para schemas TypeBox. Para escrever os contratos em Zod, Valibot ou ArkType (qualquer biblioteca que implemente o [Standard Schema](https://standardschema.dev)), declare o motor no app:
 
 ```ts
 import { z } from 'zod';

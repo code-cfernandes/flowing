@@ -1,4 +1,4 @@
-// Ponto de entrada público do Flowing.
+// Ponto de entrada público do FlowingTS.
 // O shim precisa ser avaliado antes de qualquer decorator rodar.
 import './shims/symbol-metadata.ts';
 

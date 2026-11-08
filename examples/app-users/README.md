@@ -1,6 +1,6 @@
 # Exemplo: app-users
 
-API de usuários que demonstra os recursos do Flowing: CRUD com schemas, validação, segurança e herança de classes de rotas.
+API de usuários que demonstra os recursos do FlowingTS: CRUD com schemas, validação, segurança e herança de classes de rotas.
 
 ## Rodar
 

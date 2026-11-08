@@ -1,4 +1,4 @@
-# Arquitetura do Flowing
+# Arquitetura do FlowingTS
 
 > **Estado:** as seções até "Plano em fases" são o retrato da versão **0.12.2** e a proposta feita antes da refatoração, mantidas como registro. O que foi implementado de fato, o que ficou de fora e os resultados medidos estão em [Estrutura implementada](#estrutura-implementada).
 
@@ -167,14 +167,14 @@ Os 393 testes garantem estes comportamentos. A refatoração precisa preservá-l
 
 Primeira rodada de `sashiko-benchmarks` (repositório privado; os números estão resumidos aqui) (Node 26, i7-13700H, WSL2, uma rodada; ordem de grandeza, não valor final):
 
-| Perfil `defaults`  | `get` (req/s) | % do `node:http` |   RSS pico |
-| ------------------ | ------------: | ---------------: | ---------: |
-| `node:http`        |       153.856 |             100% |     116 MB |
-| Fastify            |       141.466 |              92% |     122 MB |
-| Express            |        60.476 |              39% |     132 MB |
-| **Flowing 0.12.2** |    **55.664** |          **36%** | **225 MB** |
+| Perfil `defaults`    | `get` (req/s) | % do `node:http` |   RSS pico |
+| -------------------- | ------------: | ---------------: | ---------: |
+| `node:http`          |       153.856 |             100% |     116 MB |
+| Fastify              |       141.466 |              92% |     122 MB |
+| Express              |        60.476 |              39% |     132 MB |
+| **FlowingTS 0.12.2** |    **55.664** |          **36%** | **225 MB** |
 
-Esta primeira rodada usou `logger: false`, então o custo do logger padrão (etapa 3 da tabela de custo por requisição) não está nesses números. A partir da fase 0, o benchmark usa a configuração padrão do Flowing.
+Esta primeira rodada usou `logger: false`, então o custo do logger padrão (etapa 3 da tabela de custo por requisição) não está nesses números. A partir da fase 0, o benchmark usa a configuração padrão do FlowingTS.
 
 ## Estrutura proposta
 
@@ -249,20 +249,20 @@ Os problemas P-1 a P-11 vêm da tabela **Custo por requisição**, acima, e do p
 | Body indisponível para middlewares globais                                                | Leitura do body sem camada de middleware | Continua sendo lido **antes** dos globais, só sem a camada extra. Teste novo (invariante 5)                                                        |
 | `onSend`, `sentBody` ou status padrão divergindo entre formatos                           | Strategy de resposta                     | Todas as estratégias terminam no mesmo `raw-send`. Os testes do pipeline único já cobrem                                                           |
 | `inject()` e hooks se comportando diferente da rede                                       | Reorganização do runtime                 | Os testes de `inject()` com `onResponse` e `signal` já existem                                                                                     |
-| Ganho de desempenho que some com o logger padrão                                          | Benchmark usava `logger: false`          | O benchmark passou a usar a configuração padrão do Flowing                                                                                         |
+| Ganho de desempenho que some com o logger padrão                                          | Benchmark usava `logger: false`          | O benchmark passou a usar a configuração padrão do FlowingTS                                                                                       |
 
 ## Plano em fases
 
 Cada fase é um commit (ou poucos), na branch `refactor/architecture-and-performance`, e só avança com **todos os testes passando** e o **benchmark antes e depois** registrado no commit.
 
-| Fase                            | O que entra                                                                                                                                                | Problemas             | Resultado esperado                                                            |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| **0. Rede de segurança**        | Testes das cinco garantias que faltam; o benchmark passa a rodar o Flowing com o logger padrão e a medir o build local; uma linha de base com três rodadas | —                     | Nenhuma mudança de desempenho. Serve de referência para todas as fases        |
-| **1. Reorganização estrutural** | Facade, `registry/`, `runtime/`, `response/`, `streaming/sse.ts`; os ciclos de importação quebrados. **Só movimentação, sem mudar comportamento**          | Acoplamento           | Desempenho igual (o benchmark confirma); código pronto para as próximas fases |
-| **2. Context enxuto**           | `ContextFactory`, campos preguiçosos e memoizados, Flyweight do logger                                                                                     | P-1, P-2, P-3         | Menos alocação e GC; o maior ganho com o logger padrão                        |
-| **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                                      | P-5 a P-9             | Maior ganho em `params`, `real` e `post-validate`                             |
-| **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`, desconexão do cliente fora do nível `error`           | P-4, P-10, P-11, P-12 | Ganho no `get` e na memória; logs limpos                                      |
-| **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                             | —                     | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
+| Fase                            | O que entra                                                                                                                                                  | Problemas             | Resultado esperado                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------------------- |
+| **0. Rede de segurança**        | Testes das cinco garantias que faltam; o benchmark passa a rodar o FlowingTS com o logger padrão e a medir o build local; uma linha de base com três rodadas | —                     | Nenhuma mudança de desempenho. Serve de referência para todas as fases        |
+| **1. Reorganização estrutural** | Facade, `registry/`, `runtime/`, `response/`, `streaming/sse.ts`; os ciclos de importação quebrados. **Só movimentação, sem mudar comportamento**            | Acoplamento           | Desempenho igual (o benchmark confirma); código pronto para as próximas fases |
+| **2. Context enxuto**           | `ContextFactory`, campos preguiçosos e memoizados, Flyweight do logger                                                                                       | P-1, P-2, P-3         | Menos alocação e GC; o maior ganho com o logger padrão                        |
+| **3. Programa por rota**        | `RouteProgramBuilder`, cadeia pré-compilada, `Responder` por rota, `find()` sem spread, body sem camada de middleware                                        | P-5 a P-9             | Maior ganho em `params`, `real` e `post-validate`                             |
+| **4. Bordas da resposta**       | Headers de segurança em Flyweight, request id mais barato, listeners compartilhados no `callback()`, desconexão do cliente fora do nível `error`             | P-4, P-10, P-11, P-12 | Ganho no `get` e na memória; logs limpos                                      |
+| **5. Fechamento**               | Benchmark final (três rodadas), `docs/ARCHITECTURE.md` atualizado com a estrutura implementada, CHANGELOG e PR                                               | —                     | As metas da F-39, ou a justificativa documentada para cada uma não atingida   |
 
 ## Estrutura implementada
 
@@ -308,9 +308,9 @@ As três têm testes em `test/core/invariants.test.ts` e estão no CHANGELOG, co
 
 ### Resultados
 
-Medidos com o `sashiko-benchmarks` (repositório privado; os números estão resumidos aqui): Node 26, i7-13700H, WSL2, autocannon com 100 conexões, pipelining 10, 10 s por medição, mediana de três rodadas, Flowing com a configuração padrão (logger ligado). Rodada final em `results/final-f39.json`; a linha de base (0.12.2, mesmas condições) em `results/baseline-fase0.json`.
+Medidos com o `sashiko-benchmarks` (repositório privado; os números estão resumidos aqui): Node 26, i7-13700H, WSL2, autocannon com 100 conexões, pipelining 10, 10 s por medição, mediana de três rodadas, FlowingTS com a configuração padrão (logger ligado). Rodada final em `results/final-f39.json`; a linha de base (0.12.2, mesmas condições) em `results/baseline-fase0.json`.
 
-**Flowing, 0.12.2 → refatoração (perfil `defaults`):**
+**FlowingTS, 0.12.2 → refatoração (perfil `defaults`):**
 
 | Cenário         | 0.12.2 (req/s) | Agora (req/s) |         Ganho | % do `node:http` | % do Fastify | Posição (de 6) |
 | --------------- | -------------: | ------------: | ------------: | ---------------: | -----------: | -------------: |
@@ -320,14 +320,14 @@ Medidos com o `sashiko-benchmarks` (repositório privado; os números estão res
 | `real`          |         45.430 |        66.069 |    **+45,4%** |      36% → 51,5% |        58,9% |             4º |
 | `static`        |          2.435 |         2.518 | +3,4% (ruído) |            96,9% |       104,4% |             4º |
 
-**Perfil `equivalent`** (todos enviando os mesmos headers de segurança do Flowing), em que a comparação é de trabalho igual:
+**Perfil `equivalent`** (todos enviando os mesmos headers de segurança do FlowingTS), em que a comparação é de trabalho igual:
 
-| Cenário         | Flowing (req/s) | % do `node:http` | % do Fastify | Posição (de 6) |
-| --------------- | --------------: | ---------------: | -----------: | -------------: |
-| `get`           |          80.992 |            69,6% |        88,1% |             3º |
-| `params`        |          80.896 |            67,9% |        87,4% |             3º |
-| `post-validate` |          50.055 |            60,6% |        92,9% |             3º |
-| `real`          |          57.523 |            54,6% |        75,6% |             5º |
+| Cenário         | FlowingTS (req/s) | % do `node:http` | % do Fastify | Posição (de 6) |
+| --------------- | ----------------: | ---------------: | -----------: | -------------: |
+| `get`           |            80.992 |            69,6% |        88,1% |             3º |
+| `params`        |            80.896 |            67,9% |        87,4% |             3º |
+| `post-validate` |            50.055 |            60,6% |        92,9% |             3º |
+| `real`          |            57.523 |            54,6% |        75,6% |             5º |
 
 **Atribuição por fase** (cada fase medida contra a anterior, nas mesmas condições):
 
@@ -343,12 +343,12 @@ Medidos com o `sashiko-benchmarks` (repositório privado; os números estão res
 
 **Memória** (rodada de 3 min no `get`, com o diagnóstico dentro do processo, `results/longrun-*.json`):
 
-|                           |      req/s | RSS de pico | Heap usado (pico) | Heap depois do GC |
-| ------------------------- | ---------: | ----------: | ----------------: | ----------------: |
-| `node:http`               |    155.533 |    143,9 MB |           39,6 MB |            9,9 MB |
-| Fastify                   |    148.510 |    153,6 MB |           42,9 MB |           12,3 MB |
-| Flowing 0.12.2            |     53.283 |    227,4 MB |          101,1 MB |           12,8 MB |
-| **Flowing (refatoração)** | **84.048** |    224,7 MB |           95,3 MB |           11,4 MB |
+|                             |      req/s | RSS de pico | Heap usado (pico) | Heap depois do GC |
+| --------------------------- | ---------: | ----------: | ----------------: | ----------------: |
+| `node:http`                 |    155.533 |    143,9 MB |           39,6 MB |            9,9 MB |
+| Fastify                     |    148.510 |    153,6 MB |           42,9 MB |           12,3 MB |
+| FlowingTS 0.12.2            |     53.283 |    227,4 MB |          101,1 MB |           12,8 MB |
+| **FlowingTS (refatoração)** | **84.048** |    224,7 MB |           95,3 MB |           11,4 MB |
 
 Sem vazamento: o heap volta a cerca de 11 MB depois do GC, e a série a cada 5 s oscila sem tendência de alta.
 
@@ -367,7 +367,7 @@ Sem vazamento: o heap volta a cerca de 11 MB depois do GC, e a série a cada 5 s
 O RSS de pico não caiu com a refatoração porque a causa não era a alocação. Os experimentos, todos no `get`:
 
 - **Headers de segurança desligados:** o pico cai só 2 a 10 MB.
-- **Heap snapshot sob carga:** o Flowing retém só cerca de 2 MB a mais que o `node:http`.
+- **Heap snapshot sob carga:** o FlowingTS retém só cerca de 2 MB a mais que o `node:http`.
 - **`--max-semi-space-size` menor:** o pico cai para 154 MB, mas a vazão cai cerca de 17%. Isso indicava objetos de vida curta sobrevivendo às coletas rápidas do V8.
 
 A causa era o `Set` de respostas em andamento que o `close()` usava. Sendo um objeto de longa duração que aponta para cada resposta nova, ele fazia toda resposta (com `req`, parser e headers do Node) ser promovida para a old space. Sem ele, o `close()` mantém o comportamento:
@@ -386,13 +386,13 @@ Rodada final em `results/final-f41.json`, mesmas condições da seção anterior
 | `real`            |         66.069 → 79.168 |    223,3 → 156,6 |            60,8% |        67,2% |
 | `static`          |   2.518 → 2.304 (ruído) |    199,7 → 206,7 |            81,2% |        91,0% |
 
-No perfil `equivalent`, o Flowing fica em 2º de 6 em todos os cenários: `get` com 103.392 req/s, 87,3% do `node:http` e 112,7% do Fastify, que fica em 199,3 MB contra 125,8 MB do Flowing.
+No perfil `equivalent`, o FlowingTS fica em 2º de 6 em todos os cenários: `get` com 103.392 req/s, 87,3% do `node:http` e 112,7% do Fastify, que fica em 199,3 MB contra 125,8 MB do FlowingTS.
 
 Em 10 s de `get` com `--trace-gc`, as coletas completas caem de 36 para 0. Em 120 s, o pico fica em 158 MB (230 MB na 0.13.0), sem crescer com a duração.
 
 ### Gargalos que permanecem
 
-- **Alocação por requisição:** cerca de 7,3 KB no `get`, contra 3,9 KB do `node:http` (perfil de alocação por amostragem). Os maiores itens próprios do Flowing são o callback e o `Context`, o request id (`randomUUID`) e os headers de segurança.
+- **Alocação por requisição:** cerca de 7,3 KB no `get`, contra 3,9 KB do `node:http` (perfil de alocação por amostragem). Os maiores itens próprios do FlowingTS são o callback e o `Context`, o request id (`randomUUID`) e os headers de segurança.
 - **Headers de segurança:** com eles desligados, a vazão do `get` sobe cerca de 18% (o RSS quase não muda). Juntá-los num único `writeHead` exigiria uma forma explícita de remover um header por rota.
 - **RSS no `static`:** cerca de 207 MB, contra 150 MB do `node:http` e do Fastify. Investigado na 0.18.0 (veja abaixo): a causa principal era o `pipeline()`; sobra uma diferença de cerca de 50 MB, do que cada requisição em andamento segura.
 - **Execuções longas:** o pico do `get` sobe de 124 MB (10 s) para cerca de 158 MB (60 a 120 s) e depois estabiliza.

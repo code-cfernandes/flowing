@@ -1,10 +1,10 @@
-# Flowing
+# FlowingTS
 
 Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-first** e **seguro por padrão**.
 
-> **Por que Flowing:** num projeto Express que passa por muitas mãos, cada pessoa declara rotas do seu jeito, e quem chega precisa reaprender cada pedaço. O NestJS resolve a padronização, mas traz junto uma estrutura que muitos projetos não precisam. O Flowing dá **uma forma só de declarar rotas**, que qualquer pessoa da equipe reconhece, com o contrato de cada rota validado como no Fastify e sem tirar a liberdade do Express. O código flui igual, não importa quem o escreveu.
+> **Por que FlowingTS:** num projeto Express que passa por muitas mãos, cada pessoa declara rotas do seu jeito, e quem chega precisa reaprender cada pedaço. O NestJS resolve a padronização, mas traz junto uma estrutura que muitos projetos não precisam. O FlowingTS dá **uma forma só de declarar rotas**, que qualquer pessoa da equipe reconhece, com o contrato de cada rota validado como no Fastify e sem tirar a liberdade do Express. O código flui igual, não importa quem o escreveu.
 
-Flowing combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e sete dependências de runtime.
+FlowingTS combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e sete dependências de runtime.
 
 ```ts
 import { type Context, createApp, Post, Router, type RouteSchemas, Type } from 'flowingts';
@@ -45,7 +45,7 @@ await app.listen({ port: 3000 });
 ## Instalação
 
 - **Node.js 22+**
-- **TypeScript 5.2+**, com decorators **padrão**. **Não** use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Flowing lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados (NestJS, TypeORM…).
+- **TypeScript 5.2+**, com decorators **padrão**. **Não** use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o FlowingTS lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados (NestJS, TypeORM…).
 - ESM (`"type": "module"`).
 
 ```bash

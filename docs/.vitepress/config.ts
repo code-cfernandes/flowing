@@ -16,27 +16,28 @@ function apiSidebar() {
 
 export default defineConfig({
   lang: 'pt-BR',
-  title: 'Flowing',
+  title: 'FlowingTS',
   description: 'Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first e seguro por padrão.',
   base: '/flowing/',
   cleanUrls: true,
   lastUpdated: true,
   // Documento interno (cita os IDs do backlog), mantido no repositório e fora do site.
   srcExclude: ['ARCHITECTURE.md'],
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/logo.svg' }]],
+  // Números de linha nos blocos de código, como no protótipo da documentação.
+  markdown: { lineNumbers: true },
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/favicon.svg' }]],
   themeConfig: {
     logo: '/logo.svg',
+    // O "TS" do nome entra pelo CSS (.VPNavBarTitle), em ciano, como no logotipo.
+    siteTitle: 'Flowing',
     nav: [
       { text: 'Guia', link: '/guia/introducao', activeMatch: '/guia/' },
       { text: 'Referência', link: '/referencia/create-app', activeMatch: '/referencia/' },
-      {
-        text: `v${version}`,
-        items: [
-          { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
-          { text: 'npm', link: 'https://www.npmjs.com/package/flowingts' },
-        ],
-      },
+      { text: 'Exemplos', link: '/guia/exemplos', activeMatch: '/guia/exemplos' },
     ],
+    // Lidos pelo card de versão da barra lateral (SidebarVersion.vue).
+    version,
+    repo,
     sidebar: {
       '/guia/': [
         {
@@ -96,7 +97,7 @@ export default defineConfig({
       provider: 'local',
       options: {
         translations: {
-          button: { buttonText: 'Buscar', buttonAriaLabel: 'Buscar' },
+          button: { buttonText: 'Buscar na documentação…', buttonAriaLabel: 'Buscar na documentação' },
           modal: {
             noResultsText: 'Nenhum resultado para',
             resetButtonTitle: 'Limpar a busca',

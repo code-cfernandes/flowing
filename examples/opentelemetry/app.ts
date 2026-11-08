@@ -24,7 +24,7 @@ export class OrderRoutes {
   }
 }
 
-/** `telemetry: otel` liga spans e métricas do Flowing; sem a opção, nada disso é carregado. */
+/** `telemetry: otel` liga spans e métricas do FlowingTS; sem a opção, nada disso é carregado. */
 export function buildApp(options: Pick<AppOptions, 'logger'> = {}) {
   const app = createApp({ telemetry: otel, ...options });
   app.mount(OrderRoutes);

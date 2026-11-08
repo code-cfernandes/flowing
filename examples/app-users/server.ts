@@ -54,7 +54,7 @@ app
   .mount(userRoutes, { prefix: '/public/users', only: (r) => [r.listUsers, r.getUser], middlewares: [cache(10_000)] })
   // OpenAPI 3.1 gerado das rotas acima: /openapi.json e Swagger UI em /docs (F-16).
   // Aberto no exemplo; em produção, proteja com guards: [apiKeyGuard] ou desligue o docs.
-  .openapi({ info: { title: 'Flowing · exemplo de usuários', version: '1.0.0' }, docs: true })
+  .openapi({ info: { title: 'FlowingTS · exemplo de usuários', version: '1.0.0' }, docs: true })
   // Healthchecks para load balancer: /livez e /readyz (503 durante o encerramento)
   .health({
     checks: {
@@ -67,4 +67,4 @@ app
 // SIGINT/SIGTERM já são tratados: o app espera as requisições em andamento e fecha (F-07)
 await app.listen({ port: PORT });
 
-app.log.info({ port: PORT }, 'Flowing running');
+app.log.info({ port: PORT }, 'FlowingTS running');

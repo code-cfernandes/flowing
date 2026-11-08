@@ -1,10 +1,12 @@
 # Vindo do Express
 
-Um guia rápido para quem tem uma API em Express e quer experimentar o Flowing sem reescrever tudo de uma vez.
+<Aprenda>O equivalente de cada peça do Express no FlowingTS e como migrar aos poucos, sem reescrever tudo.</Aprenda>
+
+Um guia rápido para quem tem uma API em Express e quer experimentar o FlowingTS sem reescrever tudo de uma vez.
 
 ## O que muda
 
-| No Express                                       | No Flowing                                                                               |
+| No Express                                       | No FlowingTS                                                                             |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `express.Router()` e `router.get(path, handler)` | Uma classe com `@Router('/prefixo')` e `@Get(path)`, registrada com `app.mount()`        |
 | `(req, res, next)`                               | `(ctx, next)`; o handler devolve o corpo da resposta ou usa `ctx.json()`                 |
@@ -22,7 +24,7 @@ Um guia rápido para quem tem uma API em Express e quer experimentar o Flowing s
 
 ## Projeto em CommonJS
 
-Não é preciso converter o backend para ESM. A partir do Node.js 22.12, um projeto CommonJS carrega o Flowing com `require()`, e o TypeScript compilando para CommonJS emite os decorators normalmente:
+Não é preciso converter o backend para ESM. A partir do Node.js 22.12, um projeto CommonJS carrega o FlowingTS com `require()`, e o TypeScript compilando para CommonJS emite os decorators normalmente:
 
 ```jsonc
 // tsconfig.json de um backend CommonJS (package.json sem "type": "module")
@@ -36,7 +38,7 @@ Não é preciso converter o backend para ESM. A partir do Node.js 22.12, um proj
 }
 ```
 
-O código continua com `import { createApp, Get, Router } from 'flowingts'`; o TypeScript o transforma em `require()`. Requer o Flowing 0.16.1 ou mais recente e o Node.js 22.12 ou mais recente.
+O código continua com `import { createApp, Get, Router } from 'flowingts'`; o TypeScript o transforma em `require()`. Requer o FlowingTS 0.16.1 ou mais recente e o Node.js 22.12 ou mais recente.
 
 ## Schemas em Zod
 
@@ -77,13 +79,13 @@ Nesse caso, só o que o JSON Schema expressa é convertido: `.transform()` e `.r
 
 O upload já é nativo: com `files` no contrato, o arquivo e os campos do formulário são validados antes do handler e tipados ([Upload de arquivos](./uploads)). Para manter o `multer` de um projeto que já existe, ou qualquer outro middleware do Express, use um adaptador.
 
-Um middleware do Express que só lê a requisição e escreve nela pode rodar dentro do Flowing com um adaptador. É o caso do `multer`, para upload de arquivos:
+Um middleware do Express que só lê a requisição e escreve nela pode rodar dentro do FlowingTS com um adaptador. É o caso do `multer`, para upload de arquivos:
 
 ```ts
 import multer from 'multer';
 import type { Middleware } from 'flowingts';
 
-/** Roda um middleware do Express (req, res, next) como middleware do Flowing. */
+/** Roda um middleware do Express (req, res, next) como middleware do FlowingTS. */
 const express =
   (mw: (req: unknown, res: unknown, next: (err?: unknown) => void) => void): Middleware =>
   (ctx, next) =>
@@ -95,7 +97,7 @@ app.mount(DocumentoRoutes, { middlewares: [express(upload.single('pdf'))] });
 // No handler: o arquivo em (ctx.req as any).file e os campos do formulário em (ctx.req as any).body.
 ```
 
-- Numa rota sem `files`, o corpo `multipart/form-data` não é lido pelo Flowing, então chega intacto ao `multer`.
+- Numa rota sem `files`, o corpo `multipart/form-data` não é lido pelo FlowingTS, então chega intacto ao `multer`.
 - Os campos do formulário não têm a validação nem os tipos do contrato da rota; valide-os no handler.
 - O limite de tamanho do arquivo é o do `multer` (`limits.fileSize`), e não o `bodyLimit`.
 - Middlewares que dependem de recursos próprios do Express (`req.app`, `res.render`, `res.locals`) não funcionam assim.
