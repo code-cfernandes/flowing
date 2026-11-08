@@ -81,7 +81,7 @@ describe('F-45 · envio de streams sem pipeline()', () => {
         req.on('error', () => {});
         req.end();
       });
-      await new Promise((r) => setTimeout(r, 100));
+      for (let i = 0; i < 250 && !sources[0]?.destroyed; i++) await new Promise((r) => setTimeout(r, 20));
       assert.equal(sources[0]?.destroyed, true, 'a origem foi destruída');
       assert.ok(lines.some((l) => l.level === 'debug' && l.msg === 'client disconnected during stream'));
       assert.ok(!lines.some((l) => l.level === 'error'), 'desconexão do cliente não é erro');
