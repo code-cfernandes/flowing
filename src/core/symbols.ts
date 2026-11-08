@@ -20,3 +20,5 @@ export const kPhase = Symbol('sashiko.phase');
 export const kTelemetry = Symbol('sashiko.telemetry');
 /** @internal Instante em que os headers da resposta saíram, para o `ttfbMs` (F-38). */
 export const kHeadersAt = Symbol('sashiko.headersAt');
+/** @internal Hooks com escopo da rota, guardados no `RouteInfo` de cada host (F-43). */
+export const kHooks = Symbol('sashiko.hooks');

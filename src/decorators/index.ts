@@ -3,3 +3,4 @@ export { timer, type TimerOptions } from './log.ts';
 export { Router } from './router.ts';
 export { Schema } from './schema.ts';
 export { Guards, Middlewares } from './middlewares.ts';
+export { OnError, OnResponse, OnSend } from './hooks.ts';

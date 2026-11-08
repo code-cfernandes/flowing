@@ -5,6 +5,7 @@ import { type RouteInfo, RouteTable } from '../route-table.ts';
 import { buildRouteProgram } from './route-program.ts';
 import { hostRank, hostReachability, NO_HOST_RANK } from '../../utils/origin-match.ts';
 import { canonicalPath } from '../../utils/path.ts';
+import { kHooks } from '../symbols.ts';
 
 /**
  * O objeto guardado no roteador para um host: herda tudo da rota (inclusive o programa) e acrescenta o
@@ -12,13 +13,16 @@ import { canonicalPath } from '../../utils/path.ts';
  */
 function withInfo(route: CompiledRoute, hostKey: string | undefined): CompiledRoute {
   const label = hostKey === undefined ? undefined : route.hosts.find((h) => h.key === hostKey)?.label;
-  const info: RouteInfo = Object.freeze({
+  const info = {
     method: route.method,
     path: route.path,
     owner: route.owner,
     handler: route.handlerName,
     ...(label === undefined ? {} : { host: label }),
-  });
+  } as RouteInfo;
+  // Não enumerável: fora do JSON e do `ctx.route` que o usuário inspeciona.
+  if (route.hooks) Object.defineProperty(info, kHooks, { value: route.hooks });
+  Object.freeze(info);
   return Object.create(route, { info: { value: info } }) as CompiledRoute;
 }
 
@@ -117,7 +121,11 @@ export class RouteRegistry {
       for (const r of done.reverse()) this.router.off(r.method, r.path, r.host);
       throw err;
     }
-    for (const { route } of batch) this.routes.push(route);
+    for (const { route } of batch) {
+      this.routes.push(route);
+      // O observer só liga a observação do fim se algum hook (global ou de rota) precisar dela.
+      if (route.hooks?.onResponse.length) this.core.scopedOnResponse++;
+    }
     if (batch.length > 0) this.onCommit();
   }
 

@@ -20,6 +20,8 @@ export interface AppCore {
   /** OpenTelemetry, quando `createApp({ telemetry })` (F-38). */
   readonly telemetry: Telemetry | undefined;
   readonly onResponseHooks: OnResponseHook[];
+  /** Rotas com `onResponse` de escopo (F-43): basta uma para o observer acompanhar o fim das requisições. */
+  scopedOnResponse: number;
   readonly onCloseHooks: OnCloseHook[];
   readonly serializers: ReadonlyMap<string, Serializer>;
   readonly allowedHosts: ((hostname: string, host: string) => boolean) | undefined;

@@ -5,6 +5,8 @@ import type { Context } from './context.ts';
 import type { Guard } from './guard.ts';
 import type { RouteSchemas } from './metadata.ts';
 import { compileRouteHost, hostRank, type RouteHostRule } from '../utils/origin-match.ts';
+import type { RouteHooks } from './hooks.ts';
+import type { kHooks } from './symbols.ts';
 
 export type Handler = (ctx: Context) => unknown | Promise<unknown>;
 
@@ -29,6 +31,8 @@ export interface RouteInfo {
   /** Método da classe que trata a rota. */
   readonly handler: string;
   readonly host?: string;
+  /** @internal Hooks com escopo (F-43), montados no registro. */
+  readonly [kHooks]?: RouteHooks;
 }
 
 /** Resultado do `find()`: a rota registrada (o mesmo objeto, sem cópia) e os parâmetros desta requisição. */

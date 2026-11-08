@@ -9,6 +9,16 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.16.0] - 2026-11-07
+
+### Adicionado
+
+- **Hooks com escopo:** os decorators `@OnSend`, `@OnResponse` e `@OnError`, na classe ou no método, e a opção `hooks`
+  no `group()`, no `mount()` e na rota manual. São os mesmos hooks do app, com a mesma assinatura, que só rodam
+  quando uma rota daquele escopo atendeu. Ordem de fora para dentro, como os middlewares: no `onSend` e no
+  `onResponse`, os do app vêm primeiro; no `onError`, os do escopo mais específico vêm primeiro, e quem responder
+  encerra a cadeia. Uma rota sem hooks não paga nada por requisição.
+
 ## [0.15.2] - 2026-11-07
 
 ### Documentação

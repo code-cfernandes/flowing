@@ -12,7 +12,7 @@ import { sendResult, type ResponsePlan, type SendMode } from './response/pipelin
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
-import { kAbort, kBindResponse, kError, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
+import { kAbort, kBindResponse, kError, kHooks, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
 
@@ -484,8 +484,10 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
       return this;
     }
     // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).
-    const hooks = this.opts.onSend;
-    const payload = hooks && hooks.length > 0 ? this.runOnSend({ body, contentType: type }) : { body, contentType: type };
+    const global = this.opts.onSend;
+    const scoped = this[kRoute]?.[kHooks]?.onSend;
+    const payload =
+      (global && global.length > 0) || scoped ? this.runOnSend({ body, contentType: type }, scoped) : { body, contentType: type };
     this.res.setHeader('Content-Type', payload.contentType);
     this.sentRaw = payload.body;
     this.sentBuffer = undefined;
@@ -494,11 +496,12 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
     return this;
   }
 
-  /** Aplica os `onSend`; se algum lançar, loga e envia o payload original (F-04). */
-  private runOnSend(original: SendPayload): SendPayload {
+  /** Aplica os `onSend` do app e depois os da rota (F-43); se algum lançar, loga e envia o payload original (F-04). */
+  private runOnSend(original: SendPayload, scoped: readonly OnSendHook[] | undefined): SendPayload {
     let payload = original;
     try {
       for (const hook of this.opts.onSend ?? []) payload = hook(this as unknown as Context, payload) ?? payload;
+      if (scoped) for (const hook of scoped) payload = hook(this as unknown as Context, payload) ?? payload;
       return payload;
     } catch (err) {
       this.log.error({ err, method: this.method, path: this.path }, 'onSend hook failed; sending original response');
