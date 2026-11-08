@@ -3,7 +3,8 @@ import type http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import type { AppCore } from '../app/core.ts';
 import { compileChain, type Step } from '../compose.ts';
-import { bodyReader } from '../body-parser.ts';
+import { type BodyParser, bodyReader } from '../body-parser.ts';
+import { isJsonContentType, mediaType } from '../../utils/content-type.ts';
 import { buildRouteProgram } from '../registry/route-program.ts';
 import { kHooks, kPhase, kRoute, kRouted } from '../symbols.ts';
 import { parseTraceparent } from '../../utils/trace-context.ts';
@@ -17,6 +18,26 @@ import type { ServerLifecycle } from './server.ts';
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /**
+ * Normaliza os `parsers` do app (F-12) pelo tipo de mídia, na criação: um tipo inválido falha aqui, e não na primeira
+ * requisição. O JSON é nativo (com a proteção do S-08 e o erro `INVALID_JSON`) e não pode ser substituído.
+ */
+function compileParsers(parsers: Readonly<Record<string, BodyParser>> | undefined): ReadonlyMap<string, BodyParser> {
+  const out = new Map<string, BodyParser>();
+  for (const [type, parser] of Object.entries(parsers ?? {})) {
+    const media = mediaType(type);
+    if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(media)) {
+      throw new Error(`[sashiko] parsers: "${type}" is not a media type (use something like "application/yaml").`);
+    }
+    if (isJsonContentType(media)) {
+      throw new Error(`[sashiko] parsers: "${type}" is JSON, which the framework already parses; remove it from parsers.`);
+    }
+    if (typeof parser !== 'function') throw new Error(`[sashiko] parsers: the parser for "${type}" must be a function.`);
+    out.set(media, parser);
+  }
+  return out;
+}
+
+/**
  * Pipeline da requisição: rastreamento, request id, validação do `Host`, headers de segurança, healthchecks,
  * middlewares globais, OpenAPI, roteamento, pipeline da rota e erros.
  */
@@ -28,7 +49,7 @@ export class RequestHandler {
     private readonly server: ServerLifecycle,
     private readonly observer: RequestObserver,
   ) {
-    this.readBody = bodyReader(core.opts.bodyLimit ?? 1024 * 1024, core.opts.protoPoisoning);
+    this.readBody = bodyReader(core.opts.bodyLimit ?? 1024 * 1024, core.opts.protoPoisoning, compileParsers(core.opts.parsers));
   }
 
   /**
