@@ -1,3 +1,4 @@
+import { uploadSettings } from './uploads/receive.ts';
 import type http from 'node:http';
 import type https from 'node:https';
 import '../shims/symbol-metadata.ts';
@@ -89,6 +90,7 @@ export class SashikoApp {
       // Compilados na criação: uma regra inválida falha aqui, e não na primeira requisição.
       allowedHosts: opts.allowedHosts ? compileHostMatcher(opts.allowedHosts) : undefined,
       serializers: new Map(Object.entries(opts.serializers ?? {}).map(([type, fn]) => [mediaType(type), fn])),
+      uploads: uploadSettings(opts.uploads),
       applySecurityHeaders: opts.securityHeaders !== false ? buildSecurityHeaders(opts.securityHeaders) : undefined,
     };
     this.registry = new RouteRegistry(

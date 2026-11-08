@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      '@fastify/busboy':
+        specifier: ^3.2.5
+        version: 3.2.5
       '@sinclair/typebox':
         specifier: ^0.34.52
         version: 0.34.52
@@ -181,6 +184,9 @@ importers:
       find-my-way:
         specifier: ^9.10.0
         version: 9.10.0
+      magic-bytes.js:
+        specifier: ^1.13.1
+        version: 1.13.1
     devDependencies:
       '@biomejs/biome':
         specifier: 2.6.5
@@ -732,6 +738,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fastify/busboy@3.2.5':
+    resolution: {integrity: sha512-y8MTAeBlEQUNVnskmZQwpseZN3EgCksQNOULlfxWY6o6VEqh01+oExMgbM7gN6YLQ8pNDYeweNPKJRt8jQm2ZQ==}
 
   '@fastify/merge-json-schemas@0.2.2':
     resolution: {integrity: sha512-d/gx9sRbUCVgGRGzma46wLcwiY8noTqO2Nmjg/vbTARxHRE5bdh5PIL8s97Lt1X7ScRWRW52eVYxwIoPwIdVUA==}
@@ -1476,6 +1485,9 @@ packages:
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
 
+  magic-bytes.js@1.13.1:
+    resolution: {integrity: sha512-x5sn4UX2k5gCWlcfmoFwG4TPie8+dctESyqOBdhB5p6MsgWXdBKGmt9nXPObj/JI50TTL928lc5Yt1WntMn1bw==}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -2112,6 +2124,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@fastify/busboy@3.2.5': {}
 
   '@fastify/merge-json-schemas@0.2.2':
     dependencies:
@@ -2825,6 +2839,8 @@ snapshots:
       uc.micro: 2.1.0
 
   lunr@2.3.9: {}
+
+  magic-bytes.js@1.13.1: {}
 
   magic-string@0.30.21:
     dependencies:

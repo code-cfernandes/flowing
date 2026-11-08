@@ -1,6 +1,6 @@
 import type { IncomingMessage, OutgoingHttpHeader, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { ReadStream } from 'node:fs';
 import { HttpError } from './errors.ts';
 import { type ParsedQuery, parseCustomQuery, parseQuery, type QueryParser } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
@@ -8,6 +8,7 @@ import { hostnameOf, isValidHost, pickForwarded, type RequestTarget, splitReques
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
+import type { FileField, UploadedFile } from './uploads/types.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
@@ -24,6 +25,7 @@ import {
   kRoute,
   kRouted,
   kTelemetry,
+  kFiles,
 } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -39,6 +41,32 @@ type RawBody = string | Uint8Array | Readable;
 const CLIENT_GONE = new Set(['ECONNRESET', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'ERR_STREAM_UNABLE_TO_PIPE', 'ERR_STREAM_DESTROYED']);
 function isClientDisconnect(err: unknown): boolean {
   return typeof err === 'object' && err !== null && CLIENT_GONE.has((err as { code?: string }).code ?? '');
+}
+
+/**
+ * Envia um stream para a resposta (F-45). `.pipe()` em vez do `pipeline()`: o `pipeline()` alocava promessas e
+ * listeners por resposta que, num download em andamento, sobreviviam às coletas rápidas do V8 e eram promovidos;
+ * no cenário de arquivos estáticos, era o maior responsável pelo RSS de pico. O que o `pipeline()` fazia continua:
+ * erro na origem loga e destrói a resposta; resposta fechada antes do fim (cliente desistiu) destrói a origem,
+ * liberando o descritor do arquivo.
+ */
+function pipeStream(ctx: Context, body: Readable): void {
+  const res = ctx.res;
+  body.once('error', (err: unknown) => {
+    // P-12: o cliente desistir é normal e não é erro do servidor.
+    const clientGone = isClientDisconnect(err);
+    ctx.log[clientGone ? 'debug' : 'error'](
+      { err, method: ctx.method, path: ctx.path },
+      clientGone ? 'client disconnected during stream' : 'stream failed',
+    );
+    res.destroy(err as Error);
+  });
+  res.once('close', () => {
+    if (res.writableFinished || body.destroyed) return;
+    ctx.log.debug({ method: ctx.method, path: ctx.path }, 'client disconnected during stream');
+    body.destroy();
+  });
+  body.pipe(res);
 }
 
 /** Corpo e tipo de uma resposta prestes a ser escrita (F-04). */
@@ -125,6 +153,11 @@ export interface ContextOptions {
  * @Get('/:id') get(ctx: Context<'/:id'>) { ctx.params.id }
  * ```
  */
+/** Arquivo de um campo: obrigatório → sempre presente (F-46). */
+type FileOf<S extends RouteSchemas, K extends string> = NonNullable<S['files']>[K] extends { required: true }
+  ? UploadedFile
+  : UploadedFile | undefined;
+
 export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly req: IncomingMessage;
   readonly res: ServerResponse;
@@ -165,6 +198,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   [kError]: unknown;
   /** @internal Estado do `telemetry` desta requisição; só o módulo do telemetry lê e escreve (F-38). */
   [kTelemetry]: unknown;
+  /** @internal Arquivos do upload (F-46); definido só nas rotas com `files`, e então o body veio de um formulário. */
+  [kFiles]: ReadonlyMap<string, readonly UploadedFile[]> | undefined;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     if (this.parsedQuery === undefined) {
@@ -232,6 +267,17 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private memoHost: string | undefined;
   private memoHostname: string | undefined;
   private memoProtocol: 'http' | 'https' | undefined;
+  /**
+   * Um arquivo do upload, já recebido e validado pelo contrato `files` (F-46). Com `required: true`, nunca é
+   * `undefined`. Para campos com `maxCount` maior que 1, use `files()`.
+   */
+  file<K extends FileField<SchemasOf<S>>>(name: K): FileOf<SchemasOf<S>, K> {
+    return this[kFiles]?.get(name)?.[0] as FileOf<SchemasOf<S>, K>;
+  }
+  /** Todos os arquivos de um campo do upload (F-46), na ordem em que chegaram; vazio se nenhum veio. */
+  files<K extends FileField<SchemasOf<S>>>(name: K): readonly UploadedFile[] {
+    return this[kFiles]?.get(name) ?? [];
+  }
   /** Body; tipado pelo schema `body`. */
   body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
   /** Estado por requisição, criado no primeiro acesso (F-41). */
@@ -504,17 +550,10 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
 
     if (body instanceof Readable) {
       this.res.setHeader('Content-Type', type);
-      this.markStreaming();
-      pipeline(body, this.res).catch((err: unknown) => {
-        // P-12: o cliente desistir (fechar a conexão) é normal e não é erro do servidor.
-        // Pelo código do erro: o pipeline já destruiu a resposta aqui, então `res.destroyed` não distingue.
-        const clientGone = isClientDisconnect(err);
-        this.log[clientGone ? 'debug' : 'error'](
-          { err, method: this.method, path: this.path },
-          clientGone ? 'client disconnected during stream' : 'stream failed',
-        );
-        this.res.destroy(err as Error);
-      });
+      // Arquivo do disco termina sozinho: fica fora do conjunto que o `close()` cancela (F-45).
+      if (body instanceof ReadStream) this.streaming = true;
+      else this.markStreaming();
+      pipeStream(this as unknown as Context, body);
       return this;
     }
     // Content-Type escrito uma vez só, depois do onSend (antes: duas vezes por resposta).

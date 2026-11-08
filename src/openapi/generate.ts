@@ -1,3 +1,4 @@
+import type { FileRules } from '../core/uploads/types.ts';
 import { STATUS_CODES } from 'node:http';
 import type { CompiledRoute } from '../core/compiler.ts';
 import type { Middleware } from '../core/compose.ts';
@@ -107,8 +108,38 @@ function operation(route: CompiledRoute, problemErrors: boolean, toJson: ToJsonS
     operationId: `${route.owner}.${route.handlerName}`,
     tags: [route.owner],
     ...(params.length ? { parameters: params } : {}),
-    ...(schemas.body ? { requestBody: { required: true, content: { 'application/json': { schema: asJson(schemas.body, toJson) } } } } : {}),
+    ...(schemas.files
+      ? {
+          requestBody: {
+            required: true,
+            content: { 'multipart/form-data': multipartSchema(schemas.files, schemas.body ? asJson(schemas.body, toJson) : undefined) },
+          },
+        }
+      : schemas.body
+        ? { requestBody: { required: true, content: { 'application/json': { schema: asJson(schemas.body, toJson) } } } }
+        : {}),
     responses,
+  };
+}
+
+/**
+ * Upload (F-46): os campos de texto do `body` e os arquivos do `files` num único objeto, com `format: binary`.
+ * `maxCount` maior que 1 vira um array; os tipos aceitos vão no `encoding.contentType`.
+ */
+function multipartSchema(files: FileRules, body: Record<string, unknown> | undefined): Record<string, unknown> {
+  const properties: Record<string, unknown> = { ...((body?.properties as Record<string, unknown>) ?? {}) };
+  const required = [...((body?.required as string[]) ?? [])];
+  const encoding: Record<string, { contentType: string }> = {};
+  for (const [name, rule] of Object.entries(files)) {
+    const binary = { type: 'string', format: 'binary' };
+    const max = rule.maxCount ?? 1;
+    properties[name] = max > 1 ? { type: 'array', items: binary, maxItems: max } : binary;
+    if (rule.required) required.push(name);
+    if (rule.types) encoding[name] = { contentType: rule.types.join(', ') };
+  }
+  return {
+    schema: { type: 'object', properties, ...(required.length ? { required } : {}) },
+    ...(Object.keys(encoding).length ? { encoding } : {}),
   };
 }
 

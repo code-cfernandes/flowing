@@ -1,3 +1,4 @@
+import { uploadPlan } from '../uploads/receive.ts';
 import type { AppCore } from '../app/core.ts';
 import { assertSchemas } from '../request-validation.ts';
 import type { CompiledRoute } from '../compiler.ts';
@@ -107,7 +108,7 @@ export class RouteRegistry {
     const done: { method: string; path: string; host: string | undefined }[] = [];
     try {
       for (const { owner, route, hosts } of batch) {
-        (route as CompiledRoute & { run?: unknown }).run ??= buildRouteProgram(route, this.core.serializers);
+        (route as CompiledRoute & { run?: unknown }).run ??= buildRouteProgram(route, this.core.serializers, this.core.uploads);
         for (const host of hosts) {
           try {
             this.router.on(route.method, route.path, withInfo(route, host), host);
@@ -137,7 +138,9 @@ export class RouteRegistry {
    */
   private checkContracts(owner: string, route: CompiledRoute): void {
     const engine = this.core.contracts;
-    const { response, ...input } = route.schemas;
+    const { response, files, ...input } = route.schemas;
+    // Valida as regras de arquivo no registro: uma rota que amplia um limite global falha aqui (F-46).
+    if (files) uploadPlan(files, this.core.uploads, `app.mount(${owner}): ${route.method} ${route.path}`);
     const parts: [string, unknown][] = Object.entries(input).filter(([, s]) => s !== undefined);
     for (const [status, entry] of Object.entries(response ?? {})) {
       const schema = isResponseContent(entry) ? entry.schema : entry;

@@ -18,6 +18,8 @@ export type { GroupOptions, HostOption, ManualRouteOptions, MethodSelector, Meth
 export type { HookOptions } from './hooks.ts';
 export type { QueryParser } from '../utils/query.ts';
 export { type Contracts, contracts, type StandardContractsOptions, type StandardSchemaV1 } from './contracts.ts';
+export { detectors } from './uploads/receive.ts';
+export type { ContentDetector, FileInfo, FileRule, FileRules, Size, UploadedFile, UploadsOptions } from './uploads/types.ts';
 export type { BodyParser } from './body-parser.ts';
 export { MountedGroup, RouteGroupScope } from './mounted-group.ts';
 export type { Middleware } from './compose.ts';

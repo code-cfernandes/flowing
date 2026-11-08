@@ -4,7 +4,7 @@ Micro-framework HTTP para Node.js com **decorators nativos (TC39)**, **schema-fi
 
 > **Sashiko** (刺し子) é uma técnica japonesa de bordado em que os pontos decorativos também **reforçam** o tecido. É a ideia do framework: os decorators organizam a API e, ao mesmo tempo, trazem validação e proteções seguras por padrão.
 
-Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e só cinco dependências de runtime.
+Sashiko combina a flexibilidade do **Fastify** e do **Express** (middlewares simples, partes plugáveis, pouca cerimônia) com a organização em classes do **NestJS**, mantendo o núcleo pequeno: `node:http` direto e sete dependências de runtime.
 
 ```ts
 import { type Context, createApp, Post, Router, type RouteSchemas, Type } from 'sashiko';

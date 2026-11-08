@@ -1,3 +1,4 @@
+import type { UploadSettings } from '../uploads/receive.ts';
 import type http from 'node:http';
 import type { Middleware } from '../compose.ts';
 import type { OnSendHook } from '../context.ts';
@@ -27,6 +28,8 @@ export interface AppCore {
   scopedOnResponse: number;
   readonly onCloseHooks: OnCloseHook[];
   readonly serializers: ReadonlyMap<string, Serializer>;
+  /** Configuração de upload (F-46), resolvida na criação do app. */
+  readonly uploads: UploadSettings;
   readonly allowedHosts: ((hostname: string, host: string) => boolean) | undefined;
   readonly applySecurityHeaders: ((res: http.ServerResponse) => void) | undefined;
 }

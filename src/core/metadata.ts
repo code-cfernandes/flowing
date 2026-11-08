@@ -1,4 +1,5 @@
 // src/core/metadata.ts
+import type { FileRules } from './uploads/types.ts';
 import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
 import { concatHooks, emptyHooks, type ScopedHooks } from './hooks.ts';
@@ -27,6 +28,8 @@ export interface RouteSchemas {
   query?: object;
   headers?: object;
   response?: Record<number, ResponseEntry>;
+  /** Campos de arquivo (`multipart/form-data`): nome do campo → regras. Os campos de texto vão no `body`. */
+  files?: FileRules;
 }
 
 export function isResponseContent(entry: unknown): entry is ResponseContent {

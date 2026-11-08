@@ -6,7 +6,7 @@
 
 - **Composição explícita, sem container de DI:** `@Router` + `app.mount()` + `app.group()`.
 - **Infraestrutura pronta e segura por padrão:** headers de segurança, limites, timeouts, validação de `Host`, CSRF, shutdown gracioso.
-- **Poucas dependências de runtime** (cinco), e extensões por injeção (`logger: pino()`), não por plugins.
+- **Poucas dependências de runtime** (cinco até a 0.17; sete com o upload nativo), e extensões por injeção (`logger: pino()`), não por plugins.
 - **Erros de configuração aparecem no registro**, não na primeira requisição.
 
 ## Módulos
@@ -394,7 +394,7 @@ Em 10 s de `get` com `--trace-gc`, as coletas completas caem de 36 para 0. Em 12
 
 - **Alocação por requisição:** cerca de 7,3 KB no `get`, contra 3,9 KB do `node:http` (perfil de alocação por amostragem). Os maiores itens próprios do Sashiko são o callback e o `Context`, o request id (`randomUUID`) e os headers de segurança.
 - **Headers de segurança:** com eles desligados, a vazão do `get` sobe cerca de 18% (o RSS quase não muda). Juntá-los num único `writeHead` exigiria uma forma explícita de remover um header por rota.
-- **RSS no `static`:** cerca de 207 MB, contra 150 MB do `node:http` e do Fastify. Não foi investigado.
+- **RSS no `static`:** cerca de 207 MB, contra 150 MB do `node:http` e do Fastify. Investigado na 0.18.0 (veja abaixo): a causa principal era o `pipeline()`; sobra uma diferença de cerca de 50 MB, do que cada requisição em andamento segura.
 - **Execuções longas:** o pico do `get` sobe de 124 MB (10 s) para cerca de 158 MB (60 a 120 s) e depois estabiliza.
 
 ## Observabilidade e a rodada de arquitetura (0.15.0)
@@ -441,3 +441,19 @@ graph LR
 | A fase do erro é escrita só pelo pipeline, na ordem: `validation` (body) → `middleware` → `guard` (`guard.ts`) → `validation` → `handler` → `response` (`route-program.ts`) | `test/features/observability.test.ts` (com mutação no guard)   |
 
 **Regra aprendida duas vezes (0.14.0 e 0.15.0):** nada criado por requisição pode ficar pendurado numa estrutura de longa duração (o antigo `Set` de respostas) nem na própria resposta (o wrapper de `writeHead` por instância). Nos dois casos, cada resposta sobreviveu às coletas rápidas do V8, foi promovida, e o RSS de pico quase dobrou sem mudar a vazão de forma visível. Qualquer recurso novo no caminho da requisição precisa ser medido com e sem uso, contra a última versão publicada.
+
+## Upload e streams (0.18.0)
+
+- **`core/uploads/`:** `types.ts` (a API pública: regras, `UploadedFile`, detector) e `receive.ts` (o adaptador do
+  `@fastify/busboy`, interno). O busboy nunca aparece no `Context` nem na API pública.
+- **Ativação pelo contrato:** o `buildRouteProgram` monta o plano de upload no registro, só para rotas com `files`. No
+  terminal, a recepção roda antes da validação; as demais rotas seguem o caminho de sempre, sem custo.
+- **O `Context` ganhou um campo** (`kFiles`), que também marca o body como vindo de um formulário (validado com
+  coerção, como a query). Um campo só, para não aumentar mais o objeto por requisição.
+- **Temporários:** um listener de `close` na resposta, por requisição de upload, apaga os arquivos em qualquer caminho.
+- **Streams sem `pipeline()`:** `pipeStream()` usa `.pipe()`, com erro e `close` tratados à mão. O `pipeline()`
+  criava promessas e listeners por resposta que, num download em andamento, eram promovidos (no `static` sob carga, o
+  heap reservado caía de ~88 MB para ~65 MB sem ele). Arquivos do disco (`ReadStream`) ficam fora do `server.streams`.
+
+**Regra aprendida pela terceira vez:** o que vive enquanto a resposta está em andamento conta como "longa duração"
+para o V8. Um download de 64 KB atravessa várias coletas rápidas.
