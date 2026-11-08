@@ -29,14 +29,11 @@ export default defineConfig({
     nav: [
       { text: 'Guia', link: '/guia/introducao', activeMatch: '/guia/' },
       { text: 'Referência', link: '/referencia/create-app', activeMatch: '/referencia/' },
-      {
-        text: `v${version}`,
-        items: [
-          { text: 'Changelog', link: `${repo}/blob/main/CHANGELOG.md` },
-          { text: 'npm', link: 'https://www.npmjs.com/package/flowingts' },
-        ],
-      },
+      { text: 'Exemplos', link: '/guia/exemplos', activeMatch: '/guia/exemplos' },
     ],
+    // Lidos pelo card de versão da barra lateral (SidebarVersion.vue).
+    version,
+    repo,
     sidebar: {
       '/guia/': [
         {
@@ -96,7 +93,7 @@ export default defineConfig({
       provider: 'local',
       options: {
         translations: {
-          button: { buttonText: 'Buscar', buttonAriaLabel: 'Buscar' },
+          button: { buttonText: 'Buscar na documentação…', buttonAriaLabel: 'Buscar na documentação' },
           modal: {
             noResultsText: 'Nenhum resultado para',
             resetButtonTitle: 'Limpar a busca',

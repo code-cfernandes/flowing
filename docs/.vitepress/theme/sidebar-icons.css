@@ -1,0 +1,119 @@
+/*
+ * Ícones da barra lateral (identidade v2): um por página, no traço de 24 px dos pilares da página inicial.
+ * São máscaras: a cor acompanha o texto do item, inclusive o ativo.
+ */
+.VPSidebarItem .link[href$="/introducao"],
+.VPSidebarItem .link[href$="/introducao.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11 12 4l9 7M5 10v10h14V10M10 20v-6h4v6'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/instalacao"],
+.VPSidebarItem .link[href$="/instalacao.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11M7 10l5 5 5-5M4 20h16'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/exemplos"],
+.VPSidebarItem .link[href$="/exemplos.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5h16v14H4zM8 9l-2 3 2 3M16 9l2 3-2 3'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/vindo-do-express"],
+.VPSidebarItem .link[href$="/vindo-do-express.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h13M12 6l6 6-6 6M4 5v14'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/rotas"],
+.VPSidebarItem .link[href$="/rotas.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4v16M18 4v6a4 4 0 0 1-4 4H6M15 7l3-3 3 3'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/schemas"],
+.VPSidebarItem .link[href$="/schemas.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 3 7.5l9 4.5 9-4.5L12 3ZM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/entrada"],
+.VPSidebarItem .link[href$="/entrada.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4h10l6 6v10H4zM14 4v6h6M8 14h8M8 17h5'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/uploads"],
+.VPSidebarItem .link[href$="/uploads.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4M7 9l5-5 5 5M4 16v4h16v-4'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/respostas"],
+.VPSidebarItem .link[href$="/respostas.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h16v10H8l-4 4zM8 10h8M8 13h5'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/middlewares-e-guards"],
+.VPSidebarItem .link[href$="/middlewares-e-guards.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6zM9 12l2 2 4-4'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/erros"],
+.VPSidebarItem .link[href$="/erros.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 2 20h20L12 3ZM12 10v4M12 17v.01'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/estaticos-e-streaming"],
+.VPSidebarItem .link[href$="/estaticos-e-streaming.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7h6l2 2h10v10H3zM8 14h3M14 14h3'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/hooks"],
+.VPSidebarItem .link[href$="/hooks.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v6M12 9a4 4 0 1 0 4 4M18 9l3 3-3 3'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/openapi"],
+.VPSidebarItem .link[href$="/openapi.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4h16v16H4zM8 8h8M8 12h8M8 16h5'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/logs"],
+.VPSidebarItem .link[href$="/logs.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 4h14v16H5zM8 8h8M8 12h8M8 16h4'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/observabilidade"],
+.VPSidebarItem .link[href$="/observabilidade.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-7 4 14 3-7h4'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/seguranca"],
+.VPSidebarItem .link[href$="/seguranca.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/ciclo-de-vida"],
+.VPSidebarItem .link[href$="/ciclo-de-vida.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/deploy"],
+.VPSidebarItem .link[href$="/deploy.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 4c3 0 6 3 6 6l-6 6-6-6c0-3 3-6 6-6ZM8 16l-3 3M15 9.5v.01'/%3E%3C/svg%3E");
+}
+.VPSidebarItem .link[href$="/create-app"],
+.VPSidebarItem .link[href$="/create-app.html"] {
+  --fl-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v18M3 12h18M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+}
+/* Só os itens com ícone ganham o espaço do ícone; os demais (a API gerada) ficam como estão. */
+.VPSidebarItem .link[href$="/introducao"] .text::before,
+.VPSidebarItem .link[href$="/instalacao"] .text::before,
+.VPSidebarItem .link[href$="/exemplos"] .text::before,
+.VPSidebarItem .link[href$="/vindo-do-express"] .text::before,
+.VPSidebarItem .link[href$="/rotas"] .text::before,
+.VPSidebarItem .link[href$="/schemas"] .text::before,
+.VPSidebarItem .link[href$="/entrada"] .text::before,
+.VPSidebarItem .link[href$="/uploads"] .text::before,
+.VPSidebarItem .link[href$="/respostas"] .text::before,
+.VPSidebarItem .link[href$="/middlewares-e-guards"] .text::before,
+.VPSidebarItem .link[href$="/erros"] .text::before,
+.VPSidebarItem .link[href$="/estaticos-e-streaming"] .text::before,
+.VPSidebarItem .link[href$="/hooks"] .text::before,
+.VPSidebarItem .link[href$="/openapi"] .text::before,
+.VPSidebarItem .link[href$="/logs"] .text::before,
+.VPSidebarItem .link[href$="/observabilidade"] .text::before,
+.VPSidebarItem .link[href$="/seguranca"] .text::before,
+.VPSidebarItem .link[href$="/ciclo-de-vida"] .text::before,
+.VPSidebarItem .link[href$="/deploy"] .text::before,
+.VPSidebarItem .link[href$="/create-app"] .text::before {
+  content: "";
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-right: 10px;
+  background-color: currentColor;
+  -webkit-mask: var(--fl-icon) center / contain no-repeat;
+  mask: var(--fl-icon) center / contain no-repeat;
+  opacity: 0.85;
+}
+.VPSidebarItem .link[href] .text {
+  display: inline-flex;
+  align-items: center;
+}
