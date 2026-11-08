@@ -9,6 +9,7 @@ import type { ShutdownOptions } from '../shutdown.ts';
 import type { TlsOptions } from '../../server/tls.ts';
 import type { ProtoPoisoning } from '../../utils/safe-json.ts';
 import type { SecurityHeadersOptions, SecurityPreset } from '../../middlewares/security-headers.ts';
+import type { QueryParser } from '../../utils/query.ts';
 
 /**
  * Tratamento de erros (F-04). `phase` diz em que etapa a requisição estava: `middleware`, `guard`,
@@ -108,6 +109,13 @@ export interface AppOptions {
   protoPoisoning?: ProtoPoisoning;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
   queryMaxKeys?: number;
+  /**
+   * Parser de query próprio (F-26), para sintaxes aninhadas como `?filter[status]=ativo`:
+   * `createApp({ queryParser: (raw) => qs.parse(raw, { depth: 3, arrayLimit: 50, parameterLimit: 1000 }) })`.
+   * O retorno passa pelo filtro de chaves perigosas; se o parser lançar, a resposta é 400. Os limites ficam com o
+   * parser: o `queryMaxKeys` vale só para o padrão.
+   */
+  queryParser?: QueryParser;
   /** Logger compatível com pino. Padrão: `consoleLogger()`; `false` desliga (F-06). */
   logger?: Logger | false;
   /** Loga cada requisição concluída (método, path, status, duração) em nível `info`. Padrão: `false`. */

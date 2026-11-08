@@ -45,6 +45,7 @@ export class RequestHandler {
     // um objeto de opções novo a cada requisição.
     const contextOptions = {
       queryMaxKeys: this.core.opts.queryMaxKeys,
+      queryParser: this.core.opts.queryParser,
       logger: this.core.log,
       trustProxy: this.core.opts.trustProxy,
       onSend: this.core.onSendHooks,

@@ -2,7 +2,7 @@ import type { IncomingMessage, OutgoingHttpHeader, ServerResponse } from 'node:h
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
-import { parseQuery, type ParsedQuery } from '../utils/query.ts';
+import { type ParsedQuery, parseCustomQuery, parseQuery, type QueryParser } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
 import { hostnameOf, isValidHost, pickForwarded, type RequestTarget, splitRequestTarget } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
@@ -81,6 +81,8 @@ export interface ContextState {
 
 export interface ContextOptions {
   queryMaxKeys?: number | undefined;
+  /** Parser de query próprio (F-26); sem ele, o padrão com `queryMaxKeys`. */
+  queryParser?: QueryParser | undefined;
   /** Id da requisição; o app gera ou reaproveita o header recebido (F-06). */
   id?: string | undefined;
   /** Logger do app; o contexto cria um filho com o `reqId`. */
@@ -145,7 +147,19 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   [kTelemetry]: unknown;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
-    this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;
+    if (this.parsedQuery === undefined) {
+      const custom = this.opts.queryParser;
+      if (custom) {
+        try {
+          this.parsedQuery = parseCustomQuery(custom, this.target.search) as ParsedQuery;
+        } catch {
+          // A mensagem do parser pode expor detalhes internos: o cliente recebe só o motivo genérico.
+          throw new HttpError(400, 'Invalid query string', 'INVALID_QUERY');
+        }
+      } else {
+        this.parsedQuery = parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys);
+      }
+    }
     return this.parsedQuery as InferQuery<SchemasOf<S>>;
   }
   set query(value: InferQuery<SchemasOf<S>>) {
