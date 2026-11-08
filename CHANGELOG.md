@@ -30,8 +30,8 @@ e a _patch_ só com correções.
 ### Desempenho
 
 - Respostas em stream (`static()`, `sendFile()`, `ctx.send(readable)`) usam `.pipe()` em vez do `pipeline()`: no
-  cenário de arquivos estáticos sob carga, o heap reservado cai de ~88 MB, com picos de 150 a 190 MB, para ~65 MB
-  estáveis, sem perda de vazão. Arquivos do disco deixam de entrar no conjunto de streams que o `close()` avisa (eles
+  cenário de arquivos estáticos sob carga (64 KB, 200 conexões), o heap reservado (`heapTotal`) cai de 88 a 160 MB
+  para ~65 MB estáveis, e o RSS de pico de 210 a 300 MB para 209 a 218 MB, sem perda de vazão. Arquivos do disco deixam de entrar no conjunto de streams que o `close()` avisa (eles
   terminam sozinhos).
 
 ### Documentação

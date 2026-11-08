@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream, type WriteStream } from 'node:fs';
 import { readFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -187,10 +187,14 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     let failed: HttpError | undefined;
 
     let settled = false;
+    /** Gravações em andamento: fechadas na recusa, senão o descritor do temporário fica aberto. */
+    const writing = new Set<WriteStream>();
     const fail = (err: HttpError) => {
       if (failed || settled) return;
       failed = err;
       ctx.req.unpipe(parser);
+      for (const out of writing) out.destroy();
+      writing.clear();
       discardRest(ctx, () => reject(err));
     };
 
@@ -219,6 +223,8 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     });
 
     parser.on('file', (name: string, stream: Readable, filename: string, encoding: string, mimetype: string) => {
+      // Corpo truncado: o busboy emite erro no stream da parte. Sem este listener, a exceção derrubava o processo.
+      stream.on('error', () => fail(new HttpError(400, 'Invalid multipart body', 'INVALID_MULTIPART')));
       const rule = plan.rules.get(name);
       if (failed || !rule) {
         stream.resume();
@@ -235,6 +241,8 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
       const path = join(tempDir, `sashiko-upload-${randomUUID()}`);
       temps.push(path);
       const out = createWriteStream(path);
+      writing.add(out);
+      out.once('close', () => writing.delete(out));
       const head: Buffer[] = [];
       let headSize = 0;
       let size = 0;
@@ -305,11 +313,15 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
 
 /** Quanto do corpo recusado ainda vale ler e descartar antes de responder, para manter a conexão. */
 const DRAIN_LIMIT = 1024 * 1024;
+/** Por quanto tempo, no máximo: um cliente lento não segura a resposta (nem a conexão) indefinidamente. */
+const DRAIN_TIMEOUT_MS = 2000;
 
 /**
- * Depois de recusar um upload, descarta o resto do corpo antes de responder. Responder e fechar com o cliente ainda
+ * Depois de recusar um upload, descarta o resto do corpo (lendo e jogando fora, sem acumular) antes de responder. Responder e fechar com o cliente ainda
  * enviando faz o cliente receber EPIPE em vez do 400/413. Acima de `DRAIN_LIMIT`, responde já com
- * `Connection: close` (como o limite do body JSON, B-12): não vale gastar banda com o que será jogado fora.
+ * `Connection: close` (como o limite do body JSON, B-12): não vale gastar banda com o que será jogado fora. O mesmo
+ * vale depois de `DRAIN_TIMEOUT_MS`. Com `Connection: close`, o Node fecha o socket ao fim da resposta: a conexão não
+ * volta ao keep-alive com bytes do corpo anterior.
  */
 function discardRest(ctx: Context, respond: () => void): void {
   const req = ctx.req;
@@ -319,9 +331,12 @@ function discardRest(ctx: Context, respond: () => void): void {
   }
   let drained = 0;
   let done = false;
+  const timer = setTimeout(() => finish(true), DRAIN_TIMEOUT_MS);
+  timer.unref();
   const finish = (close: boolean) => {
     if (done) return;
     done = true;
+    clearTimeout(timer);
     req.off('data', onData);
     if (close && !ctx.res.headersSent) ctx.res.setHeader('Connection', 'close');
     respond();

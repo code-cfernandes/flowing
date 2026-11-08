@@ -45,7 +45,11 @@ Quando uma regra falha, a resposta sai em Problem Details e o handler não roda:
 | Campo de arquivo não declarado             | 400    | `UNEXPECTED_FILE`        |
 | Requisição que não é `multipart/form-data` | 415    | `UNSUPPORTED_MEDIA_TYPE` |
 
-Os campos de texto chegam em `ctx.body` e são validados pelo contrato `body`, com conversão de texto como na query (`'2026'` vira `2026` num `Type.Integer()`). Com `contracts.standard()`, use `z.coerce.number()`.
+Os campos de texto chegam em `ctx.body` e são validados pelo contrato `body`:
+
+- **Tudo chega como texto.** No motor nativo, o contrato converte como na query: `'2026'` vira `2026` num `Type.Integer()` e `'true'` vira `true` num `Type.Boolean()`. Um valor que não converte é recusado com 400. Com `contracts.standard()`, a conversão é do próprio schema: use `z.coerce.number()`.
+- **Campo repetido vira array:** `tag=a&tag=b` chega como `['a', 'b']`. Declare `Type.Array(Type.String())`; um `Type.String()` recusa o envio repetido com 400.
+- **Nomes com colchetes ficam literais:** `usuario[nome]` é a chave `'usuario[nome]'`, sem virar objeto aninhado.
 
 ## O arquivo no handler
 
@@ -56,11 +60,26 @@ Os campos de texto chegam em `ctx.body` e são validados pelo contrato `body`, c
 - `size`: o tamanho efetivamente recebido.
 - `stream()`: o conteúdo como stream, uma vez só. `buffer()`: o conteúdo inteiro na memória, para arquivos pequenos.
 
-Até o handler, o arquivo fica num temporário com nome gerado, apagado quando a resposta termina: em sucesso, em erro e quando o cliente desiste no meio do envio.
+Até o handler, o arquivo fica num temporário com nome gerado, apagado quando a resposta termina: em sucesso, em erro do contrato ou do handler e quando o cliente desiste no meio do envio.
+
+::: warning O arquivo vive até a resposta
+Termine de ler o `stream()` (salvar no disco, enviar para o S3) **antes** de o handler retornar, com `await`. Não guarde o arquivo para ler depois, numa fila ou num `setTimeout`: o temporário é apagado assim que a resposta sai. Para processar depois, copie-o primeiro para um lugar seu.
+:::
 
 ## Conferência do conteúdo
 
-Com `types`, o Sashiko confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado.
+Com `types`, o Sashiko confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado. A conferência lê uma cópia do começo do arquivo; o `stream()` entregue ao handler começa do primeiro byte.
+
+O que cada camada garante:
+
+| Conferência                    | O que garante                                         | Quem faz                                      |
+| ------------------------------ | ----------------------------------------------------- | --------------------------------------------- |
+| Tipo declarado (`mimetype`)    | O que o cliente afirma enviar                         | `types`                                       |
+| Assinatura dos primeiros bytes | Que o formato provavelmente é o declarado             | `types` (`magic-bytes.js`)                    |
+| Estrutura interna              | Que o arquivo abre e é íntegro (um PDF que renderiza) | a aplicação, com `verify` ou depois do upload |
+| Antivírus ou sandbox           | Que o conteúdo não é malicioso                        | a aplicação (ClamAV, um serviço externo)      |
+
+`types` é uma conferência de **formato**, não uma análise de segurança: um PDF verdadeiro pode carregar conteúdo malicioso.
 
 A detecção tem limites:
 
@@ -135,4 +154,5 @@ async enviar(ctx: Context<typeof enviar>) {
 
 - **CSRF:** o navegador envia `multipart/form-data` de outro site sem preflight. Em rotas com sessão por cookie, use o middleware `csrf()`.
 - **Nome do arquivo:** o temporário tem nome gerado, e o caminho enviado pelo cliente é descartado. Ao salvar, gere o nome você também.
+- **Corpo recusado:** quando um arquivo é recusado no meio do envio, o Sashiko lê e descarta o resto do corpo, sem guardá-lo, até 1 MB ou 2 segundos, para o cliente receber o 400 ou o 413. Acima disso, responde e fecha a conexão.
 - **Rotas sem `files`** não leem o multipart: o corpo fica intacto em `ctx.req`, e o `multer` continua funcionando como antes (veja [Vindo do Express](./vindo-do-express)).

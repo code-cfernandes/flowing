@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readlinkSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -394,5 +394,123 @@ describe('F-46 · upload combinado com os recursos existentes', () => {
       vistos.some((v) => v.startsWith('erro:INVALID_FILE_TYPE')),
       vistos.join(),
     );
+  });
+});
+
+describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
+  const tmpFds = () => {
+    try {
+      return readdirSync('/proc/self/fd').filter((f) => {
+        try {
+          return readlinkSync(`/proc/self/fd/${f}`).includes('sashiko-upload-');
+        } catch {
+          return false;
+        }
+      }).length;
+    } catch {
+      return 0; // fora do Linux, sem /proc
+    }
+  };
+  const bigRota = {
+    body: Type.Object({ tag: Type.Array(Type.String()), 'usuario[nome]': Type.String() }),
+    files: { arq: { maxSize: '64kb' } },
+  } satisfies RouteSchemas;
+  @Router('/b')
+  class Borda {
+    @Post('/', bigRota) up(ctx: Context<typeof bigRota>) {
+      return { tag: ctx.body.tag, nome: ctx.body['usuario[nome]'] };
+    }
+    @Post('/quebra', { files: { arq: { required: true } } }) quebra() {
+      throw new Error('falha no handler');
+    }
+  }
+  let s: TestServer;
+  let dir: string;
+  before(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'sashiko-up-borda-'));
+    const app = createApp({ logger: false, shutdown: false, uploads: { tempDir: dir } });
+    app.mount(Borda);
+    s = await startServer(app);
+  });
+  after(async () => {
+    await s.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+  const wait = () => new Promise((r) => setTimeout(r, 100));
+
+  it('recusa no meio do arquivo não deixa descritor aberto nem temporário', async () => {
+    for (let i = 0; i < 10; i++) {
+      const r = await fetch(`${s.url}/b`, { method: 'POST', body: form([['arq', new File([new Uint8Array(300 * 1024)], 'a.bin')]]) });
+      assert.equal(r.status, 413);
+      await r.text();
+    }
+    await wait();
+    assert.equal(tmpFds(), 0, 'descritores fechados');
+    assert.equal(temps(dir), 0, 'temporários apagados');
+  });
+
+  it('campos repetidos viram array; nomes com colchetes ficam literais', async () => {
+    const r = await fetch(`${s.url}/b`, {
+      method: 'POST',
+      body: form([
+        ['tag', 'a'],
+        ['tag', 'b'],
+        ['usuario[nome]', 'Ana'],
+      ]),
+    });
+    assert.deepEqual(await r.json(), { tag: ['a', 'b'], nome: 'Ana' });
+  });
+
+  it('erro no handler: 500 e o temporário é apagado', async () => {
+    const r = await fetch(`${s.url}/b/quebra`, { method: 'POST', body: form([['arq', new File(['x'], 'a.bin')]]) });
+    assert.equal(r.status, 500);
+    await r.text();
+    await wait();
+    assert.equal(temps(dir), 0);
+  });
+
+  const raw = (path: string, chunks: (string | Buffer)[], opts: { chunked?: boolean; endAfter?: boolean } = {}) =>
+    new Promise<{ status: number; connection: string | undefined; ms: number }>((resolve, reject) => {
+      const started = Date.now();
+      const b = 'rawB';
+      const req = request(`${s.url}${path}`, {
+        method: 'POST',
+        headers: {
+          'content-type': `multipart/form-data; boundary=${b}`,
+          ...(opts.chunked
+            ? { 'transfer-encoding': 'chunked' }
+            : { 'content-length': String(chunks.reduce((n, c) => n + Buffer.byteLength(c), 0) + (opts.endAfter === false ? 1000 : 0)) }),
+        },
+      });
+      req.on('response', (res) => {
+        res.resume();
+        resolve({ status: res.statusCode ?? 0, connection: res.headers.connection, ms: Date.now() - started });
+      });
+      req.on('error', reject);
+      for (const c of chunks) req.write(c);
+      if (opts.endAfter !== false) req.end();
+    });
+  const part = (name: string, body: string | Buffer) => [
+    `--rawB\r\nContent-Disposition: form-data; name="${name}"; filename="a.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+    body,
+  ];
+
+  it('Transfer-Encoding: chunked: arquivo grande recusado com 413', async () => {
+    const r = await raw('/b', [...part('arq', Buffer.alloc(200 * 1024)), '\r\n--rawB--\r\n'], { chunked: true });
+    assert.equal(r.status, 413);
+  });
+
+  it('corpo multipart truncado: 400 e nenhum temporário', async () => {
+    const r = await raw('/b', [...part('arq', 'metade do arquivo, sem o boundary final')]);
+    assert.equal(r.status, 400);
+    await wait();
+    assert.equal(temps(dir), 0);
+  });
+
+  it('cliente lento depois da recusa: a resposta não espera o corpo todo e fecha a conexão', async () => {
+    const r = await raw('/b', [...part('arq', Buffer.alloc(100 * 1024))], { endAfter: false });
+    assert.equal(r.status, 413);
+    assert.equal(r.connection, 'close');
+    assert.ok(r.ms < 4000, `respondeu em ${r.ms} ms`);
   });
 });
