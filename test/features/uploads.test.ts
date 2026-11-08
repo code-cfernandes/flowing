@@ -5,7 +5,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { type Context, contracts, createApp, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, contracts, createApp, detectors, Post, Router, type RouteSchemas, Type } from 'sashiko';
 import { z } from 'zod';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
@@ -281,6 +281,54 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
         ]),
       });
       assert.deepEqual(await r.json(), { ano: 2026, nome: 'relatorio.pdf' });
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe('F-46 · OpenAPI do upload', () => {
+  it('a rota com files sai como multipart/form-data, com campos, arquivos binários e tipos aceitos', async () => {
+    const app = createApp({ logger: false, shutdown: false });
+    app.mount(Uploads).openapi();
+    const doc = (await app.inject({ url: '/openapi.json' })).json<Record<string, any>>();
+    const mp = doc.paths['/up/documentos'].post.requestBody.content['multipart/form-data'];
+    assert.equal(mp.schema.properties.pdf.format, 'binary');
+    assert.equal(mp.schema.properties.membro.type, 'string');
+    assert.deepEqual(mp.schema.required.sort(), ['ano', 'membro', 'pdf']);
+    assert.equal(mp.encoding.pdf.contentType, 'application/pdf');
+    const fotos = doc.paths['/up/fotos'].post.requestBody.content['multipart/form-data'].schema.properties.fotos;
+    assert.deepEqual(fotos, { type: 'array', items: { type: 'string', format: 'binary' }, maxItems: 2 });
+  });
+});
+
+describe('F-46 · detector plugável', () => {
+  it('detectors.fileType(fileTypeFromBuffer): o detector da aplicação substitui o padrão', async () => {
+    const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const seen: number[] = [];
+    // Simula o file-type: abre o ZIP e devolve o tipo exato do Word.
+    const fileTypeFromBuffer = async (b: Uint8Array) => {
+      seen.push(b.length);
+      return b[0] === 0x50 ? { mime: DOCX } : undefined;
+    };
+    const rota = {
+      files: { doc: { required: true, types: [DOCX] } },
+      response: { 200: Type.Object({ tipo: Type.String() }) },
+    } satisfies RouteSchemas;
+    @Router('/d')
+    class Docs {
+      @Post('/', rota) up(ctx: Context<typeof rota>) {
+        return { tipo: ctx.file('doc').detectedType ?? '' };
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false, uploads: { detect: detectors.fileType(fileTypeFromBuffer) } });
+    app.mount(Docs);
+    const s = await startServer(app);
+    try {
+      const zip = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])], 'a.docx', { type: DOCX });
+      const r = await fetch(`${s.url}/d`, { method: 'POST', body: form([['doc', zip]]) });
+      assert.deepEqual(await r.json(), { tipo: DOCX });
+      assert.equal(seen[0], 7, 'recebe os primeiros bytes');
     } finally {
       await s.close();
     }
