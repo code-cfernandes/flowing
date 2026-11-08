@@ -6,6 +6,7 @@ import './style.css';
 import './sidebar-icons.css';
 import { h } from 'vue';
 import FlowingHome from './FlowingHome.vue';
+import DocIntro from './DocIntro.vue';
 import SidebarHelp from './SidebarHelp.vue';
 import SidebarVersion from './SidebarVersion.vue';
 
@@ -16,6 +17,7 @@ export default {
     h(DefaultTheme.Layout, null, {
       'sidebar-nav-before': () => h(SidebarVersion),
       'sidebar-nav-after': () => h(SidebarHelp),
+      'doc-before': () => h(DocIntro),
     }),
   enhanceApp({ app }) {
     app.component('FlowingHome', FlowingHome);

@@ -1,3 +1,7 @@
+---
+
+## aprenda: Declarar rotas em classes, montá-las no app e compor prefixos, grupos, middlewares e hosts.
+
 # Rotas e composição
 
 As rotas ficam em classes marcadas com `@Router`, a "permissão" para o app usar a classe, que também define o prefixo. Verbo e path ficam no método:

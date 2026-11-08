@@ -1,8 +1,12 @@
+---
+
+## aprenda: Instalar o pacote, configurar o TypeScript para os decorators padrão e subir a primeira API.
+
 # Instalação
 
-- **Node.js 22+**
+- **Node.js 22.12+**
 - **TypeScript 5.2+**, com decorators **padrão** (TC39).
-- **ESM** (`"type": "module"`).
+- **ESM ou CommonJS:** em projeto CommonJS, o pacote carrega pelo `require()` de módulos ESM do Node (veja [Projeto em CommonJS](./vindo-do-express#projeto-em-commonjs)).
 
 ::: warning Sem decorators legados
 Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o FlowingTS lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.

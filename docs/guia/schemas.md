@@ -1,3 +1,7 @@
+---
+
+## aprenda: Escrever o contrato de uma rota e como ele valida a entrada, tipa o ctx, filtra a resposta e gera o OpenAPI.
+
 # Schemas: validação, serialização e tipos
 
 Os schemas da rota (`params`, `query`, `headers`, `body` e `response`) são escritos em [TypeBox](https://github.com/sinclairzx81/typebox) (JSON Schema) e podem ser declarados de duas formas equivalentes:

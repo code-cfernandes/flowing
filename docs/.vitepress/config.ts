@@ -23,6 +23,8 @@ export default defineConfig({
   lastUpdated: true,
   // Documento interno (cita os IDs do backlog), mantido no repositório e fora do site.
   srcExclude: ['ARCHITECTURE.md'],
+  // Números de linha nos blocos de código, como no protótipo da documentação.
+  markdown: { lineNumbers: true },
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/logo.svg' }]],
   themeConfig: {
     logo: '/logo.svg',

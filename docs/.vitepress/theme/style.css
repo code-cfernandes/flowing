@@ -159,142 +159,124 @@ body {
   padding-top: 0;
   margin-top: 56px;
 }
-/* O separador das seções é um ponto corrido, como a costura. */
-.vp-doc h2::before {
-  content: "";
-  display: block;
-  width: 72px;
-  margin-bottom: 18px;
-  border-top: 2px dashed var(--vp-c-brand-1);
-  opacity: 0.55;
-}
 .vp-doc p,
 .vp-doc li {
   line-height: 1.75;
 }
 
-/* ---------------------------------------------------------------------------------------------------------
- * Páginas de documentação: a mesma identidade da página inicial, com mais contenção.
- * ------------------------------------------------------------------------------------------------------- */
+/*
+ * Conteúdo da documentação (identidade v2, camada 6): superfícies com borda fina, sem os ornamentos de costura.
+ */
 
-/* O título da página ganha uma costura curta embaixo. */
-.vp-doc h1::after {
-  content: "";
-  display: block;
-  width: 96px;
-  margin-top: 16px;
-  border-top: 2px dashed var(--vp-c-brand-1);
-  opacity: 0.6;
-}
-
-/* Blocos de código: o filete de luz na borda e a sombra do bloco da página inicial. */
+/*
+ * Blocos de código: uma barra no topo com o selo da linguagem (como a aba do protótipo), números de linha e a
+ * borda da paleta. O nome do arquivo, quando o bloco declara um, aparece na barra (ver o code-title do VitePress).
+ */
 .vp-doc div[class*="language-"] {
-  border-radius: 10px;
-  box-shadow:
-    0 0 0 1px rgba(28, 43, 79, 0.1),
-    0 14px 30px -22px rgba(28, 43, 79, 0.5);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding-top: 38px;
+  overflow: hidden;
+}
+.vp-doc div[class*="language-"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-alt);
+  z-index: 1;
+}
+.vp-doc div[class*="language-"] > span.lang {
+  top: 10px;
+  left: 16px;
+  right: auto;
+  z-index: 2;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+}
+.vp-doc div[class*="language-"] > button.copy {
+  top: 4px;
+  z-index: 3;
+}
+.vp-doc div[class*="language-"].line-numbers-mode .line-numbers-wrapper {
+  top: 38px;
+  border-right: 1px solid var(--vp-c-divider);
 }
 .dark .vp-doc div[class*="language-"] {
-  background-image: linear-gradient(150deg, rgba(220, 230, 245, 0.05), transparent 38%);
-  box-shadow:
-    0 0 0 1px rgba(220, 230, 245, 0.09),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 18px 36px -22px rgba(2, 6, 18, 0.9);
+  box-shadow: 0 18px 36px -24px rgba(0, 0, 0, 0.9);
 }
 
-/* Tabelas: cabeçalho tingido de índigo e as linhas separadas por ponto corrido. */
+/* Tabelas: cabeçalho na superfície da marca e linhas contínuas. */
 .vp-doc table {
   border-collapse: separate;
   border-spacing: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px var(--vp-c-divider);
+  border: 1px solid var(--vp-c-divider);
 }
 .vp-doc th {
-  background: var(--vp-c-brand-soft);
+  background: var(--vp-c-bg-alt);
   color: var(--vp-c-text-1);
+  font-weight: 600;
 }
 .vp-doc tr,
 .vp-doc th,
 .vp-doc td {
   border: none;
 }
-.vp-doc tbody tr + tr td {
-  border-top: 1px dashed var(--vp-c-divider);
+.vp-doc tbody tr td {
+  border-top: 1px solid var(--vp-c-divider);
 }
 .vp-doc tr:nth-child(2n) {
   background: transparent;
 }
 
-/* Avisos: remendos com a borda costurada por dentro; os de alerta, com a linha vermelha (aka-ito). */
+/* Avisos: a superfície com uma faixa de cor à esquerda; ciano nas dicas, violeta nos alertas, rosa nos perigos. */
 .vp-doc .custom-block {
-  position: relative;
-  border: none;
-  border-radius: 12px;
-  padding: 18px 22px 10px;
-  --sk-block-stitch: rgba(58, 90, 153, 0.45);
+  border: 1px solid var(--vp-c-divider);
+  border-left: 3px solid var(--fl-block-accent, var(--vp-c-brand-1));
+  border-radius: 10px;
+  padding: 16px 20px 8px;
 }
-.vp-doc .custom-block::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border: 1.5px dashed var(--sk-block-stitch);
-  border-radius: 7px;
-  pointer-events: none;
+.vp-doc .custom-block.tip {
+  --fl-block-accent: var(--vp-c-brand-1);
 }
-.vp-doc .custom-block.warning,
+.vp-doc .custom-block.info {
+  --fl-block-accent: #60a5fa;
+}
+.vp-doc .custom-block.warning {
+  --fl-block-accent: var(--fl-violet);
+}
 .vp-doc .custom-block.danger {
-  --sk-block-stitch: rgba(168, 50, 72, 0.55);
+  --fl-block-accent: #f43f5e;
 }
-.dark .vp-doc .custom-block {
-  --sk-block-stitch: rgba(238, 241, 245, 0.28);
+.vp-doc .custom-block .custom-block-title {
+  font-weight: 600;
 }
-.dark .vp-doc .custom-block.warning,
-.dark .vp-doc .custom-block.danger {
-  --sk-block-stitch: rgba(232, 140, 156, 0.55);
-}
-
-/* Barra lateral: o item ativo marcado por ponto corrido, em todos os níveis (o padrão não marca o primeiro). */
-.VPSidebar .group .VPSidebarItem.is-active > .item > .indicator {
-  background: repeating-linear-gradient(180deg, var(--vp-c-brand-1) 0 5px, transparent 5px 8px);
-}
-.dark .VPSidebar {
-  background-image: linear-gradient(170deg, rgba(205, 220, 245, 0.04), transparent 30%, transparent 70%, rgba(205, 220, 245, 0.03));
-}
-
-/* "Anterior" e "Próxima": remendos com a costura por dentro, que acende ao passar o mouse. */
-.VPDocFooter .pager .pager-link {
-  position: relative;
-  border: none;
-  border-radius: 12px;
-  padding: 16px 20px 18px;
-  background: var(--vp-c-bg-alt);
-  box-shadow: 0 0 0 1px var(--vp-c-divider);
-}
-.VPDocFooter .pager .pager-link::after {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border: 1.5px dashed var(--vp-c-divider);
-  border-radius: 8px;
-  transition: border-color 0.25s;
-  pointer-events: none;
-}
-.VPDocFooter .pager .pager-link:hover::after {
-  border-color: var(--vp-c-brand-1);
-}
-.dark .VPDocFooter .pager .pager-link {
-  background: linear-gradient(150deg, #1f2f57, #192645);
-}
-@media (prefers-reduced-motion: reduce) {
-  .VPDocFooter .pager .pager-link::after {
-    transition: none;
-  }
-}
-
 .vp-doc .custom-block.warning code,
 .vp-doc .custom-block.danger code {
   color: var(--vp-c-text-1);
+}
+
+/* "Anterior" e "Próxima": cards com borda fina, que acende em ciano ao passar o mouse. */
+.VPDocFooter .pager .pager-link {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 16px 20px 18px;
+  background: var(--vp-c-bg-alt);
+  transition: border-color 0.2s ease;
+}
+.VPDocFooter .pager .pager-link:hover {
+  border-color: var(--vp-c-brand-1);
 }
 
 /*
