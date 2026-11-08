@@ -21,7 +21,8 @@
   --sk-thread: var(--fl-cloud);
   --sk-ink: #0f172a;
 
-  --vp-font-family-base: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
+  /* Inter variável com eixo de tamanho óptico: o desenho se ajusta sozinho entre o texto e os títulos grandes. */
+  --vp-font-family-base: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --vp-font-family-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --vp-c-bg: #f8fafc;
@@ -75,12 +76,39 @@
   --vp-custom-block-danger-code-bg: rgba(244, 63, 94, 0.16);
 }
 
-/* Títulos com o peso e o espaçamento da fonte, não do tema padrão. */
-.vp-doc h1,
-.vp-doc h2,
-.vp-doc h3 {
+/*
+ * Tipografia (identidade v2): Inter em quatro pesos, como no guia de identidade. Regular (400) no texto, Medium
+ * (500) na navegação, Semibold (600) nos títulos de seção e Bold (700) só no título da página. Quanto maior o
+ * título, mais fechado o espaçamento entre as letras.
+ */
+body {
+  font-feature-settings: "cv11", "ss03";
+  -webkit-font-smoothing: antialiased;
+}
+.vp-doc h1 {
+  font-size: 2.25rem;
+  line-height: 1.15;
   font-weight: 700;
+  letter-spacing: -0.022em;
+}
+.vp-doc h2 {
+  font-size: 1.6rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.vp-doc h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
   letter-spacing: -0.01em;
+}
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.75;
+}
+.VPNavBarMenuLink,
+.VPSidebarItem .text {
+  font-weight: 500;
 }
 .vp-doc h2 {
   border-top: none;

@@ -59,7 +59,7 @@ const constraints = [
     <section class="sk-hero" aria-labelledby="sk-title">
       <div class="sk-hero__inner">
         <div class="sk-hero__text">
-          <p class="sk-mark"><span>Flowing</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
+          <p class="sk-mark"><span>Flowing</span></p>
           <h1 id="sk-title" class="sk-title">Framework HTTP para Node.js com um contrato em cada rota.</h1>
           <p class="sk-lede">
             Decorators padrão organizam as rotas. O schema de cada uma valida a entrada, filtra a resposta, tipa o
@@ -195,11 +195,7 @@ const constraints = [
   gap: 12px;
   margin: 0 0 20px;
   font-size: 1.05rem;
-  font-weight: 700;
-}
-.sk-mark__ja {
-  font-weight: 400;
-  opacity: 0.7;
+  font-weight: 600;
 }
 .sk-title {
   margin: 0;
@@ -208,7 +204,7 @@ const constraints = [
   font-size: clamp(2.1rem, 4.4vw, 3.3rem);
   line-height: 1.12;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 .sk-lede {
   margin: 24px 0 0;
@@ -379,8 +375,8 @@ const constraints = [
 .sk-section h2 {
   margin: 0;
   font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-weight: 600;
+  letter-spacing: -0.018em;
   color: var(--vp-c-text-1);
 }
 .sk-section__lede {
@@ -472,7 +468,7 @@ const constraints = [
 .sk-thread h3 {
   margin: 0;
   font-size: 1.08rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--vp-c-text-1);
 }
 .sk-thread p {
@@ -495,7 +491,7 @@ const constraints = [
 .sk-included dt {
   position: relative;
   padding-left: 26px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 1.05rem;
   color: var(--vp-c-text-1);
 }
@@ -572,7 +568,7 @@ const constraints = [
   border-radius: 2px;
 }
 .sk-constraints dt {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 1.05rem;
   color: var(--vp-c-text-1);
 }
