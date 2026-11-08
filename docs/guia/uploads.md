@@ -5,7 +5,7 @@ O upload faz parte do contrato da rota. Declare os arquivos em `files` e os camp
 ```ts
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { type Context, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, Post, Router, type RouteSchemas, Type } from 'flowingts';
 
 const enviar = {
   body: Type.Object({ membro: Type.String(), ano: Type.Integer() }),
@@ -68,7 +68,7 @@ Termine de ler o `stream()` (salvar no disco, enviar para o S3) **antes** de o h
 
 ## Conferência do conteúdo
 
-Com `types`, o Sashiko confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado. A conferência lê uma cópia do começo do arquivo; o `stream()` entregue ao handler começa do primeiro byte.
+Com `types`, o Flowing confere o tipo declarado e também os primeiros bytes do arquivo, com a [`magic-bytes.js`](https://github.com/LarsKoelpin/magic-bytes): um executável enviado como `relatorio.pdf` é recusado. A conferência lê uma cópia do começo do arquivo; o `stream()` entregue ao handler começa do primeiro byte.
 
 O que cada camada garante:
 
@@ -91,7 +91,7 @@ Para conferir o tipo exato de um `.docx`, instale o [`file-type`](https://github
 
 ```ts
 import { fileTypeFromBuffer } from 'file-type';
-import { createApp, detectors } from 'sashiko';
+import { createApp, detectors } from 'flowingts';
 
 const app = createApp({ uploads: { detect: detectors.fileType(fileTypeFromBuffer) } });
 ```
@@ -154,5 +154,5 @@ async enviar(ctx: Context<typeof enviar>) {
 
 - **CSRF:** o navegador envia `multipart/form-data` de outro site sem preflight. Em rotas com sessão por cookie, use o middleware `csrf()`.
 - **Nome do arquivo:** o temporário tem nome gerado, e o caminho enviado pelo cliente é descartado. Ao salvar, gere o nome você também.
-- **Corpo recusado:** quando um arquivo é recusado no meio do envio, o Sashiko lê e descarta o resto do corpo, sem guardá-lo, até 1 MB ou 2 segundos, para o cliente receber o 400 ou o 413. Acima disso, responde e fecha a conexão.
+- **Corpo recusado:** quando um arquivo é recusado no meio do envio, o Flowing lê e descarta o resto do corpo, sem guardá-lo, até 1 MB ou 2 segundos, para o cliente receber o 400 ou o 413. Acima disso, responde e fecha a conexão.
 - **Rotas sem `files`** não leem o multipart: o corpo fica intacto em `ctx.req`, e o `multer` continua funcionando como antes (veja [Vindo do Express](./vindo-do-express)).

@@ -1,4 +1,4 @@
-import { type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer, Type } from 'sashiko';
+import { type Context, Router, Delete, Get, Patch, Post, type RouteSchemas, Schema, badRequest, notFound, timer, Type } from 'flowingts';
 import { CreateUserSchema, GreetingSchema, ListUsersQuery, UpdateUserSchema, UserIdParams, UserSchema } from '../schema/UserSchema.ts';
 import type { UserRepository } from '../store/users.ts';
 import type { User } from '../types/user.ts';

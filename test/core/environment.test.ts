@@ -2,18 +2,18 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { Router, Get, Schema } from 'sashiko';
+import { Router, Get, Schema } from 'flowingts';
 import { metadataFor } from '../../src/core/metadata.ts';
 
 describe('R-01 · Symbol.metadata', () => {
-  it('o shim garante Symbol.metadata ao importar sashiko', () => {
+  it('o shim garante Symbol.metadata ao importar flowingts', () => {
     assert.equal(typeof Symbol.metadata, 'symbol');
   });
 
   it('sem metadata no contexto, o erro explica como resolver', () => {
     assert.throws(
       () => metadataFor({ kind: 'class', metadata: undefined }, 'Router'),
-      /@Router: decorator metadata is unavailable.*Import 'sashiko'/,
+      /@Router: decorator metadata is unavailable.*Import 'flowingts'/,
     );
   });
 });
@@ -36,22 +36,22 @@ describe('R-02 · decorators legados (experimentalDecorators)', () => {
   });
 });
 
-describe('R-06 · src/ não usa o alias sashiko', () => {
-  it('nenhum import em src/ aponta para "sashiko" (o tsc não reescreve paths)', async () => {
+describe('R-06 · src/ não usa o alias flowingts', () => {
+  it('nenhum import em src/ aponta para "flowingts" (o tsc não reescreve paths)', async () => {
     const root = join(import.meta.dirname, '../../src');
     const files = (await readdir(root, { recursive: true })).filter((f) => f.endsWith('.ts'));
     const offenders: string[] = [];
     for (const f of files) {
       const src = await readFile(join(root, f), 'utf8');
-      if (/from\s+['"]sashiko(\/[^'"]*)?['"]|import\(\s*['"]sashiko/.test(src)) offenders.push(f);
+      if (/from\s+['"]flowingts(\/[^'"]*)?['"]|import\(\s*['"]flowingts/.test(src)) offenders.push(f);
     }
     assert.deepEqual(offenders, []);
   });
 });
 
 describe('B-13 · TypeBox re-exportado', () => {
-  it('reexporta Type do TypeBox pelo ponto de entrada sashiko', async () => {
-    const { Type } = await import('sashiko');
+  it('reexporta Type do TypeBox pelo ponto de entrada flowingts', async () => {
+    const { Type } = await import('flowingts');
     assert.ok(Type, 'Type deve estar disponível');
     assert.equal(typeof Type.Object, 'function');
     const schema = Type.Object({ name: Type.String() });

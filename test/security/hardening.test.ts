@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { basicAuth, bearerAuth, type Context, consoleLogger, createApp, DEFAULT_REDACT_KEYS, Get, Post, Router, safeEqual } from 'sashiko';
+import {
+  basicAuth,
+  bearerAuth,
+  type Context,
+  consoleLogger,
+  createApp,
+  DEFAULT_REDACT_KEYS,
+  Get,
+  Post,
+  Router,
+  safeEqual,
+} from 'flowingts';
 import { parseJson } from '../../src/utils/safe-json.ts';
 
 @Router('/')

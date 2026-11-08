@@ -1,4 +1,4 @@
-import { Get, Router, Schema, Type } from 'sashiko';
+import { Get, Router, Schema, Type } from 'flowingts';
 import { AdminHeaders, HealthSchema, StatsSchema } from '../schema/AdminSchema.ts';
 import type { UserRepository } from '../store/users.ts';
 

@@ -2,7 +2,7 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, type InferResponse, Router, type RouteSchemas } from 'sashiko';
+import { type Context, createApp, Get, type InferResponse, Router, type RouteSchemas } from 'flowingts';
 import { negotiate } from '../../src/utils/content-type.ts';
 
 const User = Type.Object({ id: Type.String(), name: Type.String() });

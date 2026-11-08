@@ -1,4 +1,4 @@
-import { Type } from 'sashiko';
+import { Type } from 'flowingts';
 
 export const UserSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),

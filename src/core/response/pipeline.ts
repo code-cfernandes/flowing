@@ -71,7 +71,7 @@ export function sendResult(
   const status = ctx.res.statusCode;
   const entry = response?.[status];
   if (!entry && response && Object.keys(response).length > 0) {
-    throw new Error(`[sashiko] ${ctx.method} ${ctx.path}: no response schema for status ${status}`);
+    throw new Error(`[flowing] ${ctx.method} ${ctx.path}: no response schema for status ${status}`);
   }
 
   const headerType = ctx.res.getHeader('Content-Type');
@@ -144,7 +144,7 @@ function write(
   if (isAsyncIterable(value)) {
     if (base !== NDJSON) {
       throw new Error(
-        `[sashiko] ${ctx.method} ${ctx.path}: an async iterable is streamed as NDJSON; declare ` +
+        `[flowing] ${ctx.method} ${ctx.path}: an async iterable is streamed as NDJSON; declare ` +
           `response: { 200: { contentType: '${NDJSON}', schema: Item } } (the schema of each item), or return a Readable.`,
       );
     }
@@ -166,7 +166,7 @@ function write(
   const serializer = serializers.get(base);
   if (!serializer) {
     throw new Error(
-      `[sashiko] ${ctx.method} ${ctx.path}: no serializer registered for "${base}". ` +
+      `[flowing] ${ctx.method} ${ctx.path}: no serializer registered for "${base}". ` +
         `Add it to createApp({ serializers: { '${base}': (data) => ... } }).`,
     );
   }
@@ -179,7 +179,7 @@ function ensureValid(ctx: Context, schema: object, value: unknown): unknown {
   const checked = ctx[kContracts].strip(schema, value);
   if (!checked.ok) {
     throw new Error(
-      `[sashiko] ${ctx.method} ${ctx.path}: response does not match its schema: ` +
+      `[flowing] ${ctx.method} ${ctx.path}: response does not match its schema: ` +
         checked.issues.map((i) => `${i.path} ${i.message}`).join('; '),
     );
   }

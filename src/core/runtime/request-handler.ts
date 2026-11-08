@@ -26,12 +26,12 @@ function compileParsers(parsers: Readonly<Record<string, BodyParser>> | undefine
   for (const [type, parser] of Object.entries(parsers ?? {})) {
     const media = mediaType(type);
     if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(media)) {
-      throw new Error(`[sashiko] parsers: "${type}" is not a media type (use something like "application/yaml").`);
+      throw new Error(`[flowing] parsers: "${type}" is not a media type (use something like "application/yaml").`);
     }
     if (isJsonContentType(media)) {
-      throw new Error(`[sashiko] parsers: "${type}" is JSON, which the framework already parses; remove it from parsers.`);
+      throw new Error(`[flowing] parsers: "${type}" is JSON, which the framework already parses; remove it from parsers.`);
     }
-    if (typeof parser !== 'function') throw new Error(`[sashiko] parsers: the parser for "${type}" must be a function.`);
+    if (typeof parser !== 'function') throw new Error(`[flowing] parsers: the parser for "${type}" must be a function.`);
     out.set(media, parser);
   }
   return out;

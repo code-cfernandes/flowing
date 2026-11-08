@@ -3,7 +3,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { type Context, createApp, Get, OnError, OnResponse, OnSend, type OnSendHook, type ResponseInfo, Router } from 'sashiko';
+import { type Context, createApp, Get, OnError, OnResponse, OnSend, type OnSendHook, type ResponseInfo, Router } from 'flowingts';
 
 const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 const tag =
@@ -230,7 +230,7 @@ describe('F-43 · custo', () => {
       own.push(
         Object.getOwnPropertySymbols(ctx.res)
           .map(String)
-          .filter((k) => k.includes('sashiko')),
+          .filter((k) => k.includes('flowing.')),
       );
     });
     const server = await app.listen(0);
@@ -267,7 +267,7 @@ describe('F-43 · custo', () => {
   it('um onResponse de escopo liga a observação (ttfbMs medido)', async () => {
     const app = createApp({ logger: false, shutdown: false });
     app.mount(ComFim);
-    assert.deepEqual(await ownProps(app), [['Symbol(sashiko.headersAt)']]);
+    assert.deepEqual(await ownProps(app), [['Symbol(flowing.headersAt)']]);
   });
 
   it('ctx.route continua sem os hooks no JSON', async () => {

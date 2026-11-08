@@ -1,6 +1,6 @@
-import type { Serializer } from 'sashiko';
+import type { Serializer } from 'flowingts';
 
-// Serializador CSV mínimo (F-31): o Sashiko só traz JSON e texto; outros formatos são plugáveis.
+// Serializador CSV mínimo (F-31): o Flowing só traz JSON e texto; outros formatos são plugáveis.
 // Em produção, prefira uma biblioteca (csv-stringify, papaparse…), como faria com YAML ou msgpack.
 export const csvSerializer: Serializer = (data) => {
   const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [data as Record<string, unknown>];

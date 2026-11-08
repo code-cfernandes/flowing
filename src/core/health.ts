@@ -56,7 +56,7 @@ export function compileHealth(opts: HealthOptions, log: Logger): HealthConfig {
   const live = opts.live === undefined ? '/livez' : opts.live;
   const ready = opts.ready === undefined ? '/readyz' : opts.ready;
   if (live && ready && canonicalPath(live) === canonicalPath(ready)) {
-    throw new Error(`[sashiko] health(): "live" and "ready" cannot both be "${live}".`);
+    throw new Error(`[flowing] health(): "live" and "ready" cannot both be "${live}".`);
   }
   const livePath = live === false ? undefined : canonicalPath(live);
   const readyPath = ready === false ? undefined : canonicalPath(ready);

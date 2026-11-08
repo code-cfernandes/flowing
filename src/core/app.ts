@@ -54,7 +54,7 @@ export type {
 
 function assertOpen(scope: RouteScope): void {
   if (scope.token && !scope.token.open) {
-    throw new Error('[sashiko] app.group(): this group has already finished; register its routes inside the callback, synchronously.');
+    throw new Error('[flowing] app.group(): this group has already finished; register its routes inside the callback, synchronously.');
   }
 }
 
@@ -65,7 +65,7 @@ const isThenable = (v: unknown): boolean =>
  * O app. É uma fachada (Facade) sobre o registro de rotas, as rotas do próprio framework (health, OpenAPI),
  * o servidor e o pipeline da requisição: a API pública fica aqui, e o trabalho fica nesses componentes.
  */
-export class SashikoApp {
+export class FlowingApp {
   readonly log: Logger;
   private readonly core: AppCore;
   private readonly registry: RouteRegistry;
@@ -204,7 +204,7 @@ export class SashikoApp {
         (result as PromiseLike<unknown>).then(undefined, (err: unknown) =>
           this.log.error({ err }, 'async app.group() callback failed after the group was rejected'),
         );
-        throw new Error('[sashiko] app.group(): the callback must be synchronous; do async work before registering routes.');
+        throw new Error('[flowing] app.group(): the callback must be synchronous; do async work before registering routes.');
       }
       if (outermost) this.registry.commit(this.registry.pending!);
     } catch (err) {
@@ -280,7 +280,7 @@ export class SashikoApp {
     const path = opts.path ?? '/openapi.json';
     const docs = opts.docs === true ? '/docs' : opts.docs || false;
     if (docs && canonicalPath(docs) === canonicalPath(path))
-      throw new Error(`[sashiko] openapi(): "docs" and "path" cannot both be "${path}".`);
+      throw new Error(`[flowing] openapi(): "docs" and "path" cannot both be "${path}".`);
     this.framework.assertFreePaths('app.openapi()', docs ? [canonicalPath(path), canonicalPath(docs)] : [canonicalPath(path)], 'openapi');
     const pipeline: Middleware[] = [...(opts.middlewares ?? [])];
     if (opts.guards?.length) pipeline.push(guardsMiddleware(opts.guards));
@@ -357,6 +357,6 @@ export class SashikoApp {
   }
 }
 
-export function createApp(opts?: AppOptions): SashikoApp {
-  return new SashikoApp(opts);
+export function createApp(opts?: AppOptions): FlowingApp {
+  return new FlowingApp(opts);
 }

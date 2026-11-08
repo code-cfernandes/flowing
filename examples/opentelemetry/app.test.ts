@@ -1,6 +1,6 @@
 /**
  * O exemplo com o SDK real do OpenTelemetry e um exportador em memória. Sem a auto-instrumentação HTTP,
- * quem cria o span da requisição é o próprio Sashiko (`telemetry: otel`).
+ * quem cria o span da requisição é o próprio Flowing (`telemetry: otel`).
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

@@ -5,7 +5,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { type Context, contracts, createApp, detectors, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, contracts, createApp, detectors, Post, Router, type RouteSchemas, Type } from 'flowingts';
 import { z } from 'zod';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
@@ -25,7 +25,7 @@ const fotos = {
 } satisfies RouteSchemas;
 const lento = { files: { arq: {} }, response: { 200: Type.Object({ ok: Type.Boolean() }) } } satisfies RouteSchemas;
 const proprio = {
-  files: { doc: { types: ['application/x-sashiko'], verify: (head: Uint8Array) => head[0] === 0x53 } },
+  files: { doc: { types: ['application/x-flowing'], verify: (head: Uint8Array) => head[0] === 0x53 } },
   response: { 200: Type.Object({ ok: Type.Boolean() }) },
 } satisfies RouteSchemas;
 
@@ -56,7 +56,7 @@ const until = async (ok: () => boolean, ms = 5000) => {
   const end = Date.now() + ms;
   while (!ok() && Date.now() < end) await new Promise((r) => setTimeout(r, 20));
 };
-const temps = (dir: string) => readdirSync(dir).filter((n) => n.startsWith('sashiko-upload-')).length;
+const temps = (dir: string) => readdirSync(dir).filter((n) => n.startsWith('flowing-upload-')).length;
 const form = (entries: [string, string | File][]) => {
   const fd = new FormData();
   for (const [k, v] of entries) fd.append(k, v);
@@ -74,7 +74,7 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
   };
 
   before(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'sashiko-up-test-'));
+    dir = await mkdtemp(join(tmpdir(), 'flowing-up-test-'));
     const app = createApp({ logger: false, shutdown: false, uploads: { tempDir: dir, limits: { fileSize: '64kb' } } });
     app.mount(Uploads);
     server = await startServer(app);
@@ -195,8 +195,8 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
   });
 
   it('verify: regra própria do conteúdo para formatos sem assinatura conhecida', async () => {
-    const doc = (c: string) => form([['doc', new File([c], 'x.sk', { type: 'application/x-sashiko' })]]);
-    assert.equal((await post('/proprio', doc('SASHIKO'))).status, 200);
+    const doc = (c: string) => form([['doc', new File([c], 'x.fl', { type: 'application/x-flowing' })]]);
+    assert.equal((await post('/proprio', doc('SFLOWING'))).status, 200);
     assert.equal((await post('/proprio', doc('outra coisa'))).body.code, 'INVALID_FILE_TYPE');
   });
 
@@ -226,7 +226,7 @@ describe('F-46 · upload nativo (multipart/form-data)', () => {
   });
 
   it('cancelamento no meio do envio: sem temporário órfão, servidor segue respondendo', async () => {
-    const boundary = 'sashikoBoundary';
+    const boundary = 'flowingBoundary';
     await new Promise<void>((resolve) => {
       const req = request(`${server.url}/up/lento`, {
         method: 'POST',
@@ -339,7 +339,7 @@ describe('F-46 · detector plugável', () => {
 });
 
 describe('F-46 · upload combinado com os recursos existentes', () => {
-  const boundary = 'xSashiko';
+  const boundary = 'xFlowing';
   const multipart = (content: string) =>
     Buffer.from(
       `--${boundary}\r\nContent-Disposition: form-data; name="pdf"; filename="a.pdf"\r\nContent-Type: application/pdf\r\n\r\n${content}\r\n--${boundary}--\r\n`,
@@ -365,7 +365,7 @@ describe('F-46 · upload combinado com os recursos existentes', () => {
   });
 
   it('guard recusa antes de ler o arquivo: 401 e nenhum temporário', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'sashiko-up-guard-'));
+    const dir = await mkdtemp(join(tmpdir(), 'flowing-up-guard-'));
     @Router('/g')
     class G {
       @Post('/', rota) up() {
@@ -405,7 +405,7 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
     try {
       return readdirSync('/proc/self/fd').filter((f) => {
         try {
-          return readlinkSync(`/proc/self/fd/${f}`).includes('sashiko-upload-');
+          return readlinkSync(`/proc/self/fd/${f}`).includes('flowing-upload-');
         } catch {
           return false;
         }
@@ -430,7 +430,7 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
   let s: TestServer;
   let dir: string;
   before(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'sashiko-up-borda-'));
+    dir = await mkdtemp(join(tmpdir(), 'flowing-up-borda-'));
     const app = createApp({ logger: false, shutdown: false, uploads: { tempDir: dir } });
     app.mount(Borda);
     s = await startServer(app);

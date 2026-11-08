@@ -1,7 +1,7 @@
 # Erros
 
 ```ts
-import { badRequest, forbidden, HttpError, internal, notFound, unauthorized } from 'sashiko';
+import { badRequest, forbidden, HttpError, internal, notFound, unauthorized } from 'flowingts';
 
 throw notFound('user not found');
 throw new HttpError(409, 'email taken', 'CONFLICT');

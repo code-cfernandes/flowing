@@ -1,4 +1,4 @@
-import { Type } from 'sashiko';
+import { Type } from 'flowingts';
 
 export const HealthSchema = Type.Object({ status: Type.Literal('ok'), uptime: Type.Number() });
 

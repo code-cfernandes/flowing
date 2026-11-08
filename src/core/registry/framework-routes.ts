@@ -43,16 +43,16 @@ export class FrameworkRoutes {
     // `health()`/`openapi()` configuram o app, não o grupo: dentro de um `group()` em andamento, a
     // configuração sobreviveria a um grupo desfeito e não enxergaria as rotas ainda pendentes.
     if (this.registry.pending !== undefined) {
-      throw new Error(`[sashiko] ${where}: cannot be called inside an app.group() callback; call it on the app, outside the group.`);
+      throw new Error(`[flowing] ${where}: cannot be called inside an app.group() callback; call it on the app, outside the group.`);
     }
     const reserved = this.reservedPaths(kind);
     for (const path of paths) {
       const other = reserved.get(path);
-      if (other) throw new Error(`[sashiko] ${where}: path "${path}" is already used by ${other}.`);
+      if (other) throw new Error(`[flowing] ${where}: path "${path}" is already used by ${other}.`);
       const route = this.registry.routes.find((r) => (r.method === 'GET' || r.method === 'HEAD') && canonicalPath(r.path) === path);
       if (route) {
         throw new Error(
-          `[sashiko] ${where}: path "${path}" would shadow ${route.owner}.${route.handlerName} (GET ${route.path}); choose another path.`,
+          `[flowing] ${where}: path "${path}" would shadow ${route.owner}.${route.handlerName} (GET ${route.path}); choose another path.`,
         );
       }
     }

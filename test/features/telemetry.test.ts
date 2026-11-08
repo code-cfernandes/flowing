@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Get, Router, type TelemetryApi } from 'sashiko';
+import { type Context, createApp, Get, Router, type TelemetryApi } from 'flowingts';
 
 interface FakeSpan {
   name: string;
@@ -141,7 +141,7 @@ describe('F-38 · createApp({ telemetry })', () => {
     assert.equal((span!.parent as { extracted?: string }).extracted, '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01');
     assert.equal(span!.attrs['http.route'], '/users/:id');
     assert.equal(span!.attrs['http.response.status_code'], 200);
-    assert.equal(span!.attrs['sashiko.outcome'], 'completed');
+    assert.equal(span!.attrs['flowing.outcome'], 'completed');
     assert.equal(span!.ended, 1);
     assert.equal(span!.status, undefined, '2xx não marca erro');
     assert.equal(activeInHandler, probe, 'o handler roda dentro do span criado (spans do usuário viram filhos)');
@@ -166,7 +166,7 @@ describe('F-38 · createApp({ telemetry })', () => {
     await tick();
     const [boom, missing] = spans;
     assert.equal((boom!.exceptions[0] as Error).message, 'quebrou');
-    assert.deepEqual(boom!.events[0], { name: 'sashiko.error', attrs: { 'sashiko.error.phase': 'handler' } });
+    assert.deepEqual(boom!.events[0], { name: 'flowing.error', attrs: { 'flowing.error.phase': 'handler' } });
     assert.deepEqual(boom!.status, { code: 2 });
     assert.equal(boom!.attrs['error.type'], '500');
     assert.equal(missing!.name, 'GET');

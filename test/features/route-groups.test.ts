@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Get, Guards, type Middleware, Middlewares, Router, Type } from 'sashiko';
+import { type Context, createApp, Get, Guards, type Middleware, Middlewares, Router, Type } from 'flowingts';
 
 const trace =
   (name: string): Middleware =>

@@ -2,7 +2,7 @@ import { Type } from '@sinclair/typebox';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer } from 'sashiko';
+import { type Context, Router, cors, createApp, Get, MemoryRateLimitStore, Post, rateLimit, Schema, timer } from 'flowingts';
 import { startServer, type TestServer } from '../helpers/server.ts';
 
 @Router('/api')

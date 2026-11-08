@@ -1,4 +1,4 @@
-import { type Context, contracts, createApp, Get, notFound, Post, Router, type RouteSchemas } from 'sashiko';
+import { type Context, contracts, createApp, Get, notFound, Post, Router, type RouteSchemas } from 'flowingts';
 import { z } from 'zod';
 
 // Os schemas podem vir de um pacote compartilhado com o site e o app.

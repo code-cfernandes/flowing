@@ -32,15 +32,15 @@ export class ServerLifecycle {
    */
   private readonly responseClass = (() => {
     const lifecycle = this;
-    class SashikoResponse extends http.ServerResponse {}
+    class FlowingResponse extends http.ServerResponse {}
     // Atribuição no protótipo: o `writeHead` do Node tem várias sobrecargas, e só repassamos os argumentos.
     const base = http.ServerResponse.prototype.writeHead as (this: http.ServerResponse, ...args: unknown[]) => http.ServerResponse;
-    (SashikoResponse.prototype as unknown as { writeHead: typeof base }).writeHead = function (...args) {
+    (FlowingResponse.prototype as unknown as { writeHead: typeof base }).writeHead = function (...args) {
       if (lifecycle.closing) this.shouldKeepAlive = false;
       if (lifecycle.observer.watching) markHeadersSent(this);
       return base.apply(this, args);
     };
-    return SashikoResponse;
+    return FlowingResponse;
   })();
 
   constructor(
@@ -61,7 +61,7 @@ export class ServerLifecycle {
   async listen(options: ListenOptions & { tls: TlsOptions }): Promise<https.Server>;
   async listen(options?: number | ListenOptions): Promise<http.Server>;
   async listen(options: number | ListenOptions = {}): Promise<http.Server | https.Server> {
-    if (this.server) throw new Error('[sashiko] app is already listening; call app.close() first.');
+    if (this.server) throw new Error('[flowing] app is already listening; call app.close() first.');
     const { port = 3000, host = '127.0.0.1', tls } = typeof options === 'number' ? { port: options } : options;
 
     let server: http.Server | https.Server;
@@ -100,7 +100,7 @@ export class ServerLifecycle {
   reloadTLS(tls: TlsOptions): void {
     const server = this.server;
     if (!server || !this.tlsState || !(server instanceof https.Server)) {
-      throw new Error('[sashiko] reloadTLS(): the app is not listening with { tls }.');
+      throw new Error('[flowing] reloadTLS(): the app is not listening with { tls }.');
     }
     const next = { current: this.tlsState.sni.current };
     const compiled = compileTls(tls, next); // valida tudo antes de trocar
@@ -172,6 +172,6 @@ export class ServerLifecycle {
         this.core.log.error({ err }, 'onClose hook failed');
       }
     }
-    if (errors.length > 0) throw new AggregateError(errors, `[sashiko] ${errors.length} onClose hook(s) failed`);
+    if (errors.length > 0) throw new AggregateError(errors, `[flowing] ${errors.length} onClose hook(s) failed`);
   }
 }

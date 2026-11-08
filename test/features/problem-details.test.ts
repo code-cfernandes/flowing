@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { createApp, Get, HttpError, Post, Router } from 'sashiko';
+import { createApp, Get, HttpError, Post, Router } from 'flowingts';
 
 @Router('/p')
 class P {

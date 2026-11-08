@@ -111,7 +111,7 @@ export type ParamsFor<S extends RouteSchemas | string> = S extends string ? Para
  * Estenda com declaration merging para ter tipos (F-01):
  *
  * ```ts
- * declare module 'sashiko' {
+ * declare module 'flowingts' {
  *   interface ContextState { user?: { id: string; role: 'admin' | 'user' } }
  * }
  * ```

@@ -1,9 +1,21 @@
-import { bearerAuth, type Context, createApp, Get, type Guard, Guards, Post, Router, type RouteSchemas, Type, unauthorized } from 'sashiko';
+import {
+  bearerAuth,
+  type Context,
+  createApp,
+  Get,
+  type Guard,
+  Guards,
+  Post,
+  Router,
+  type RouteSchemas,
+  Type,
+  unauthorized,
+} from 'flowingts';
 import { type Claims, signToken, verifyToken } from './jwt.ts';
 import type { UserStore } from './users.ts';
 
 // O `bearerAuth` guarda em `ctx.state.user` o que o `verify` devolve. Num app, declare o tipo uma vez com
-// `declare module 'sashiko' { interface ContextState { user?: Claims } }`; aqui, por estar no mesmo projeto
+// `declare module 'flowingts' { interface ContextState { user?: Claims } }`; aqui, por estar no mesmo projeto
 // dos testes do framework, a leitura é local.
 const userOf = (ctx: Context) => ctx.state.user as Claims | undefined;
 

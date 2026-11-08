@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Get, type ParamsOf, type PathParams, Post, Router, Schema, Type } from 'sashiko';
+import { type Context, createApp, Get, type ParamsOf, type PathParams, Post, Router, Schema, Type } from 'flowingts';
 import { pathParams } from '../../src/utils/path.ts';
 
 // ---------- Asserções de tipo: falham no `pnpm typecheck` ----------

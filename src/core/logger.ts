@@ -39,7 +39,7 @@ export interface ConsoleLoggerOptions {
    */
   redact?: readonly string[] | false;
   /**
-   * `'pretty'` (padrão): `[sashiko] mensagem { ...dados }`, para o terminal. `'json'`: uma linha JSON por
+   * `'pretty'` (padrão): `[flowing] mensagem { ...dados }`, para o terminal. `'json'`: uma linha JSON por
    * evento (`{ level, time, msg, ...dados }`), para coletores de log (Datadog, Loki, CloudWatch…).
    */
   format?: 'pretty' | 'json';
@@ -104,7 +104,7 @@ export function redactValue(value: unknown, keys: ReadonlySet<string>, seen = ne
 }
 
 /**
- * Logger padrão sobre o `console`, sem dependências. Formato: `[sashiko] mensagem { ...dados }`.
+ * Logger padrão sobre o `console`, sem dependências. Formato: `[flowing] mensagem { ...dados }`.
  * O core não registra headers nem body. O que você logar passa pelo `redact`: `authorization`,
  * `cookie`, `password`, `token` e afins saem como `[REDACTED]` (S-11).
  */
@@ -171,7 +171,7 @@ class ConsoleLogger implements Logger {
     if (this.cfg.json) {
       console[out](toJsonLine({ level, time: new Date().toISOString(), msg: text, ...safe }));
     } else {
-      console[out](`[sashiko] ${text}`, safe);
+      console[out](`[flowing] ${text}`, safe);
     }
   }
 }

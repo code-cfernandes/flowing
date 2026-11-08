@@ -32,7 +32,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @sashiko/docs build
+      - run: pnpm --filter @flowing/docs build
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/.vitepress/dist

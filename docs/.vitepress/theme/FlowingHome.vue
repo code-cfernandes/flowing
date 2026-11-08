@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { withBase } from 'vitepress';
 
-const installCommand = 'pnpm add sashiko';
+const installCommand = 'pnpm add flowingts';
 
 const copied = ref(false);
 
@@ -59,7 +59,7 @@ const constraints = [
     <section class="sk-hero" aria-labelledby="sk-title">
       <div class="sk-hero__inner">
         <div class="sk-hero__text">
-          <p class="sk-mark"><span>Sashiko</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
+          <p class="sk-mark"><span>Flowing</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
           <h1 id="sk-title" class="sk-title">Framework HTTP para Node.js com um contrato em cada rota.</h1>
           <p class="sk-lede">
             Decorators padrão organizam as rotas. O schema de cada uma valida a entrada, filtra a resposta, tipa o
@@ -121,7 +121,7 @@ const constraints = [
     <section class="sk-section sk-section--last" aria-labelledby="sk-before">
       <div class="sk-notice">
         <h2 id="sk-before">Antes de adotar</h2>
-        <p class="sk-notice__lede">O que o Sashiko exige do seu projeto.</p>
+        <p class="sk-notice__lede">O que o Flowing exige do seu projeto.</p>
         <dl class="sk-constraints">
           <div v-for="c in constraints" :key="c.term">
             <dt>{{ c.term }}</dt>

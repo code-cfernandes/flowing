@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { type Context, consoleLogger, Router, createApp, Get, type Logger } from 'sashiko';
+import { type Context, consoleLogger, Router, createApp, Get, type Logger } from 'flowingts';
 
 /** Logger em memória que registra as chamadas, no formato do pino. */
 function memoryLogger(bindings: Record<string, unknown> = {}, lines: Record<string, unknown>[] = []): Logger & { lines: typeof lines } {
@@ -117,7 +117,7 @@ describe('F-06 · logger plugável', () => {
       log.debug('escondido');
       log.info({ a: 1 }, 'visível');
       assert.equal(debug.mock.callCount(), 0);
-      assert.deepEqual(info.mock.calls[0]!.arguments, ['[sashiko] visível', { svc: 'api', a: 1 }]);
+      assert.deepEqual(info.mock.calls[0]!.arguments, ['[flowing] visível', { svc: 'api', a: 1 }]);
     } finally {
       info.mock.restore();
       debug.mock.restore();

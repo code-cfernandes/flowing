@@ -39,7 +39,7 @@ app
 Os mesmos `onSend`, `onResponse` e `onError` valem para um grupo, um `mount()`, uma classe, um método ou uma rota manual, com a mesma assinatura dos hooks do app:
 
 ```ts
-import { Get, OnError, OnResponse, OnSend, Router } from 'sashiko';
+import { Get, OnError, OnResponse, OnSend, Router } from 'flowingts';
 
 @Router('/orders')
 @OnResponse((ctx, info) => metrics.orders.observe(info.ms)) // todas as rotas da classe
@@ -98,7 +98,7 @@ const cache =
 app.mount(products, { middlewares: [cache(60_000)] });
 ```
 
-| Fastify      | Sashiko                                                           |
+| Fastify      | Flowing                                                           |
 | ------------ | ----------------------------------------------------------------- |
 | `onRequest`  | `app.onRequest` (observação) ou middlewares (para interromper)    |
 | `preHandler` | middlewares (`app.use`, `mount({ middlewares })`, `@Middlewares`) |

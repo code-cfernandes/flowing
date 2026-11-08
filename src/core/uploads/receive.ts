@@ -19,7 +19,7 @@ const UNITS: Record<string, number> = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 
 export function parseSize(size: Size, where: string): number {
   if (typeof size === 'number' && Number.isFinite(size) && size > 0) return Math.floor(size);
   const m = typeof size === 'string' ? /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)$/i.exec(size.trim()) : null;
-  if (!m) throw new Error(`[sashiko] ${where}: invalid size ${JSON.stringify(size)} (use a number of bytes or '5mb').`);
+  if (!m) throw new Error(`[flowing] ${where}: invalid size ${JSON.stringify(size)} (use a number of bytes or '5mb').`);
   return Math.floor(Number(m[1]) * UNITS[m[2]!.toLowerCase()]!);
 }
 
@@ -99,13 +99,13 @@ export function uploadPlan(files: FileRules, settings: UploadSettings, where: st
     const maxSize = rule.maxSize === undefined ? settings.limits.fileSize : parseSize(rule.maxSize, `${where} files.${name}.maxSize`);
     if (maxSize > settings.limits.fileSize) {
       throw new Error(
-        `[sashiko] ${where}: files.${name}.maxSize (${maxSize} bytes) is larger than uploads.limits.fileSize ` +
+        `[flowing] ${where}: files.${name}.maxSize (${maxSize} bytes) is larger than uploads.limits.fileSize ` +
           `(${settings.limits.fileSize} bytes); a route can only restrict the global limits.`,
       );
     }
     const maxCount = rule.maxCount ?? 1;
     if (!Number.isInteger(maxCount) || maxCount < 1)
-      throw new Error(`[sashiko] ${where}: files.${name}.maxCount must be a positive integer.`);
+      throw new Error(`[flowing] ${where}: files.${name}.maxCount must be a positive integer.`);
     rules.set(name, { required: rule.required ?? false, maxSize, maxCount, types: rule.types, verify: rule.verify });
   }
   let largest = 0;
@@ -145,7 +145,7 @@ class Spooled implements UploadedFile {
     this.detectedType = detected;
   }
   stream(): Readable {
-    if (this.#read) throw new Error(`[sashiko] the file "${this.fieldname}" was already read; stream() can be called only once.`);
+    if (this.#read) throw new Error(`[flowing] the file "${this.fieldname}" was already read; stream() can be called only once.`);
     this.#read = true;
     return createReadStream(this.path);
   }
@@ -238,7 +238,7 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
         stream.resume();
         return fail(new HttpError(400, `Too many files in "${name}" (max ${rule.maxCount})`, 'TOO_MANY_FILES'));
       }
-      const path = join(tempDir, `sashiko-upload-${randomUUID()}`);
+      const path = join(tempDir, `flowing-upload-${randomUUID()}`);
       temps.push(path);
       const out = createWriteStream(path);
       writing.add(out);

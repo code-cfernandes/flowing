@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { after, describe, it } from 'node:test';
-import { type Context, createApp, Get, Router } from 'sashiko';
+import { type Context, createApp, Get, Router } from 'flowingts';
 import { startServer } from '../helpers/server.ts';
 
-const dir = mkdtempSync(join(tmpdir(), 'sashiko-stream-'));
+const dir = mkdtempSync(join(tmpdir(), 'flowing-stream-'));
 const big = join(dir, 'grande.bin');
 writeFileSync(big, Buffer.alloc(8 * 1024 * 1024, 7));
 after(() => rmSync(dir, { recursive: true, force: true }));

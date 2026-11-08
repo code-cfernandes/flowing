@@ -4,7 +4,7 @@ import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import type { TLSSocket } from 'node:tls';
 import { describe, it } from 'node:test';
-import { type Context, createApp, Get, Router } from 'sashiko';
+import { type Context, createApp, Get, Router } from 'flowingts';
 
 const fixture = (name: string) => readFileSync(new URL(`../fixtures/tls/${name}`, import.meta.url));
 const cert = (name: string) => ({ key: fixture(`${name}.key`), cert: fixture(`${name}.crt`) });

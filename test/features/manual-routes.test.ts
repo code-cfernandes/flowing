@@ -14,7 +14,7 @@ import {
   type RouteSchemas,
   Schema,
   unauthorized,
-} from 'sashiko';
+} from 'flowingts';
 import { startServer } from '../helpers/server.ts';
 
 const trail =
@@ -146,7 +146,7 @@ describe('F-30 · mapeamento manual no mount', () => {
         createApp()
           .mount(UserRoutes)
           .get('/h', (r) => r.helper),
-      /app\.mount\(UserRoutes\)\.get\('\/h'\): "helper" has no Sashiko decorator .*cannot be exposed/,
+      /app\.mount\(UserRoutes\)\.get\('\/h'\): "helper" has no Flowing decorator .*cannot be exposed/,
     );
   });
 

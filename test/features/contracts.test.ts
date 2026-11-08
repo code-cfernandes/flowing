@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, contracts, createApp, Get, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, contracts, createApp, Get, Post, Router, type RouteSchemas, Type } from 'flowingts';
 import { z } from 'zod';
 
 const Membro = z.object({ nome: z.string().trim().min(2), email: z.email(), ativo: z.boolean().default(true) });

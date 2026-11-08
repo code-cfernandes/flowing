@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type Context, createApp, csrf, Get, Post, Router } from 'sashiko';
+import { type Context, createApp, csrf, Get, Post, Router } from 'flowingts';
 import { parseCookies, serializeCookie } from '../../src/utils/cookie.ts';
 
 describe('cookies · leitura', () => {

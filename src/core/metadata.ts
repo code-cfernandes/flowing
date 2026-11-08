@@ -3,7 +3,7 @@ import type { FileRules } from './uploads/types.ts';
 import type { Middleware } from './compose.ts';
 import type { Guard } from './guard.ts';
 import { concatHooks, emptyHooks, type ScopedHooks } from './hooks.ts';
-export const ROUTER_METADATA = Symbol.for('sashiko:router');
+export const ROUTER_METADATA = Symbol.for('flowing:router');
 
 /**
  * Resposta com tipo de conteúdo declarado (F-31). Sem `contentType`, a entrada é um schema JSON.
@@ -115,15 +115,15 @@ export function readOwnMetadata(Class: object): RouterMetadata | undefined {
 export function metadataFor(context: unknown, decorator: string): RouterMetadata {
   if (typeof context !== 'object' || context === null || !('kind' in context)) {
     throw new Error(
-      `[sashiko] @${decorator} received legacy decorator arguments. Sashiko uses standard (TC39) ` +
+      `[flowing] @${decorator} received legacy decorator arguments. Flowing uses standard (TC39) ` +
         `decorators: remove "experimentalDecorators" (and "emitDecoratorMetadata") from your tsconfig.json.`,
     );
   }
   const meta = (context as { metadata?: DecoratorMetadataObject | null }).metadata;
   if (!meta) {
     throw new Error(
-      `[sashiko] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
-        `Import 'sashiko' before declaring routers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
+      `[flowing] @${decorator}: decorator metadata is unavailable (Symbol.metadata is not defined). ` +
+        `Import 'flowingts' before declaring routers, or use TypeScript >= 5.2 / a runtime with decorator metadata.`,
     );
   }
   return getOrCreateMetadata(meta);
@@ -139,7 +139,7 @@ export function mergeSchemas(method: MethodMetadata, schemas: RouteSchemas, wher
     if (schemas[key] === undefined) continue;
     if (method.schemas[key] !== undefined) {
       throw new Error(
-        `[sashiko] ${where}: schema "${key}" is declared twice for ${String(method.handlerName)}. ` +
+        `[flowing] ${where}: schema "${key}" is declared twice for ${String(method.handlerName)}. ` +
           `Declare each part either in the HTTP decorator or in @Schema, not both.`,
       );
     }

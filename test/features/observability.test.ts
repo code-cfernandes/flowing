@@ -18,7 +18,7 @@ import {
   type RouteInfo,
   Router,
   Schema,
-} from 'sashiko';
+} from 'flowingts';
 
 @Router('/users')
 class UserRoutes {
@@ -334,7 +334,7 @@ describe('F-38 · onRequest e onResponse: exatamente uma vez em todos os caminho
         [
           ...Object.getOwnPropertyNames(ctx.res).filter((k) => k === 'writeHead'),
           ...Object.getOwnPropertySymbols(ctx.res).map(String),
-        ].filter((k) => k === 'writeHead' || k.includes('sashiko')),
+        ].filter((k) => k === 'writeHead' || k.includes('flowing.')),
       );
     });
     app.mount(Paths);

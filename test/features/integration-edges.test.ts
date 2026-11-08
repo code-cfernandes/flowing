@@ -4,7 +4,7 @@ import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import type { TLSSocket } from 'node:tls';
 import { describe, it, mock } from 'node:test';
-import { type Context, createApp, Get, Router } from 'sashiko';
+import { type Context, createApp, Get, Router } from 'flowingts';
 
 @Router('/')
 class Ready {
@@ -235,7 +235,7 @@ describe('fase 4 · desconexão do cliente não é erro (P-12)', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const http = await import('node:http');
-    const dirTmp = mkdtempSync(join(tmpdir(), 'sashiko-p12-'));
+    const dirTmp = mkdtempSync(join(tmpdir(), 'flowing-p12-'));
     writeFileSync(join(dirTmp, 'big.bin'), Buffer.alloc(20 * 1024 * 1024));
     const levels: string[] = [];
     const log = {
