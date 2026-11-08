@@ -92,3 +92,38 @@ const UpdateTask = Type.Partial(Type.Omit(Task, ['id'])); // PATCH: tudo opciona
 ```
 
 **Modo estrito.** `createApp({ requireSchemas: true })` falha na inicialização se alguma rota não tiver schema de `response`, ou se um POST/PUT/PATCH não tiver schema de `body`.
+
+## Zod, Valibot e ArkType: o motor dos contratos
+
+O motor padrão do Sashiko é o `contracts.native()`, para schemas TypeBox. Para escrever os contratos em Zod, Valibot ou ArkType (qualquer biblioteca que implemente o [Standard Schema](https://standardschema.dev)), declare o motor no app:
+
+```ts
+import { z } from 'zod';
+import { type Context, contracts, createApp, Post, Router, type RouteSchemas } from 'sashiko';
+
+const app = createApp({
+  contracts: contracts.standard({ toJSONSchema: (schema) => z.toJSONSchema(schema as z.ZodType) }),
+});
+
+const criar = {
+  body: z.object({ nome: z.string().trim().min(2), email: z.email(), ativo: z.boolean().default(true) }),
+  response: { 201: z.object({ id: z.number(), nome: z.string() }) },
+} satisfies RouteSchemas;
+
+@Router('/membros')
+class MembroRoutes {
+  @Post('/', criar)
+  criar(ctx: Context<typeof criar>) {
+    return salvar(ctx.body); // ctx.body tem o tipo do schema Zod, já com o trim e o default aplicados
+  }
+}
+```
+
+- **Um motor por app.** Sem a opção, vale o `contracts.native()`. Com `contracts.standard()`, todo schema precisa ser Standard Schema: um schema TypeBox numa rota (ou um Zod num app nativo) falha no registro, com a dica de configuração. Não há mistura no mesmo app.
+- **Valor transformado:** o que o schema devolve (com `trim`, `default`, `transform`) substitui `ctx.body`, `ctx.query` e `ctx.params`. Os headers são validados, mas `ctx.req.headers` não é trocado.
+- **Sem coerção automática:** params e query chegam como texto. Use os conversores da biblioteca: `z.coerce.number()`, `z.coerce.boolean()`.
+- **Validação assíncrona** (`refine` com `async`) funciona na entrada. Na resposta, o schema precisa validar de forma síncrona.
+- **Resposta:** o schema do status valida e filtra a saída (o `z.object` remove o que não foi declarado; `.passthrough()` desliga isso) e o valor vai com `JSON.stringify`. Uma saída que não corresponde ao schema vira 500, sem enviar o objeto.
+- **Erros** no mesmo formato do motor nativo: 400 `VALIDATION_ERROR`, com os caminhos em JSON Pointer (`/email`).
+- **OpenAPI:** com `toJSONSchema`, os schemas entram no documento; sem, as rotas aparecem com schemas vazios.
+- **Path:** no motor nativo, os parâmetros do path são conferidos contra o schema de `params` no registro; com Standard Schema, essa conferência não é feita (a validação na requisição continua).

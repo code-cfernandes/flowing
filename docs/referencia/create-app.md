@@ -4,6 +4,9 @@
 | ----------------- | --------------------- | ------------------------------------------------------------------------------------------ |
 | `bodyLimit`       | `1048576`             | Tamanho máximo do body JSON, em bytes                                                      |
 | `queryMaxKeys`    | `1000`                | Máximo de pares lidos da query string                                                      |
+| `queryParser`     | —                     | Parser de query próprio, como o `qs`, para sintaxes aninhadas                              |
+| `parsers`         | —                     | Parsers de body por tipo de mídia, além do JSON                                            |
+| `contracts`       | `contracts.native()`  | O motor dos contratos: `contracts.standard()` para Zod, Valibot e ArkType                  |
 | `requireSchemas`  | `false`               | Exige schemas de body e de resposta no registro das rotas                                  |
 | `securityHeaders` | `'api'`               | `'api'`, `'web'`, um objeto de opções, ou `false` para desligar                            |
 | `serializers`     | —                     | Serializadores por content type, para responder em outros formatos                         |

@@ -53,6 +53,7 @@ export default defineConfig({
           items: [
             { text: 'Rotas e composição', link: '/guia/rotas' },
             { text: 'Schemas', link: '/guia/schemas' },
+            { text: 'Formatos de entrada', link: '/guia/entrada' },
             { text: 'Respostas e o ctx', link: '/guia/respostas' },
             { text: 'Middlewares e guards', link: '/guia/middlewares-e-guards' },
             { text: 'Erros', link: '/guia/erros' },
