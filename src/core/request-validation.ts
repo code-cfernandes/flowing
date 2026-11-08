@@ -32,15 +32,21 @@ function validateFrom(ctx: Context, schemas: RouteSchemas, start: number): Promi
     if (!schema) continue;
     const data = target === 'headers' ? { ...ctx.req.headers } : ctx[target];
     const result = engine.check(schema, data, target);
-    if (isPromiseLike(result)) {
-      return Promise.resolve(result).then((r) => {
-        apply(ctx, target, data, r);
-        return validateFrom(ctx, schemas, i + 1);
-      });
-    }
+    if (isPromiseLike(result)) return resumeAsync(ctx, schemas, i, data, result);
     apply(ctx, target, data, result);
   }
   return undefined;
+}
+
+/**
+ * O resto da validação depois de um schema assíncrono. Fica fora do laço de propósito: um callback que captura
+ * variáveis do laço faria o V8 alocar um contexto em toda requisição, mesmo no caminho síncrono (F-41).
+ */
+function resumeAsync(ctx: Context, schemas: RouteSchemas, i: number, data: unknown, pending: PromiseLike<CheckResult>): Promise<void> {
+  return Promise.resolve(pending).then((r) => {
+    apply(ctx, VALIDATION_ORDER[i]!, data, r);
+    return validateFrom(ctx, schemas, i + 1);
+  });
 }
 
 function apply(ctx: Context, target: ValidationTarget, data: unknown, result: CheckResult): void {
