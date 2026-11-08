@@ -138,55 +138,46 @@ const constraints = [
 </template>
 
 <style scoped>
+/*
+ * O cenário da página inicial (identidade v2): um fundo só, do topo ao rodapé. A página é sempre escura, também no
+ * modo claro, para o fluxo não ser cortado por seções de outra cor; as páginas de documentação seguem o tema.
+ */
 .sk-home {
   --sk-gutter: clamp(16px, 4vw, 48px);
-}
-
-/*
- * Fundo do herói (camada 1 da identidade v2): azul-meia-noite com dois brilhos difusos, ciano e violeta, e o feixe
- * de ondas em linhas finas que atravessa a página.
- */
-.sk-hero {
+  --vp-c-text-1: var(--fl-cloud);
+  --vp-c-text-2: #94a3b8;
+  --vp-c-brand-1: var(--fl-cyan);
+  --vp-c-divider: var(--fl-border);
   position: relative;
   isolation: isolate;
   overflow: hidden;
   color: var(--fl-cloud);
+  color-scheme: dark;
   background-color: var(--fl-midnight);
   background-image:
-    radial-gradient(60% 70% at 85% 10%, rgba(34, 211, 238, 0.16), transparent 70%),
-    radial-gradient(50% 60% at 10% 90%, rgba(139, 92, 246, 0.14), transparent 70%);
+    radial-gradient(900px 700px at 88% 0%, rgba(34, 211, 238, 0.14), transparent 70%),
+    radial-gradient(800px 700px at 0% 45%, rgba(139, 92, 246, 0.12), transparent 70%),
+    radial-gradient(900px 800px at 100% 100%, rgba(34, 211, 238, 0.1), transparent 70%);
 }
 
-/* O feixe de ondas: um SVG de linhas finas, fixo atrás do conteúdo, com um esmaecimento nas bordas. */
-.sk-hero::before {
+/*
+ * O feixe de ondas fica fixo na tela, atrás de tudo: o conteúdo rola por cima e as ondas acompanham a leitura,
+ * do herói ao rodapé, sem corte entre as seções.
+ */
+.sk-home::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background: url('/flow-waves.svg') center / cover no-repeat;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 85%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 85%, transparent 100%);
+  opacity: 0.9;
 }
 
-/* Uma grade em perspectiva quase invisível, só na base, como o piso por onde o fluxo passa. */
-.sk-hero::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40%;
-  z-index: -2;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
-  background-size: 48px 48px;
-  transform: perspective(600px) rotateX(55deg);
-  transform-origin: bottom;
-  -webkit-mask-image: linear-gradient(0deg, #000, transparent);
-  mask-image: linear-gradient(0deg, #000, transparent);
+/* O herói é transparente: o fundo é o da página inteira. */
+.sk-hero {
+  position: relative;
+  color: var(--fl-cloud);
 }
 
 .sk-hero__inner {
@@ -414,7 +405,7 @@ const constraints = [
   --sk-stitch: rgba(58, 90, 153, 0.45);
   --sk-stitch-hover: rgba(58, 90, 153, 0.9);
 }
-:global(.dark .sk-patch) {
+.sk-home .sk-patch {
   background:
     linear-gradient(112deg, transparent 30%, rgba(205, 220, 245, 0.06) 42%, transparent 54%),
     linear-gradient(150deg, #22335d 0%, #1a2849 50%, #213260 100%);
@@ -538,7 +529,7 @@ const constraints = [
   box-shadow: 0 0 0 1px rgba(160, 50, 70, 0.14);
   --sk-red: #a83248;
 }
-:global(.dark .sk-notice) {
+.sk-home .sk-notice {
   background: linear-gradient(150deg, #2a2340 0%, #231c35 100%);
   box-shadow: 0 0 0 1px rgba(232, 140, 156, 0.18);
   --sk-red: #e88c9c;
