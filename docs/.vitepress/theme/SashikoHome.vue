@@ -3,6 +3,23 @@ import { ref } from 'vue';
 import { withBase } from 'vitepress';
 
 const installCommand = 'pnpm add sashiko';
+
+/**
+ * A luz sobre o tecido acompanha o ponteiro. Só atualiza duas variáveis CSS, uma vez por quadro, e não faz
+ * nada para quem pediu menos movimento.
+ */
+const hero = ref<HTMLElement | null>(null);
+let frame = 0;
+function moveLight(event: PointerEvent) {
+  const el = hero.value;
+  if (!el || frame || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    const box = el.getBoundingClientRect();
+    el.style.setProperty('--sk-light-x', `${event.clientX - box.left}px`);
+    el.style.setProperty('--sk-light-y', `${event.clientY - box.top}px`);
+  });
+}
 const copied = ref(false);
 
 async function copyInstall() {
@@ -51,7 +68,7 @@ const constraints = [
 
 <template>
   <div class="sk-home">
-    <section class="sk-hero" aria-labelledby="sk-title">
+    <section ref="hero" class="sk-hero" aria-labelledby="sk-title" @pointermove="moveLight">
       <div class="sk-hero__inner">
         <div class="sk-hero__text">
           <p class="sk-mark"><span>Sashiko</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
@@ -130,10 +147,41 @@ const constraints = [
 
 /* O tecido: índigo com uma trama de pontos corridos quase invisível. */
 .sk-hero {
+  position: relative;
+  isolation: isolate;
+  --sk-light-x: 30%;
+  --sk-light-y: 20%;
+  /* A luz desliza até o ponteiro, em vez de saltar. */
+  transition:
+    --sk-light-x 0.5s ease-out,
+    --sk-light-y 0.5s ease-out;
   background-color: var(--sk-indigo);
   /* Fileiras de pontos corridos, desencontradas como no bordado à mão. */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E");
   color: var(--sk-thread);
+}
+/* Registradas para poderem ser animadas (variáveis comuns não têm transição). */
+@property --sk-light-x {
+  syntax: '<length-percentage>';
+  inherits: true;
+  initial-value: 30%;
+}
+@property --sk-light-y {
+  syntax: '<length-percentage>';
+  inherits: true;
+  initial-value: 20%;
+}
+
+/* A luz que bate no índigo: um brilho largo e suave, que acompanha o ponteiro. */
+.sk-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(640px circle at var(--sk-light-x) var(--sk-light-y), rgba(160, 190, 235, 0.16), transparent 62%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.05), transparent 40%);
 }
 .sk-hero__inner {
   max-width: 1152px;
@@ -232,9 +280,18 @@ const constraints = [
 /* O código sobre o tecido; as linhas de decorator recebem o ponto corrido. */
 .sk-code {
   margin: 0;
-  background: var(--sk-indigo-night);
-  border-radius: 8px;
-  box-shadow: 0 0 0 1px rgba(238, 241, 245, 0.08);
+  /* Filete de luz na borda, mais forte no canto de cima, como vidro sobre o tecido. */
+  border: 1px solid transparent;
+  background:
+    linear-gradient(rgba(14, 21, 40, 0.8), rgba(14, 21, 40, 0.8)) padding-box,
+    linear-gradient(150deg, rgba(220, 230, 245, 0.55), rgba(220, 230, 245, 0.08) 35%, rgba(220, 230, 245, 0.04) 70%, rgba(220, 230, 245, 0.22)) border-box;
+  border-radius: 10px;
+  /* Vidro fosco: a luz do tecido atravessa o bloco, sem atrapalhar a leitura. */
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow:
+    0 24px 48px -20px rgba(4, 8, 20, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .sk-code pre {
   margin: 0;
@@ -264,18 +321,31 @@ const constraints = [
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -3px;
-  border-bottom: 2px dashed var(--sk-thread);
-  /* A costura passa uma vez, ao carregar. */
+  bottom: -4px;
+  height: 2px;
+  /* Linha de prata (gin-ito): o ponto corrido recortado de um degradê metálico. */
+  background: linear-gradient(90deg, #b9c6da 0%, #eef2f8 30%, #ffffff 42%, #9fb1cc 55%, #dfe6f1 75%, #b9c6da 100%);
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 9px);
+  mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 9px);
+  /* A costura passa uma vez, e depois o reflexo da prata corre uma vez pela linha. */
   clip-path: inset(0 100% 0 0);
-  animation: sk-sew 900ms cubic-bezier(0.6, 0, 0.3, 1) forwards;
+  animation:
+    sk-sew 900ms cubic-bezier(0.6, 0, 0.3, 1) forwards,
+    sk-sheen 1400ms ease-in-out 1100ms forwards;
 }
 .sk-stitch:nth-of-type(2)::after {
-  animation-delay: 450ms;
+  animation-delay: 450ms, 1550ms;
 }
 @keyframes sk-sew {
   to {
     clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes sk-sheen {
+  to {
+    background-position: 0% 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
