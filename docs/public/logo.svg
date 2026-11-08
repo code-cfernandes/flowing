@@ -11,6 +11,12 @@
       <stop offset="0.5" stop-color="#5B21B6"/>
       <stop offset="1" stop-color="#312E81"/>
     </linearGradient>
+    <linearGradient id="fl-return" x1="606" y1="300" x2="78" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#312E81"/>
+      <stop offset="0.35" stop-color="#4F46E5"/>
+      <stop offset="0.75" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
     <linearGradient id="fl-gloss" x1="0" y1="40" x2="0" y2="500" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.42"/>
       <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
@@ -18,8 +24,10 @@
   </defs>
   
   <g fill="none" stroke-width="104" stroke-linecap="round">
-    <path d="M940 226C904 150 810 128 728 174C684 199 646 240 606 300" stroke="url(#fl-under)"/>
-    <path d="M940 226C904 150 810 128 728 174C684 199 646 240 606 300" stroke="url(#fl-gloss)"/>
+    <path d="M940 226C904 150 810 128 728 174C684 199 646 240 606 300" stroke="url(#fl-under)" stroke-linecap="butt"/>
+    <path d="M940 226C904 150 810 128 728 174C684 199 646 240 606 300" stroke="url(#fl-gloss)" stroke-linecap="butt"/>
+    <path d="M606 300C566 360 470 470 330 470C200 470 88 444 78 392" stroke="url(#fl-return)" stroke-linecap="butt"/>
+    <path d="M606 300C566 360 470 470 330 470C200 470 88 444 78 392" stroke="url(#fl-gloss)" stroke-linecap="butt"/>
     <path d="M78 392C52 262 168 96 312 96C452 96 528 236 604 330C684 428 772 474 866 444C952 416 978 304 940 226" stroke="url(#fl-flow)"/>
     <path d="M78 392C52 262 168 96 312 96C452 96 528 236 604 330C684 428 772 474 866 444C952 416 978 304 940 226" stroke="url(#fl-gloss)"/>
     <path d="M940.0 226.0C927.4 199.4 907.7 179.4 883.9 166.6" stroke="url(#fl-under)" stroke-linecap="butt"/>
