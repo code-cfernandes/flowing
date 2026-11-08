@@ -9,6 +9,26 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.17.0] - 2026-11-08
+
+### Adicionado
+
+- **Contratos em Zod, Valibot ou ArkType:** `createApp({ contracts: contracts.standard() })` usa schemas Standard
+  Schema como contrato das rotas, sem dependência nova. O valor validado pelo schema (com `trim`, `default`,
+  `transform`) vira o `ctx.body`, o `ctx.query` e o `ctx.params`, com os tipos do próprio schema; a resposta é
+  filtrada pelo schema do status; validação assíncrona funciona na entrada; o OpenAPI usa o `toJSONSchema` informado.
+  Sem a opção, vale o `contracts.native()`, o comportamento de sempre. Um motor por app: um schema de outro motor falha
+  no registro da rota.
+- **Parsers de body por tipo de mídia:** `createApp({ parsers: { 'application/yaml': (raw) => ... } })`, com o
+  `bodyLimit`, a proteção contra prototype pollution e a validação do contrato valendo para todos.
+- **Query parser próprio:** `createApp({ queryParser })`, para sintaxes aninhadas como `?filter[status]=ativo` com o
+  `qs`. O retorno passa por um filtro recursivo de chaves perigosas, e um parser que falha gera 400.
+
+### Documentação
+
+- Guia "Formatos de entrada" (parsers e query parser), seção do motor de contratos no guia de schemas, Zod nativo no
+  guia "Vindo do Express" e o exemplo `examples/contracts-zod`.
+
 ## [0.16.1] - 2026-11-08
 
 ### Corrigido

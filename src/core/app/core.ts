@@ -5,6 +5,7 @@ import type { Logger } from '../logger.ts';
 import type { Telemetry } from '../telemetry.ts';
 import type { Serializer } from '../response/pipeline.ts';
 import type { AppOptions, OnCloseHook, OnErrorHook, OnRequestHook, OnResponseHook } from './options.ts';
+import type { Contracts } from '../contracts.ts';
 
 /**
  * Estado compartilhado do app entre a fachada (`SashikoApp`) e os componentes internos (registro,
@@ -17,6 +18,8 @@ export interface AppCore {
   readonly errorHandlers: OnErrorHook[];
   readonly onSendHooks: OnSendHook[];
   readonly onRequestHooks: OnRequestHook[];
+  /** O motor dos contratos (F-27): o do app, ou o nativo. */
+  readonly contracts: Contracts;
   /** OpenTelemetry, quando `createApp({ telemetry })` (F-38). */
   readonly telemetry: Telemetry | undefined;
   readonly onResponseHooks: OnResponseHook[];

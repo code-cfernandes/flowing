@@ -1,11 +1,9 @@
 import type { Context } from '../context.ts';
-import { kRawSend } from '../symbols.ts';
+import { kContracts, kRawSend } from '../symbols.ts';
 import { STATUS_CODES } from 'node:http';
 import { HttpError, type ErrorFormatter, type ProblemDetails } from '../errors.ts';
 import { isResponseContent, type RouteSchemas } from '../metadata.ts';
 import { Readable } from 'node:stream';
-import { serialize } from '../../schema/serialization.ts';
-import { stripToSchema } from '../../schema/validation.ts';
 import { isJsonContentType, mediaType, negotiate, withCharset } from '../../utils/content-type.ts';
 
 /** Converte dados num corpo de resposta para um content type (F-31). */
@@ -123,7 +121,7 @@ function ndjson(ctx: Context, items: AsyncIterable<unknown>, schema: object | un
     (async function* () {
       for await (const item of items) {
         if (signal.aborted) return; // cliente desconectou: para de consumir a fonte
-        yield `${schema ? serialize(schema, item) : JSON.stringify(item)}\n`;
+        yield `${schema ? ctx[kContracts].serialize(schema, item) : JSON.stringify(item)}\n`;
       }
     })(),
   );
@@ -162,7 +160,7 @@ function write(
 
   if (json) {
     // Pelo ponto único de escrita (F-04): onSend e sentBody valem também para JSON.
-    return void ctx[kRawSend](schema ? serialize(schema, value) : JSON.stringify(value), header);
+    return void ctx[kRawSend](schema ? ctx[kContracts].serialize(schema, value) : JSON.stringify(value), header);
   }
 
   const serializer = serializers.get(base);
@@ -178,7 +176,7 @@ function write(
 
 /** Valida a saída e devolve uma cópia sem campos não declarados (S-07 em qualquer formato). */
 function ensureValid(ctx: Context, schema: object, value: unknown): unknown {
-  const checked = stripToSchema(schema, value);
+  const checked = ctx[kContracts].strip(schema, value);
   if (!checked.ok) {
     throw new Error(
       `[sashiko] ${ctx.method} ${ctx.path}: response does not match its schema: ` +

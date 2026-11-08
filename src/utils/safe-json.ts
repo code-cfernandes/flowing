@@ -47,3 +47,31 @@ function scrub(root: unknown, mode: ProtoPoisoning): void {
     for (const key of Object.keys(obj)) stack.push(obj[key]);
   }
 }
+
+/**
+ * A mesma proteção do `parseJson` (S-08) para o valor de um parser próprio (F-12). Diferente do JSON, um parser
+ * (YAML com âncoras, por exemplo) pode devolver referências repetidas ou circulares: cada objeto é visitado uma vez.
+ */
+export function scrubParsed(root: unknown, mode: ProtoPoisoning = 'error'): void {
+  const seen = new WeakSet<object>();
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (typeof node !== 'object' || node === null || seen.has(node)) continue;
+    seen.add(node);
+    const obj = node as Record<string, unknown>;
+    if (Object.hasOwn(obj, '__proto__')) {
+      if (mode === 'error') throw new ProtoPoisoningError('__proto__');
+      // biome-ignore lint/suspicious/noProto: é exatamente a chave própria que está sendo removida.
+      delete obj['__proto__'];
+    }
+    if (Object.hasOwn(obj, 'constructor')) {
+      const ctor = obj['constructor'];
+      if (typeof ctor === 'object' && ctor !== null && Object.hasOwn(ctor, 'prototype')) {
+        if (mode === 'error') throw new ProtoPoisoningError('constructor.prototype');
+        delete obj['constructor'];
+      }
+    }
+    for (const key of Object.keys(obj)) stack.push(obj[key]);
+  }
+}

@@ -9,6 +9,9 @@ import type { ShutdownOptions } from '../shutdown.ts';
 import type { TlsOptions } from '../../server/tls.ts';
 import type { ProtoPoisoning } from '../../utils/safe-json.ts';
 import type { SecurityHeadersOptions, SecurityPreset } from '../../middlewares/security-headers.ts';
+import type { QueryParser } from '../../utils/query.ts';
+import type { BodyParser } from '../body-parser.ts';
+import type { Contracts } from '../contracts.ts';
 
 /**
  * Tratamento de erros (F-04). `phase` diz em que etapa a requisição estava: `middleware`, `guard`,
@@ -108,6 +111,26 @@ export interface AppOptions {
   protoPoisoning?: ProtoPoisoning;
   /** Máximo de pares chave/valor lidos da query string. Padrão: 1000 (S-06). */
   queryMaxKeys?: number;
+  /**
+   * Parser de query próprio (F-26), para sintaxes aninhadas como `?filter[status]=ativo`:
+   * `createApp({ queryParser: (raw) => qs.parse(raw, { depth: 3, arrayLimit: 50, parameterLimit: 1000 }) })`.
+   * O retorno passa pelo filtro de chaves perigosas; se o parser lançar, a resposta é 400. Os limites ficam com o
+   * parser: o `queryMaxKeys` vale só para o padrão.
+   */
+  queryParser?: QueryParser;
+  /**
+   * O motor dos contratos das rotas (F-27), um para o app inteiro. Sem a opção, `contracts.native()` (schemas
+   * TypeBox). Para Zod, Valibot ou ArkType: `contracts.standard()`. Um schema de outro motor é recusado no registro.
+   */
+  contracts?: Contracts;
+  /**
+   * Parsers de body por tipo de mídia (F-12), além do JSON nativo:
+   * `createApp({ parsers: { 'application/yaml': (raw) => YAML.parse(raw.toString('utf8')) } })`.
+   * O `bodyLimit` e a proteção contra prototype pollution valem para todos, e o contrato da rota valida o resultado.
+   * Atenção: tipos que o navegador envia sem preflight (`application/x-www-form-urlencoded`, `text/plain`) abrem
+   * espaço para CSRF; use o `csrf()` em rotas com sessão por cookie.
+   */
+  parsers?: Readonly<Record<string, BodyParser>>;
   /** Logger compatível com pino. Padrão: `consoleLogger()`; `false` desliga (F-06). */
   logger?: Logger | false;
   /** Loga cada requisição concluída (método, path, status, duração) em nível `info`. Padrão: `false`. */

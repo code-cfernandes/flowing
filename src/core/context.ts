@@ -2,7 +2,7 @@ import type { IncomingMessage, OutgoingHttpHeader, ServerResponse } from 'node:h
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { HttpError } from './errors.ts';
-import { parseQuery, type ParsedQuery } from '../utils/query.ts';
+import { type ParsedQuery, parseCustomQuery, parseQuery, type QueryParser } from '../utils/query.ts';
 import { parseCookies, serializeCookie, type CookieOptions } from '../utils/cookie.ts';
 import { hostnameOf, isValidHost, pickForwarded, type RequestTarget, splitRequestTarget } from '../utils/request-target.ts';
 import { silentLogger, type Logger } from './logger.ts';
@@ -12,9 +12,22 @@ import { sendResult, type ResponsePlan, type SendMode } from './response/pipelin
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
 import { parseTraceparent, type TraceContext } from '../utils/trace-context.ts';
-import { kAbort, kBindResponse, kError, kHooks, kPendingSend, kPhase, kRawSend, kRoute, kRouted, kTelemetry } from './symbols.ts';
+import {
+  kAbort,
+  kBindResponse,
+  kContracts,
+  kError,
+  kHooks,
+  kPendingSend,
+  kPhase,
+  kRawSend,
+  kRoute,
+  kRouted,
+  kTelemetry,
+} from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
+import { type Contracts, NATIVE_CONTRACTS } from './contracts.ts';
 
 export type { SseEvent, SseOptions, SseStream } from './streaming/sse.ts';
 
@@ -81,6 +94,10 @@ export interface ContextState {
 
 export interface ContextOptions {
   queryMaxKeys?: number | undefined;
+  /** O motor dos contratos do app (F-27); sem ele, o nativo. */
+  contracts?: Contracts | undefined;
+  /** Parser de query próprio (F-26); sem ele, o padrão com `queryMaxKeys`. */
+  queryParser?: QueryParser | undefined;
   /** Id da requisição; o app gera ou reaproveita o header recebido (F-06). */
   id?: string | undefined;
   /** Logger do app; o contexto cria um filho com o `reqId`. */
@@ -135,6 +152,11 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   }
   /** @internal */
   [kRoute]: RouteInfo | undefined;
+  /** @internal O motor dos contratos do app (F-27). */
+  get [kContracts](): Contracts {
+    return this.opts.contracts ?? NATIVE_CONTRACTS;
+  }
+
   /** @internal Etapa atual do pipeline, para a fase do `onError` (F-38). */
   [kPhase]: ErrorPhase = 'middleware';
   /** @internal A cadeia global chegou ao roteamento (o último middleware chamou `next()`). */
@@ -145,7 +167,19 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   [kTelemetry]: unknown;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
-    this.parsedQuery ??= parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys) as ParsedQuery;
+    if (this.parsedQuery === undefined) {
+      const custom = this.opts.queryParser;
+      if (custom) {
+        try {
+          this.parsedQuery = parseCustomQuery(custom, this.target.search) as ParsedQuery;
+        } catch {
+          // A mensagem do parser pode expor detalhes internos: o cliente recebe só o motivo genérico.
+          throw new HttpError(400, 'Invalid query string', 'INVALID_QUERY');
+        }
+      } else {
+        this.parsedQuery = parseQuery(new URLSearchParams(this.target.search), this.opts.queryMaxKeys);
+      }
+    }
     return this.parsedQuery as InferQuery<SchemasOf<S>>;
   }
   set query(value: InferQuery<SchemasOf<S>>) {

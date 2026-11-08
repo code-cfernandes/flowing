@@ -22,3 +22,5 @@ export const kTelemetry = Symbol('sashiko.telemetry');
 export const kHeadersAt = Symbol('sashiko.headersAt');
 /** @internal Hooks com escopo da rota, guardados no `RouteInfo` de cada host (F-43). */
 export const kHooks = Symbol('sashiko.hooks');
+/** @internal O motor dos contratos do app (`contracts`, F-27), lido pelo pipeline de resposta. */
+export const kContracts = Symbol('sashiko.contracts');

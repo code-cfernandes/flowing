@@ -33,7 +33,13 @@ export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyM
   // Síncrono quando o handler é síncrono: Promise só se o handler devolver uma (F-41).
   const terminal = (ctx: Context): Step => {
     ctx[kPhase] = 'validation';
-    validateRequest(ctx, schemas);
+    // Assíncrona só com um schema de validação assíncrona (Standard Schema); o nativo é sempre síncrono.
+    const validating = validateRequest(ctx, schemas);
+    return validating ? resume(validating, ctx) : run(ctx);
+  };
+  // Separado do `terminal`: um callback ali capturaria o `ctx` e o V8 alocaria um contexto em toda requisição (F-41).
+  const resume = (validating: Promise<void>, ctx: Context): Promise<void> => validating.then(() => run(ctx));
+  const run = (ctx: Context): Step => {
     // F-32: a partir daqui, ctx.json/send/text passam pelo mesmo pipeline do `return`.
     ctx[kBindResponse](plan);
     ctx[kPhase] = 'handler';

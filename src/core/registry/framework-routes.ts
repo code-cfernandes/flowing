@@ -76,7 +76,9 @@ export class FrameworkRoutes {
           const key = visible.map((r) => this.registry.routes.indexOf(r)).join(',');
           let doc = cfg.cache.get(key);
           if (doc === undefined) {
-            doc = JSON.stringify(generateOpenAPI(visible, cfg.opts, !this.core.opts.formatError));
+            doc = JSON.stringify(
+              generateOpenAPI(visible, cfg.opts, !this.core.opts.formatError, (s) => this.core.contracts.toJsonSchema(s)),
+            );
             cfg.cache.set(key, doc);
           }
           ctx[kRawSend](doc, 'application/json; charset=utf-8');

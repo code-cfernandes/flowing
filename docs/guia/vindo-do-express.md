@@ -39,21 +39,18 @@ O código continua com `import { createApp, Get, Router } from 'sashiko'`; o Typ
 
 ## Schemas em Zod
 
-Se os schemas já estão em Zod, por exemplo num pacote compartilhado com o site e o app, eles podem virar o contrato da rota sem ser reescritos. O Zod 4 gera JSON Schema, e o `Type.Unsafe` o usa como contrato, com o tipo vindo do próprio Zod:
+Se os schemas já estão em Zod, por exemplo num pacote compartilhado com o site e o app, use o motor `contracts.standard()`: os mesmos schemas viram o contrato das rotas, com os tipos e a validação do próprio Zod.
 
 ```ts
 import { z } from 'zod';
-import { type Context, Post, Router, type RouteSchemas, Type } from 'sashiko';
+import { type Context, contracts, createApp, Post, Router, type RouteSchemas } from 'sashiko';
+import { Membro } from '@igreja/shared'; // um z.object(...) que já existe
 
-const Membro = z.object({ nome: z.string().min(2), email: z.email(), idade: z.number().int().min(0).optional() });
+const app = createApp({
+  contracts: contracts.standard({ toJSONSchema: (schema) => z.toJSONSchema(schema as z.ZodType) }),
+});
 
-/** Schema Zod → contrato do Sashiko, com o tipo inferido pelo Zod. */
-const fromZod = <T>(schema: z.ZodType<T>) => Type.Unsafe<T>(z.toJSONSchema(schema, { target: 'draft-7' }));
-
-const criar = {
-  body: fromZod(Membro),
-  response: { 201: Type.Object({ ok: Type.Boolean() }) },
-} satisfies RouteSchemas;
+const criar = { body: Membro, response: { 201: z.object({ ok: z.boolean() }) } } satisfies RouteSchemas;
 
 @Router('/membros')
 class MembroRoutes {
@@ -64,11 +61,16 @@ class MembroRoutes {
 }
 ```
 
-Uma entrada fora do schema (nome curto, e-mail inválido, idade negativa) recebe 400 antes do handler.
+`.transform()`, `.refine()` (inclusive assíncrono) e `.default()` funcionam, porque quem valida é o próprio Zod. Nos params e na query, use `z.coerce.number()`. Os detalhes estão em [Schemas](./schemas#zod-valibot-e-arktype-o-motor-dos-contratos).
 
-::: warning O que não é convertido
-Só o que o JSON Schema consegue expressar vira contrato. `.transform()`, `.refine()`, `.superRefine()` e `.preprocess()` são lógica do Zod: se os seus schemas dependem disso, essa parte precisa continuar no handler, com `Membro.parse(ctx.body)`.
-:::
+O motor é um por app: com `contracts.standard()`, todas as rotas usam Standard Schema. Para manter o motor nativo (TypeBox) e reaproveitar só alguns schemas Zod, converta-os para JSON Schema:
+
+```ts
+const fromZod = <T>(schema: z.ZodType<T>) => Type.Unsafe<T>(z.toJSONSchema(schema, { target: 'draft-7' }));
+const criar = { body: fromZod(Membro), response: { 201: Type.Object({ ok: Type.Boolean() }) } } satisfies RouteSchemas;
+```
+
+Nesse caso, só o que o JSON Schema expressa é convertido: `.transform()` e `.refine()` ficam de fora e precisam continuar no handler.
 
 ## Middlewares do Express (upload com multer)
 
