@@ -165,7 +165,7 @@ Os 393 testes garantem estes comportamentos. A refatoração precisa preservá-l
 
 ## Desempenho: ponto de partida
 
-Primeira rodada de [`sashiko-benchmarks`](https://github.com/code-cfernandes/sashiko-benchmarks) (Node 26, i7-13700H, WSL2, uma rodada; ordem de grandeza, não valor final):
+Primeira rodada de `sashiko-benchmarks` (repositório privado; os números estão resumidos aqui) (Node 26, i7-13700H, WSL2, uma rodada; ordem de grandeza, não valor final):
 
 | Perfil `defaults`  | `get` (req/s) | % do `node:http` |   RSS pico |
 | ------------------ | ------------: | ---------------: | ---------: |
@@ -308,7 +308,7 @@ As três têm testes em `test/core/invariants.test.ts` e estão no CHANGELOG, co
 
 ### Resultados
 
-Medidos com o [`sashiko-benchmarks`](https://github.com/code-cfernandes/sashiko-benchmarks): Node 26, i7-13700H, WSL2, autocannon com 100 conexões, pipelining 10, 10 s por medição, mediana de três rodadas, Sashiko com a configuração padrão (logger ligado). Rodada final em `results/final-f39.json`; a linha de base (0.12.2, mesmas condições) em `results/baseline-fase0.json`.
+Medidos com o `sashiko-benchmarks` (repositório privado; os números estão resumidos aqui): Node 26, i7-13700H, WSL2, autocannon com 100 conexões, pipelining 10, 10 s por medição, mediana de três rodadas, Sashiko com a configuração padrão (logger ligado). Rodada final em `results/final-f39.json`; a linha de base (0.12.2, mesmas condições) em `results/baseline-fase0.json`.
 
 **Sashiko, 0.12.2 → refatoração (perfil `defaults`):**
 

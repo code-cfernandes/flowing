@@ -22,4 +22,4 @@ createApp({ telemetry: otel });
   O `http.route` vem sempre do template e o `server.address` da regra de virtual host, nunca do path ou do hostname do cliente: a cardinalidade das séries fica fixa. Nenhum atributo inclui query, headers ou body.
 - **Sem `telemetry`**, os mesmos dados estão disponíveis para outra ferramenta em `ctx.route`, `ctx.trace`, `onRequest` e `onResponse`.
 
-**Custo** (benchmark de `GET` simples, SDK real com um exportador que descarta os spans): a auto-instrumentação HTTP do OpenTelemetry é a parte cara, também num `node:http` puro. Em cima dela, o `telemetry` acrescentou cerca de 5% de vazão e de memória. Sem `telemetry` e sem hooks, nada disso é carregado.
+**Custo** (benchmark de `GET` simples, SDK real com um exportador que descarta os spans): a auto-instrumentação HTTP do OpenTelemetry é a parte cara, também num `node:http` puro. Em cima dela, o `telemetry` reduziu a vazão em cerca de 6% (de ~41 mil para ~38,5 mil req/s) e aumentou o RSS de pico em 5 a 9 MB (de ~243 para 247 a 252 MB). Sem `telemetry` e sem hooks, nada disso é carregado.

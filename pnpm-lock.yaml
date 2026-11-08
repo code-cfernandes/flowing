@@ -197,6 +197,12 @@ importers:
 
   docs:
     devDependencies:
+      '@fontsource/ibm-plex-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/zen-kaku-gothic-new':
+        specifier: ^5.3.1
+        version: 5.3.1
       typedoc:
         specifier: 0.28.20
         version: 0.28.20(typescript@5.9.3)
@@ -720,6 +726,12 @@ packages:
 
   '@fastify/merge-json-schemas@0.2.2':
     resolution: {integrity: sha512-d/gx9sRbUCVgGRGzma46wLcwiY8noTqO2Nmjg/vbTARxHRE5bdh5PIL8s97Lt1X7ScRWRW52eVYxwIoPwIdVUA==}
+
+  '@fontsource/ibm-plex-mono@5.3.0':
+    resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
+
+  '@fontsource/zen-kaku-gothic-new@5.3.1':
+    resolution: {integrity: sha512-L69mE6bkzeVK3UdTenxOmCIWvTwMxohJRNm1dAj+W+UiCULQ91b7M77ENVw+pjGmFL6zKPFYFeH3g8x2ugAJNw==}
 
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
@@ -2014,6 +2026,10 @@ snapshots:
   '@fastify/merge-json-schemas@0.2.2':
     dependencies:
       dequal: 2.0.3
+
+  '@fontsource/ibm-plex-mono@5.3.0': {}
+
+  '@fontsource/zen-kaku-gothic-new@5.3.1': {}
 
   '@gerrit0/mini-shiki@3.23.0':
     dependencies:

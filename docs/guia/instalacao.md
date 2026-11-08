@@ -1,8 +1,12 @@
 # Instalação
 
 - **Node.js 22+**
-- **TypeScript 5.2+**, com decorators **padrão**. **Não** use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Sashiko lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados (NestJS, TypeORM…).
-- ESM (`"type": "module"`).
+- **TypeScript 5.2+**, com decorators **padrão** (TC39).
+- **ESM** (`"type": "module"`).
+
+::: warning Sem decorators legados
+Não use `experimentalDecorators` nem `emitDecoratorMetadata`: se estiverem ligados, o Sashiko lança um erro dizendo como corrigir. Por isso ele não convive no mesmo projeto com bibliotecas que exigem decorators legados, como NestJS e TypeORM.
+:::
 
 ```bash
 pnpm add sashiko
