@@ -9,6 +9,36 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.18.0] - 2026-11-08
+
+### Adicionado
+
+- **Upload de arquivos nativo:** `files` no contrato da rota (`{ pdf: { required, maxSize, maxCount, types, verify } }`),
+  com `ctx.file()` e `ctx.files()` tipados pelos nomes declarados. Arquivos, limites, tipos e obrigatórios são
+  conferidos antes do handler (413 e 400 em Problem Details); os campos de texto do formulário chegam em `ctx.body`,
+  validados pelo contrato com conversão de texto. Os arquivos ficam em temporários com nome gerado, apagados quando a
+  resposta termina, inclusive em erro e cancelamento. Rotas sem `files` não leem o multipart (o `multer` continua
+  funcionando).
+- **Conferência do conteúdo:** `types` confere também os primeiros bytes do arquivo (um executável enviado como PDF é
+  recusado), com a `magic-bytes.js`. `detectors.fileType(fileTypeFromBuffer)` liga o `file-type`, instalado pela
+  aplicação, para confirmar documentos do Office.
+- **Limites globais:** `createApp({ uploads: { limits, tempDir, detect } })`; a rota só pode restringi-los.
+- **OpenAPI:** rotas com `files` saem como `multipart/form-data`, com os arquivos em `format: binary`.
+- Duas dependências de runtime novas, ambas sem dependências próprias: `@fastify/busboy` (o leitor de multipart) e
+  `magic-bytes.js` (a detecção de tipo). Justificativas no SECURITY.md.
+
+### Desempenho
+
+- Respostas em stream (`static()`, `sendFile()`, `ctx.send(readable)`) usam `.pipe()` em vez do `pipeline()`: no
+  cenário de arquivos estáticos sob carga, o heap reservado cai de ~88 MB, com picos de 150 a 190 MB, para ~65 MB
+  estáveis, sem perda de vazão. Arquivos do disco deixam de entrar no conjunto de streams que o `close()` avisa (eles
+  terminam sozinhos).
+
+### Documentação
+
+- Guia "Upload de arquivos" (regras, conteúdo, limites, OpenAPI, receita de S3/MinIO, segurança) e o upload nativo no
+  guia "Vindo do Express".
+
 ## [0.17.0] - 2026-11-08
 
 ### Adicionado

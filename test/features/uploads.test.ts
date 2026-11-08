@@ -334,3 +334,65 @@ describe('F-46 · detector plugável', () => {
     }
   });
 });
+
+describe('F-46 · upload combinado com os recursos existentes', () => {
+  const boundary = 'xSashiko';
+  const multipart = (content: string) =>
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="pdf"; filename="a.pdf"\r\nContent-Type: application/pdf\r\n\r\n${content}\r\n--${boundary}--\r\n`,
+    );
+  const headers = { 'content-type': `multipart/form-data; boundary=${boundary}` };
+  const rota = {
+    files: { pdf: { required: true, types: ['application/pdf'] } },
+    response: { 200: Type.Object({ size: Type.Number() }) },
+  } satisfies RouteSchemas;
+
+  it('inject() com corpo multipart; requireSchemas aceita rota só com files', async () => {
+    @Router('/i')
+    class I {
+      @Post('/', rota) up(ctx: Context<typeof rota>) {
+        return { size: ctx.file('pdf').size };
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false, requireSchemas: true });
+    app.mount(I);
+    const r = await app.inject({ method: 'POST', url: '/i', headers, body: multipart(PDF) });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json(), { size: Buffer.byteLength(PDF) });
+  });
+
+  it('guard recusa antes de ler o arquivo: 401 e nenhum temporário', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sashiko-up-guard-'));
+    @Router('/g')
+    class G {
+      @Post('/', rota) up() {
+        return { size: 0 };
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false, uploads: { tempDir: dir } });
+    app.mount(G, { guards: [() => false] });
+    const r = await app.inject({ method: 'POST', url: '/g', headers, body: multipart(PDF) });
+    assert.ok(r.status === 401 || r.status === 403, `status ${r.status}`);
+    assert.equal(temps(dir), 0);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('onError recebe o erro do upload', async () => {
+    const vistos: string[] = [];
+    @Router('/h')
+    class H {
+      @Post('/', rota) up() {
+        return { size: 0 };
+      }
+    }
+    const app = createApp({ logger: false, shutdown: false });
+    app.onError((err) => void vistos.push(`erro:${(err as { code?: string }).code}`));
+    app.mount(H);
+    const r = await app.inject({ method: 'POST', url: '/h', headers, body: multipart('não é pdf') });
+    assert.equal(r.status, 400);
+    assert.ok(
+      vistos.some((v) => v.startsWith('erro:INVALID_FILE_TYPE')),
+      vistos.join(),
+    );
+  });
+});

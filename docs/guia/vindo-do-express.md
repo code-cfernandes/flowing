@@ -14,6 +14,7 @@ Um guia rápido para quem tem uma API em Express e quer experimentar o Sashiko s
 | `cors`                                           | O middleware `cors({ origin })`                                                          |
 | `express-rate-limit`                             | O middleware `rateLimit({ max, windowMs })`                                              |
 | `morgan`                                         | `createApp({ logRequests: true })`, com request id em cada log                           |
+| `multer`                                         | `files` no contrato da rota, com `ctx.file()` (veja [Upload de arquivos](./uploads))     |
 | `express.static`                                 | `app.static('/prefixo', pasta)`                                                          |
 | Middleware de erro `(err, req, res, next)`       | `app.onError()`; as respostas de erro saem em Problem Details                            |
 | `swagger-jsdoc` e `swagger-ui-express`           | `app.openapi({ docs: true })`, gerado dos contratos das rotas                            |
@@ -72,7 +73,9 @@ const criar = { body: fromZod(Membro), response: { 201: Type.Object({ ok: Type.B
 
 Nesse caso, só o que o JSON Schema expressa é convertido: `.transform()` e `.refine()` ficam de fora e precisam continuar no handler.
 
-## Middlewares do Express (upload com multer)
+## Middlewares do Express (multer e outros)
+
+O upload já é nativo: com `files` no contrato, o arquivo e os campos do formulário são validados antes do handler e tipados ([Upload de arquivos](./uploads)). Para manter o `multer` de um projeto que já existe, ou qualquer outro middleware do Express, use um adaptador.
 
 Um middleware do Express que só lê a requisição e escreve nela pode rodar dentro do Sashiko com um adaptador. É o caso do `multer`, para upload de arquivos:
 
@@ -92,7 +95,7 @@ app.mount(DocumentoRoutes, { middlewares: [express(upload.single('pdf'))] });
 // No handler: o arquivo em (ctx.req as any).file e os campos do formulário em (ctx.req as any).body.
 ```
 
-- O corpo `multipart/form-data` não passa pelo leitor de JSON do Sashiko, então chega intacto ao `multer`.
+- Numa rota sem `files`, o corpo `multipart/form-data` não é lido pelo Sashiko, então chega intacto ao `multer`.
 - Os campos do formulário não têm a validação nem os tipos do contrato da rota; valide-os no handler.
 - O limite de tamanho do arquivo é o do `multer` (`limits.fileSize`), e não o `bodyLimit`.
 - Middlewares que dependem de recursos próprios do Express (`req.app`, `res.render`, `res.locals`) não funcionam assim.

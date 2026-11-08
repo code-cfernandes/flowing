@@ -186,8 +186,9 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     const pending: Promise<void>[] = [];
     let failed: HttpError | undefined;
 
+    let settled = false;
     const fail = (err: HttpError) => {
-      if (failed) return;
+      if (failed || settled) return;
       failed = err;
       // Como no limite do body JSON (B-12): o cliente não deve continuar enviando um corpo que será descartado.
       ctx.res.setHeader('Connection', 'close');
@@ -292,12 +293,15 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
               return fail(new HttpError(400, `File "${name}" is required`, 'FILE_REQUIRED'));
             }
           }
+          settled = true;
           resolve({ fields, files });
         })
         .catch((err: unknown) => fail(err instanceof HttpError ? err : new HttpError(400, 'Invalid file', 'INVALID_FILE')));
     });
     // O cliente desistiu no meio do envio: nada a validar, só limpar (o `close` da resposta apaga os temporários).
-    ctx.req.on('aborted', () => fail(new HttpError(400, 'Upload aborted', 'UPLOAD_ABORTED')));
+    // A conexão caiu antes da resposta (o `aborted` da requisição é obsoleto e dispara no `inject()`).
+    ctx.res.once('close', () => fail(new HttpError(400, 'Upload aborted', 'UPLOAD_ABORTED')));
+    ctx.req.once('error', () => fail(new HttpError(400, 'Upload aborted', 'UPLOAD_ABORTED')));
     ctx.req.pipe(parser);
   });
 }

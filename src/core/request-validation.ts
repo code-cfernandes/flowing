@@ -60,7 +60,7 @@ function apply(ctx: Context, target: ValidationTarget, data: unknown, result: Ch
 
 export function assertSchemas(owner: string, route: { method: string; path: string; schemas: RouteSchemas }): void {
   const where = `${owner}: ${route.method} ${route.path}`;
-  if (['POST', 'PUT', 'PATCH'].includes(route.method) && !route.schemas.body) {
+  if (['POST', 'PUT', 'PATCH'].includes(route.method) && !route.schemas.body && !route.schemas.files) {
     throw new Error(`[sashiko] requireSchemas: ${where} has no body schema.`);
   }
   if (!route.schemas.response || Object.keys(route.schemas.response).length === 0) {
