@@ -23,7 +23,9 @@ export default defineConfig({
   lastUpdated: true,
   // Documento interno (cita os IDs do backlog), mantido no repositório e fora do site.
   srcExclude: ['ARCHITECTURE.md'],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/sashiko/logo.svg' }]],
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guia', link: '/guia/introducao', activeMatch: '/guia/' },
       { text: 'Referência', link: '/referencia/create-app', activeMatch: '/referencia/' },

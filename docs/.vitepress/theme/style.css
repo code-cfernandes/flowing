@@ -1,0 +1,67 @@
+/*
+ * Identidade do Sashiko: o bordado de pontos corridos em linha de algodão sobre tecido tingido de índigo
+ * (aizome). As cores vêm do tingimento, e o ponto corrido é o único ornamento.
+ */
+:root {
+  --sk-indigo: #1c2b4f; /* o tecido */
+  --sk-indigo-night: #121b33; /* o tecido no escuro */
+  --sk-indigo-mid: #3a5a99; /* links no claro */
+  --sk-indigo-faded: #7fa6d3; /* índigo desbotado: links no escuro */
+  --sk-thread: #eef1f5; /* a linha de algodão */
+  --sk-ink: #18213a; /* texto no claro */
+
+  --vp-font-family-base: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --vp-c-brand-1: var(--sk-indigo-mid);
+  --vp-c-brand-2: #2f4d88;
+  --vp-c-brand-3: var(--sk-indigo);
+  --vp-c-brand-soft: rgba(58, 90, 153, 0.12);
+  --vp-c-text-1: var(--sk-ink);
+  --vp-c-bg-alt: #f3f5f8;
+  --vp-home-hero-name-color: var(--sk-thread);
+  --vp-button-brand-bg: var(--sk-indigo);
+  --vp-button-brand-hover-bg: #26386a;
+  --vp-button-brand-active-bg: var(--sk-indigo-night);
+}
+
+.dark {
+  --vp-c-bg: var(--sk-indigo-night);
+  --vp-c-bg-alt: #0e1528;
+  --vp-c-bg-elv: #17223f;
+  --vp-c-bg-soft: #18244a;
+  --vp-c-text-1: var(--sk-thread);
+  --vp-c-text-2: #b7c3d6;
+  --vp-c-brand-1: var(--sk-indigo-faded);
+  --vp-c-brand-2: #9dbbe0;
+  --vp-c-brand-3: #5f85bd;
+  --vp-c-brand-soft: rgba(127, 166, 211, 0.16);
+  --vp-c-divider: rgba(238, 241, 245, 0.12);
+  --vp-code-block-bg: #0e1528;
+}
+
+/* Títulos com o peso e o espaçamento da fonte, não do tema padrão. */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.vp-doc h2 {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 56px;
+}
+/* O separador das seções é um ponto corrido, como a costura. */
+.vp-doc h2::before {
+  content: "";
+  display: block;
+  width: 72px;
+  margin-bottom: 18px;
+  border-top: 2px dashed var(--vp-c-brand-1);
+  opacity: 0.55;
+}
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.75;
+}

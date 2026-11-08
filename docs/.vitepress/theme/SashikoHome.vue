@@ -1,0 +1,454 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+import { withBase } from 'vitepress';
+
+const installCommand = 'pnpm add sashiko';
+const copied = ref(false);
+
+async function copyInstall() {
+  try {
+    await navigator.clipboard.writeText(installCommand);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 1800);
+  } catch {
+    copied.value = false;
+  }
+}
+
+/** Um schema, usado em quatro etapas da requisição (é a ordem real do pipeline). */
+const contract = [
+  { title: 'Valida a entrada', text: 'body, params e query passam pelo Ajv antes do handler. Um erro vira 400 em Problem Details.' },
+  { title: 'Tipa o ctx', text: 'ctx.body e ctx.params chegam com os tipos do schema, sem declarar nada duas vezes.' },
+  { title: 'Filtra a resposta', text: 'Campos fora do schema não saem. Um password esquecido no objeto não vaza.' },
+  { title: 'Documenta a API', text: 'O mesmo schema gera o OpenAPI 3.1 e a página /docs.' },
+];
+
+const included = [
+  {
+    term: 'Segurança',
+    text: 'Headers de segurança, validação de Host, CSRF, CORS, rate limit, limite de body e timeouts, ligados por padrão.',
+  },
+  { term: 'Composição', text: 'app.mount() e app.group() com prefixos, middlewares, guards, hooks e virtual hosts. Sem container de DI.' },
+  {
+    term: 'Produção',
+    text: 'Shutdown gracioso com drain para o balanceador, healthchecks e HTTPS com troca de certificado sem reiniciar.',
+  },
+  { term: 'Streaming', text: 'SSE, NDJSON e arquivos, com cancelamento pelo ctx.signal quando o cliente sai ou o app encerra.' },
+  {
+    term: 'Observabilidade',
+    text: 'OpenTelemetry pelo próprio @opentelemetry/api, ctx.route com o template da rota e logs com request id e redact.',
+  },
+  { term: 'Erros', text: 'Problem Details em toda resposta de erro, com a fase em que o erro aconteceu para quem observa.' },
+];
+
+const constraints = [
+  'Decorators padrão do TC39. O Sashiko não convive no mesmo projeto com bibliotecas que exigem experimentalDecorators, como NestJS e TypeORM.',
+  'ESM e Node.js 22 ou mais recente.',
+  'Sem container de DI: as dependências entram pelo construtor, no ponto em que o app é montado.',
+  'Versão 0.x: a API ainda pode mudar entre versões minor, sempre com a migração descrita no CHANGELOG.',
+];
+</script>
+
+<template>
+  <div class="sk-home">
+    <section class="sk-hero" aria-labelledby="sk-title">
+      <div class="sk-hero__inner">
+        <div class="sk-hero__text">
+          <p class="sk-mark"><span>Sashiko</span><span lang="ja" class="sk-mark__ja">刺し子</span></p>
+          <h1 id="sk-title" class="sk-title">Framework HTTP para Node.js com um contrato em cada rota.</h1>
+          <p class="sk-lede">
+            Decorators padrão organizam as rotas. O schema de cada uma valida a entrada, filtra a resposta, tipa o
+            <code>ctx</code> e gera o OpenAPI. Segurança, shutdown e observabilidade já vêm ligados.
+          </p>
+          <div class="sk-actions">
+            <a class="sk-button" :href="withBase('/guia/introducao')">Ler o guia</a>
+            <button type="button" class="sk-install" :aria-label="`Copiar o comando ${installCommand}`" @click="copyInstall">
+              <code>{{ installCommand }}</code>
+              <span class="sk-install__state" aria-live="polite">{{ copied ? 'Copiado' : 'Copiar' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <figure class="sk-code" aria-label="Exemplo de rota com schema">
+          <pre><code><span class="t-k">const</span> create = {
+  body: Type.<span class="t-f">Object</span>({
+    name: Type.<span class="t-f">String</span>({ minLength: <span class="t-n">1</span> }),
+  }),
+  response: { <span class="t-n">201</span>: User },
+} <span class="t-k">satisfies</span> RouteSchemas;
+
+<span class="sk-stitch">@<span class="t-f">Router</span>(<span class="t-s">'/users'</span>)</span>
+<span class="t-k">class</span> UserRoutes {
+  <span class="sk-stitch">@<span class="t-f">Post</span>(<span class="t-s">'/'</span>, create)</span>
+  <span class="t-f">create</span>(ctx: Context&lt;<span class="t-k">typeof</span> create&gt;) {
+    <span class="t-k">return</span> { id: <span class="t-f">randomUUID</span>(), ...ctx.body };
+  }
+}</code></pre>
+          <figcaption>Os decorators são os pontos: organizam a classe e prendem o contrato à rota.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="sk-section" aria-labelledby="sk-contract">
+      <h2 id="sk-contract">Um schema, usado quatro vezes</h2>
+      <p class="sk-section__lede">O contrato é escrito uma vez, com TypeBox, e o framework o usa em cada etapa da requisição.</p>
+      <ol class="sk-thread">
+        <li v-for="step in contract" :key="step.title">
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.text }}</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="sk-section" aria-labelledby="sk-included">
+      <h2 id="sk-included">O que já vem no lugar</h2>
+      <dl class="sk-included">
+        <div v-for="item in included" :key="item.term">
+          <dt>{{ item.term }}</dt>
+          <dd>{{ item.text }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="sk-section sk-section--last" aria-labelledby="sk-before">
+      <h2 id="sk-before">Antes de adotar</h2>
+      <ul class="sk-constraints">
+        <li v-for="c in constraints" :key="c">{{ c }}</li>
+      </ul>
+      <p class="sk-section__more">
+        <a :href="withBase('/guia/instalacao')">Requisitos e instalação</a>
+        <a :href="withBase('/guia/exemplos')">Exemplos completos</a>
+      </p>
+    </section>
+  </div>
+</template>
+
+<style scoped>
+.sk-home {
+  --sk-gutter: clamp(16px, 4vw, 48px);
+}
+
+/* O tecido: índigo com uma trama de pontos corridos quase invisível. */
+.sk-hero {
+  background-color: var(--sk-indigo);
+  /* Fileiras de pontos corridos, desencontradas como no bordado à mão. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='44'%3E%3Cg stroke='%23EEF1F5' stroke-opacity='0.07' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M4 11h10M26 11h10M48 11h10M15 33h10M37 33h10M59 33h10'/%3E%3C/g%3E%3C/svg%3E");
+  color: var(--sk-thread);
+}
+.sk-hero__inner {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: clamp(48px, 9vw, 112px) var(--sk-gutter) clamp(48px, 8vw, 96px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+.sk-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 20px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.sk-mark__ja {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.sk-title {
+  margin: 0;
+  max-width: 20ch;
+  text-wrap: balance;
+  font-size: clamp(2.1rem, 4.4vw, 3.3rem);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sk-lede {
+  margin: 24px 0 0;
+  max-width: 52ch;
+  font-size: 1.12rem;
+  line-height: 1.7;
+  color: rgba(238, 241, 245, 0.86);
+}
+.sk-lede code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.92em;
+  color: var(--sk-thread);
+}
+.sk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+.sk-button,
+.sk-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.sk-button {
+  background: var(--sk-thread);
+  color: var(--sk-indigo);
+}
+.sk-button:hover {
+  background: #ffffff;
+}
+.sk-install {
+  background: transparent;
+  color: var(--sk-thread);
+  border: 2px dashed rgba(238, 241, 245, 0.55);
+  cursor: pointer;
+}
+.sk-install:hover {
+  border-color: var(--sk-thread);
+}
+.sk-install code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.95rem;
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.sk-install__state {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  min-width: 6ch;
+}
+.sk-button:focus-visible,
+.sk-install:focus-visible {
+  outline: 3px solid var(--sk-indigo-faded);
+  outline-offset: 3px;
+}
+
+/* O código sobre o tecido; as linhas de decorator recebem o ponto corrido. */
+.sk-code {
+  margin: 0;
+  background: var(--sk-indigo-night);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(238, 241, 245, 0.08);
+}
+.sk-code pre {
+  margin: 0;
+  padding: 24px 24px 20px;
+  overflow-x: auto;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.86rem;
+  line-height: 1.75;
+  color: #d5deeb;
+}
+.sk-code figcaption {
+  padding: 0 24px 20px;
+  font-size: 0.86rem;
+  color: rgba(238, 241, 245, 0.62);
+}
+.t-k { color: #9dbbe0; }
+.t-f { color: #f0d9a8; }
+.t-s { color: #b8d8b0; }
+.t-n { color: #e7b7a0; }
+
+.sk-stitch {
+  position: relative;
+  color: var(--sk-thread);
+}
+.sk-stitch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  border-bottom: 2px dashed var(--sk-thread);
+  /* A costura passa uma vez, ao carregar. */
+  clip-path: inset(0 100% 0 0);
+  animation: sk-sew 900ms cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+.sk-stitch:nth-of-type(2)::after {
+  animation-delay: 450ms;
+}
+@keyframes sk-sew {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-stitch::after {
+    animation: none;
+    clip-path: none;
+  }
+}
+
+/* Seções sobre o fundo claro (ou o tecido escuro no tema escuro). */
+.sk-section {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: clamp(56px, 8vw, 88px) var(--sk-gutter) 0;
+}
+.sk-section--last {
+  padding-bottom: clamp(64px, 9vw, 104px);
+}
+.sk-section h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--vp-c-text-1);
+}
+.sk-section__lede {
+  margin: 12px 0 0;
+  max-width: 60ch;
+  color: var(--vp-c-text-2);
+  line-height: 1.7;
+}
+
+/* Quatro etapas ligadas por uma linha de pontos corridos, na ordem do pipeline. */
+.sk-thread {
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  position: relative;
+}
+.sk-thread::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--vp-c-brand-1);
+  opacity: 0.5;
+}
+.sk-thread li {
+  position: relative;
+  padding-top: 32px;
+}
+.sk-thread li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--vp-c-bg);
+  border: 2px solid var(--vp-c-brand-1);
+}
+.sk-thread h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+}
+.sk-thread p {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--vp-c-text-2);
+}
+
+/* Lista de definição em duas colunas; o marcador é o ponto em cruz (jūjizashi). */
+.sk-included {
+  margin: 36px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 56px;
+}
+.sk-included div {
+  position: relative;
+  padding-left: 28px;
+}
+.sk-included div::before,
+.sk-included div::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 14px;
+  border-top: 2px dashed var(--vp-c-brand-1);
+}
+.sk-included div::after {
+  transform: rotate(90deg);
+}
+.sk-included dt {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--vp-c-text-1);
+}
+.sk-included dd {
+  margin: 6px 0 0;
+  line-height: 1.65;
+  color: var(--vp-c-text-2);
+  max-width: 54ch;
+}
+
+.sk-constraints {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  max-width: 72ch;
+  color: var(--vp-c-text-2);
+  line-height: 1.75;
+}
+.sk-constraints li {
+  position: relative;
+  padding-left: 28px;
+}
+.sk-constraints li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.85em;
+  width: 14px;
+  border-top: 2px dashed var(--vp-c-brand-1);
+}
+.sk-constraints li + li {
+  margin-top: 10px;
+}
+.sk-section__more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 28px 0 0;
+}
+.sk-section__more a {
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 5px;
+}
+
+@media (max-width: 960px) {
+  .sk-hero__inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sk-thread {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sk-thread::before {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .sk-code pre {
+    padding: 20px 16px 16px;
+    font-size: 0.78rem;
+  }
+  .sk-code figcaption {
+    padding: 0 16px 16px;
+  }
+  .sk-thread,
+  .sk-included {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
