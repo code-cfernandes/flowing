@@ -23,9 +23,26 @@
   --vp-button-brand-bg: var(--sk-indigo);
   --vp-button-brand-hover-bg: #26386a;
   --vp-button-brand-active-bg: var(--sk-indigo-night);
+
+  /* Avisos de alerta no tom da linha vermelha (aka-ito), e não no amarelo padrão do tema. */
+  --vp-custom-block-warning-border: transparent;
+  --vp-custom-block-warning-text: var(--vp-c-text-1);
+  --vp-custom-block-warning-bg: #f7eef0;
+  --vp-custom-block-warning-code-bg: rgba(168, 50, 72, 0.1);
+  --vp-custom-block-danger-border: transparent;
+  --vp-custom-block-danger-text: var(--vp-c-text-1);
+  --vp-custom-block-danger-bg: #f7eef0;
+  --vp-custom-block-danger-code-bg: rgba(168, 50, 72, 0.1);
+  --vp-custom-block-tip-border: transparent;
+  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
+  --vp-custom-block-info-border: transparent;
 }
 
 .dark {
+  --vp-custom-block-warning-bg: #2a2340;
+  --vp-custom-block-warning-code-bg: rgba(232, 140, 156, 0.14);
+  --vp-custom-block-danger-bg: #2a2340;
+  --vp-custom-block-danger-code-bg: rgba(232, 140, 156, 0.14);
   --vp-c-bg: var(--sk-indigo-night);
   --vp-c-bg-alt: #0e1528;
   --vp-c-bg-elv: #17223f;
@@ -64,4 +81,128 @@
 .vp-doc p,
 .vp-doc li {
   line-height: 1.75;
+}
+
+/* ---------------------------------------------------------------------------------------------------------
+ * Páginas de documentação: a mesma identidade da página inicial, com mais contenção.
+ * ------------------------------------------------------------------------------------------------------- */
+
+/* O título da página ganha uma costura curta embaixo. */
+.vp-doc h1::after {
+  content: "";
+  display: block;
+  width: 96px;
+  margin-top: 16px;
+  border-top: 2px dashed var(--vp-c-brand-1);
+  opacity: 0.6;
+}
+
+/* Blocos de código: o filete de luz na borda e a sombra do bloco da página inicial. */
+.vp-doc div[class*="language-"] {
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(28, 43, 79, 0.1),
+    0 14px 30px -22px rgba(28, 43, 79, 0.5);
+}
+.dark .vp-doc div[class*="language-"] {
+  background-image: linear-gradient(150deg, rgba(220, 230, 245, 0.05), transparent 38%);
+  box-shadow:
+    0 0 0 1px rgba(220, 230, 245, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 36px -22px rgba(2, 6, 18, 0.9);
+}
+
+/* Tabelas: cabeçalho tingido de índigo e as linhas separadas por ponto corrido. */
+.vp-doc table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--vp-c-divider);
+}
+.vp-doc th {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-text-1);
+}
+.vp-doc tr,
+.vp-doc th,
+.vp-doc td {
+  border: none;
+}
+.vp-doc tbody tr + tr td {
+  border-top: 1px dashed var(--vp-c-divider);
+}
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+
+/* Avisos: remendos com a borda costurada por dentro; os de alerta, com a linha vermelha (aka-ito). */
+.vp-doc .custom-block {
+  position: relative;
+  border: none;
+  border-radius: 12px;
+  padding: 18px 22px 10px;
+  --sk-block-stitch: rgba(58, 90, 153, 0.45);
+}
+.vp-doc .custom-block::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1.5px dashed var(--sk-block-stitch);
+  border-radius: 7px;
+  pointer-events: none;
+}
+.vp-doc .custom-block.warning,
+.vp-doc .custom-block.danger {
+  --sk-block-stitch: rgba(168, 50, 72, 0.55);
+}
+.dark .vp-doc .custom-block {
+  --sk-block-stitch: rgba(238, 241, 245, 0.28);
+}
+.dark .vp-doc .custom-block.warning,
+.dark .vp-doc .custom-block.danger {
+  --sk-block-stitch: rgba(232, 140, 156, 0.55);
+}
+
+/* Barra lateral: o item ativo marcado por ponto corrido, em todos os níveis (o padrão não marca o primeiro). */
+.VPSidebar .group .VPSidebarItem.is-active > .item > .indicator {
+  background: repeating-linear-gradient(180deg, var(--vp-c-brand-1) 0 5px, transparent 5px 8px);
+}
+.dark .VPSidebar {
+  background-image: linear-gradient(170deg, rgba(205, 220, 245, 0.04), transparent 30%, transparent 70%, rgba(205, 220, 245, 0.03));
+}
+
+/* "Anterior" e "Próxima": remendos com a costura por dentro, que acende ao passar o mouse. */
+.VPDocFooter .pager .pager-link {
+  position: relative;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 20px 18px;
+  background: var(--vp-c-bg-alt);
+  box-shadow: 0 0 0 1px var(--vp-c-divider);
+}
+.VPDocFooter .pager .pager-link::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1.5px dashed var(--vp-c-divider);
+  border-radius: 8px;
+  transition: border-color 0.25s;
+  pointer-events: none;
+}
+.VPDocFooter .pager .pager-link:hover::after {
+  border-color: var(--vp-c-brand-1);
+}
+.dark .VPDocFooter .pager .pager-link {
+  background: linear-gradient(150deg, #1f2f57, #192645);
+}
+@media (prefers-reduced-motion: reduce) {
+  .VPDocFooter .pager .pager-link::after {
+    transition: none;
+  }
+}
+
+.vp-doc .custom-block.warning code,
+.vp-doc .custom-block.danger code {
+  color: var(--vp-c-text-1);
 }
