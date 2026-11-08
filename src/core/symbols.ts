@@ -24,3 +24,5 @@ export const kHeadersAt = Symbol('sashiko.headersAt');
 export const kHooks = Symbol('sashiko.hooks');
 /** @internal O motor dos contratos do app (`contracts`, F-27), lido pelo pipeline de resposta. */
 export const kContracts = Symbol('sashiko.contracts');
+/** @internal Arquivos recebidos de um upload (F-46), lidos por `ctx.file()`/`ctx.files()`. */
+export const kFiles = Symbol('sashiko.files');

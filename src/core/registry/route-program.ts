@@ -4,7 +4,8 @@ import { guardsMiddleware } from '../guard.ts';
 import { validateRequest } from '../request-validation.ts';
 import { responsePlan, sendResult, type Serializer } from '../response/pipeline.ts';
 import type { RouteDefinition } from '../route-table.ts';
-import { kBindResponse, kPendingSend, kPhase } from '../symbols.ts';
+import { kBindResponse, kFiles, kPendingSend, kPhase } from '../symbols.ts';
+import { receiveUploads, type UploadPlan, type UploadSettings, uploadPlan } from '../uploads/receive.ts';
 
 /** A função completa de uma rota, montada uma vez no registro. */
 export type RouteProgram = (ctx: Context) => Step;
@@ -16,8 +17,14 @@ export type RouteProgram = (ctx: Context) => Step;
  * Ordem (F-01): middlewares da rota → guards → validação → handler → resposta. Os guards vêm antes da
  * validação, para quem não tem acesso receber 401/403, e não um 400 que revele o formato esperado.
  */
-export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyMap<string, Serializer>): RouteProgram {
+export function buildRouteProgram(
+  route: RouteDefinition,
+  serializers: ReadonlyMap<string, Serializer>,
+  uploads: UploadSettings,
+): RouteProgram {
   const { schemas, handler } = route;
+  // Só rotas com `files` pagam pelo upload (F-46); as demais seguem o caminho de sempre.
+  const upload = schemas.files ? uploadPlan(schemas.files, uploads, 'route') : undefined;
   const plan = responsePlan(schemas.response, serializers);
   const send = (ctx: Context, result: unknown): void => {
     ctx[kPhase] = 'response';
@@ -34,9 +41,18 @@ export function buildRouteProgram(route: RouteDefinition, serializers: ReadonlyM
   const terminal = (ctx: Context): Step => {
     ctx[kPhase] = 'validation';
     // Assíncrona só com um schema de validação assíncrona (Standard Schema); o nativo é sempre síncrono.
+    if (upload) return receive(ctx, upload);
     const validating = validateRequest(ctx, schemas);
     return validating ? resume(validating, ctx) : run(ctx);
   };
+  // Upload (F-46): recebe e confere os arquivos, põe os campos de texto no body e só então valida o contrato.
+  const receive = (ctx: Context, plan: UploadPlan): Promise<void> =>
+    receiveUploads(ctx, plan).then((received) => {
+      ctx.body = received.fields as never;
+      ctx[kFiles] = received.files;
+      const validating = validateRequest(ctx, schemas);
+      return validating ? resume(validating, ctx) : run(ctx);
+    });
   // Separado do `terminal`: um callback ali capturaria o `ctx` e o V8 alocaria um contexto em toda requisição (F-41).
   const resume = (validating: Promise<void>, ctx: Context): Promise<void> => validating.then(() => run(ctx));
   const run = (ctx: Context): Step => {

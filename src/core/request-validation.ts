@@ -4,7 +4,7 @@ import type { RouteSchemas } from './metadata.ts';
 import type { ValidationTarget } from '../schema/validation.ts';
 import { isPromiseLike } from './compose.ts';
 import type { CheckResult } from './contracts.ts';
-import { kContracts } from './symbols.ts';
+import { kContracts, kFiles } from './symbols.ts';
 
 const VALIDATION_ORDER: readonly ValidationTarget[] = ['headers', 'params', 'query', 'body'];
 const TARGET_LABEL: Record<ValidationTarget, string> = {
@@ -31,7 +31,8 @@ function validateFrom(ctx: Context, schemas: RouteSchemas, start: number): Promi
     const schema = schemas[target];
     if (!schema) continue;
     const data = target === 'headers' ? { ...ctx.req.headers } : ctx[target];
-    const result = engine.check(schema, data, target);
+    // Body de formulário (F-46): tudo chega como texto, então valida com coerção, como a query.
+    const result = engine.check(schema, data, target === 'body' && ctx[kFiles] !== undefined ? 'query' : target);
     if (isPromiseLike(result)) return resumeAsync(ctx, schemas, i, data, result);
     apply(ctx, target, data, result);
   }

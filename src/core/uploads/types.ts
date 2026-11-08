@@ -79,3 +79,6 @@ export interface UploadsOptions {
   /** Detector de conteúdo. Padrão: `detectors.magicBytes()`. */
   detect?: ContentDetector;
 }
+
+/** Os nomes dos campos de arquivo de um contrato; `string` quando a rota não declara `files`. */
+export type FileField<S extends { files?: FileRules }> = S['files'] extends FileRules ? Extract<keyof S['files'], string> : string;

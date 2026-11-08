@@ -182,6 +182,7 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
   return new Promise<Received>((resolve, reject) => {
     const fields: Record<string, string | string[]> = {};
     const files = new Map<string, Spooled[]>();
+    const counts = new Map<string, number>();
     const pending: Promise<void>[] = [];
     let failed: HttpError | undefined;
 
@@ -226,8 +227,10 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
         if (!rule) fail(new HttpError(400, `Unexpected file field "${name}"`, 'UNEXPECTED_FILE'));
         return;
       }
-      const list = files.get(name) ?? [];
-      if (list.length >= rule.maxCount) {
+      // Contado na chegada: os arquivos terminam de gravar fora de ordem.
+      const count = (counts.get(name) ?? 0) + 1;
+      counts.set(name, count);
+      if (count > rule.maxCount) {
         stream.resume();
         return fail(new HttpError(400, `Too many files in "${name}" (max ${rule.maxCount})`, 'TOO_MANY_FILES'));
       }
@@ -267,8 +270,10 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
               size,
               detectedType: undefined,
             });
-            list.push(new Spooled(name, filename, mimetype, encoding, size, detected, path));
-            files.set(name, list);
+            const list = files.get(name);
+            const file = new Spooled(name, filename, mimetype, encoding, size, detected, path);
+            if (list) list.push(file);
+            else files.set(name, [file]);
           })
           .catch((err: unknown) => fail(err instanceof HttpError ? err : new HttpError(400, 'Invalid file', 'INVALID_FILE'))),
       );

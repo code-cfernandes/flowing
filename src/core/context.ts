@@ -8,6 +8,7 @@ import { hostnameOf, isValidHost, pickForwarded, type RequestTarget, splitReques
 import { silentLogger, type Logger } from './logger.ts';
 import type { InferBody, InferParams, InferQuery, InferResponse, ParamsOf } from './infer.ts';
 import type { RouteSchemas } from './metadata.ts';
+import type { FileField, UploadedFile } from './uploads/types.ts';
 import { sendResult, type ResponsePlan, type SendMode } from './response/pipeline.ts';
 import { type AbortCode, type ErrorPhase, RequestAbortedError } from './abort.ts';
 import type { RouteInfo } from './route-table.ts';
@@ -24,6 +25,7 @@ import {
   kRoute,
   kRouted,
   kTelemetry,
+  kFiles,
 } from './symbols.ts';
 import { sendFile, type SendFileOptions } from '../server/static.ts';
 import { openSse, type SseOptions, type SseStream } from './streaming/sse.ts';
@@ -125,6 +127,11 @@ export interface ContextOptions {
  * @Get('/:id') get(ctx: Context<'/:id'>) { ctx.params.id }
  * ```
  */
+/** Arquivo de um campo: obrigatório → sempre presente (F-46). */
+type FileOf<S extends RouteSchemas, K extends string> = NonNullable<S['files']>[K] extends { required: true }
+  ? UploadedFile
+  : UploadedFile | undefined;
+
 export class Context<S extends RouteSchemas | string = RouteSchemas> {
   readonly req: IncomingMessage;
   readonly res: ServerResponse;
@@ -165,6 +172,8 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   [kError]: unknown;
   /** @internal Estado do `telemetry` desta requisição; só o módulo do telemetry lê e escreve (F-38). */
   [kTelemetry]: unknown;
+  /** @internal Arquivos do upload (F-46); definido só nas rotas com `files`, e então o body veio de um formulário. */
+  [kFiles]: ReadonlyMap<string, readonly UploadedFile[]> | undefined;
   /** Query string; tipada pelo schema `query` (já com coerção e defaults aplicados). Lida no primeiro acesso. */
   get query(): InferQuery<SchemasOf<S>> {
     if (this.parsedQuery === undefined) {
@@ -232,6 +241,17 @@ export class Context<S extends RouteSchemas | string = RouteSchemas> {
   private memoHost: string | undefined;
   private memoHostname: string | undefined;
   private memoProtocol: 'http' | 'https' | undefined;
+  /**
+   * Um arquivo do upload, já recebido e validado pelo contrato `files` (F-46). Com `required: true`, nunca é
+   * `undefined`. Para campos com `maxCount` maior que 1, use `files()`.
+   */
+  file<K extends FileField<SchemasOf<S>>>(name: K): FileOf<SchemasOf<S>, K> {
+    return this[kFiles]?.get(name)?.[0] as FileOf<SchemasOf<S>, K>;
+  }
+  /** Todos os arquivos de um campo do upload (F-46), na ordem em que chegaram; vazio se nenhum veio. */
+  files<K extends FileField<SchemasOf<S>>>(name: K): readonly UploadedFile[] {
+    return this[kFiles]?.get(name) ?? [];
+  }
   /** Body; tipado pelo schema `body`. */
   body: InferBody<SchemasOf<S>> = undefined as InferBody<SchemasOf<S>>;
   /** Estado por requisição, criado no primeiro acesso (F-41). */

@@ -1,3 +1,4 @@
+import type { UploadsOptions } from '../uploads/types.ts';
 import type { AbortCode, ErrorPhase } from '../abort.ts';
 import type { TelemetryApi } from '../telemetry.ts';
 import type { Context } from '../context.ts';
@@ -97,6 +98,8 @@ export interface AppOptions {
    * `{ 'application/yaml': (data) => YAML.stringify(data) }`. JSON e valores crus já são nativos.
    */
   serializers?: Record<string, Serializer>;
+  /** Upload de arquivos (F-46): limites globais, pasta dos temporários e detector de conteúdo. */
+  uploads?: UploadsOptions;
   /** Timeouts do servidor HTTP (S-06). */
   timeouts?: ServerTimeouts;
   /**

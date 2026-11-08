@@ -242,7 +242,7 @@ export class RequestHandler {
       this.observer.routed(ctx, info);
     }
     // O programa é montado no commit do registro; o fallback cobre rotas registradas por fora dele.
-    const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers));
+    const run = (match.route.run ??= buildRouteProgram(match.route, this.core.serializers, this.core.uploads));
     return run(ctx);
   }
 
