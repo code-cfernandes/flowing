@@ -5,12 +5,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import * as otel from '@opentelemetry/api';
-import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace';
 import { buildApp } from './app.ts';
+import { registerTracing } from './tracing.ts';
 
 const exporter = new InMemorySpanExporter();
-new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] }).register();
+registerTracing(new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] }));
 
 describe('exemplo opentelemetry', () => {
   const bindings: Record<string, unknown>[] = [];
