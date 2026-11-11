@@ -9,6 +9,10 @@ updates:
     open-pull-requests-limit: 5
     # Dependências de runtime vão para o pacote publicado: um PR por atualização, revisado à parte.
     groups:
+      # O OpenTelemetry versiona os pacotes juntos (api, sdk, exporters): atualizar um por vez deixa o exemplo
+      # com versões incompatíveis entre si. Todos chegam numa PR só, inclusive em versão maior.
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]

@@ -7,15 +7,15 @@ import { createRequire } from 'node:module';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { BatchSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace';
+import { registerTracing } from './tracing.ts';
 
-const provider = new NodeTracerProvider({
+const provider = new TracerProvider({
   resource: resourceFromAttributes({ 'service.name': process.env.OTEL_SERVICE_NAME ?? 'flowing-exemplo' }),
   // OTEL_EXPORTER_OTLP_ENDPOINT muda o destino; o padrão é http://localhost:4318.
-  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+  spanProcessors: [new BatchSpanProcessor({ exporter: new OTLPTraceExporter() })],
 });
-provider.register();
+registerTracing(provider);
 
 const http = new HttpInstrumentation();
 http.setTracerProvider(provider);
