@@ -9,6 +9,10 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+### Documentação
+
+- O site publica `llms.txt`, `llms-full.txt` e uma cópia em Markdown de cada guia (`/guia/rotas.md`), no formato de [llmstxt.org](https://llmstxt.org). Assistentes de IA (Copilot, Cursor, Claude) leem a documentação do FlowingTS antes de gerar código.
+
 ## [0.19.1] - 2026-11-12
 
 ### Corrigido

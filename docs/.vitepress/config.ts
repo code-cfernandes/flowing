@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { defineConfig } from 'vitepress';
+import { writeLlmsFiles } from './llms';
 
 const require = createRequire(import.meta.url);
 const repo = 'https://github.com/code-cfernandes/flowing';
@@ -14,10 +15,55 @@ function apiSidebar() {
   }
 }
 
+const description = 'Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first e seguro por padrão.';
+
+/** Grupos do guia, na ordem da barra lateral; também montam o llms.txt. */
+const guideGroups = [
+  {
+    text: 'Começando',
+    items: [
+      { text: 'Introdução', link: '/guia/introducao' },
+      { text: 'Instalação', link: '/guia/instalacao' },
+      { text: 'Exemplos', link: '/guia/exemplos' },
+      { text: 'Vindo do Express', link: '/guia/vindo-do-express' },
+    ],
+  },
+  {
+    text: 'Essencial',
+    items: [
+      { text: 'Rotas e composição', link: '/guia/rotas' },
+      { text: 'Schemas', link: '/guia/schemas' },
+      { text: 'Formatos de entrada', link: '/guia/entrada' },
+      { text: 'Upload de arquivos', link: '/guia/uploads' },
+      { text: 'Respostas e o ctx', link: '/guia/respostas' },
+      { text: 'Middlewares e guards', link: '/guia/middlewares-e-guards' },
+      { text: 'Erros', link: '/guia/erros' },
+    ],
+  },
+  {
+    text: 'Recursos',
+    items: [
+      { text: 'Estáticos e streaming', link: '/guia/estaticos-e-streaming' },
+      { text: 'Hooks de ciclo de vida', link: '/guia/hooks' },
+      { text: 'OpenAPI e /docs', link: '/guia/openapi' },
+      { text: 'Logs e request id', link: '/guia/logs' },
+      { text: 'Observabilidade', link: '/guia/observabilidade' },
+    ],
+  },
+  {
+    text: 'Produção',
+    items: [
+      { text: 'Segurança', link: '/guia/seguranca' },
+      { text: 'Ciclo de vida, testes e HTTPS', link: '/guia/ciclo-de-vida' },
+      { text: 'Deploy', link: '/guia/deploy' },
+    ],
+  },
+];
+
 export default defineConfig({
   lang: 'pt-BR',
   title: 'FlowingTS',
-  description: 'Micro-framework HTTP para Node.js com decorators TC39 nativos, schema-first e seguro por padrão.',
+  description,
   base: '/flowing/',
   cleanUrls: true,
   lastUpdated: true,
@@ -25,6 +71,17 @@ export default defineConfig({
   srcExclude: ['ARCHITECTURE.md'],
   // Números de linha nos blocos de código, como no protótipo da documentação.
   markdown: { lineNumbers: true },
+  // llms.txt, llms-full.txt e uma cópia .md de cada página, para assistentes de IA.
+  buildEnd: (site) =>
+    writeLlmsFiles({
+      site: 'https://code-cfernandes.github.io/flowing',
+      title: 'FlowingTS',
+      summary: description,
+      srcDir: site.srcDir,
+      outDir: site.outDir,
+      groups: [...guideGroups, { text: 'Referência', items: [{ text: 'createApp(options)', link: '/referencia/create-app' }] }],
+      optional: [{ text: 'API gerada do código (TypeDoc)', link: '/referencia/api/' }],
+    }),
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/flowing/favicon.svg' }]],
   themeConfig: {
     logo: '/logo.svg',
@@ -39,47 +96,7 @@ export default defineConfig({
     version,
     repo,
     sidebar: {
-      '/guia/': [
-        {
-          text: 'Começando',
-          items: [
-            { text: 'Introdução', link: '/guia/introducao' },
-            { text: 'Instalação', link: '/guia/instalacao' },
-            { text: 'Exemplos', link: '/guia/exemplos' },
-            { text: 'Vindo do Express', link: '/guia/vindo-do-express' },
-          ],
-        },
-        {
-          text: 'Essencial',
-          items: [
-            { text: 'Rotas e composição', link: '/guia/rotas' },
-            { text: 'Schemas', link: '/guia/schemas' },
-            { text: 'Formatos de entrada', link: '/guia/entrada' },
-            { text: 'Upload de arquivos', link: '/guia/uploads' },
-            { text: 'Respostas e o ctx', link: '/guia/respostas' },
-            { text: 'Middlewares e guards', link: '/guia/middlewares-e-guards' },
-            { text: 'Erros', link: '/guia/erros' },
-          ],
-        },
-        {
-          text: 'Recursos',
-          items: [
-            { text: 'Estáticos e streaming', link: '/guia/estaticos-e-streaming' },
-            { text: 'Hooks de ciclo de vida', link: '/guia/hooks' },
-            { text: 'OpenAPI e /docs', link: '/guia/openapi' },
-            { text: 'Logs e request id', link: '/guia/logs' },
-            { text: 'Observabilidade', link: '/guia/observabilidade' },
-          ],
-        },
-        {
-          text: 'Produção',
-          items: [
-            { text: 'Segurança', link: '/guia/seguranca' },
-            { text: 'Ciclo de vida, testes e HTTPS', link: '/guia/ciclo-de-vida' },
-            { text: 'Deploy', link: '/guia/deploy' },
-          ],
-        },
-      ],
+      '/guia/': guideGroups,
       '/referencia/': [
         {
           text: 'Referência',
