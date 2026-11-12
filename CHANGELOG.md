@@ -9,6 +9,14 @@ e a _patch_ só com correções.
 
 ## [Não lançado]
 
+## [0.19.1] - 2026-11-12
+
+### Corrigido
+
+- **Upload recusado logo no começo deixava o arquivo temporário no disco:** o arquivo é aberto de forma assíncrona, e
+  uma recusa antes da abertura (tamanho, tipo) fazia a limpeza rodar antes de o arquivo existir. Agora a limpeza
+  espera a gravação fechar. Quem usa a 0.19.0 com rotas de upload deve atualizar.
+
 ## [0.19.0] - 2026-11-08
 
 ### Mudou
