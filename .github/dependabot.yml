@@ -16,6 +16,11 @@ updates:
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
+    # O site (docs/) fica no TypeScript 5.9: o TypeDoc 0.28 só aceita até a 6.0. O pacote já está no 7, então
+    # ignorar a versão maior só afeta o site. Remover quando o TypeDoc suportar o TypeScript 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels: [dependencies]
