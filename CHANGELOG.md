@@ -12,6 +12,7 @@ e a _patch_ só com correções.
 ### Documentação
 
 - O site publica `llms.txt`, `llms-full.txt` e uma cópia em Markdown de cada guia (`/guia/rotas.md`), no formato de [llmstxt.org](https://llmstxt.org). Assistentes de IA (Copilot, Cursor, Claude) leem a documentação do FlowingTS antes de gerar código.
+- Guia de deploy: seção "Memória ao servir arquivos", que explica por que o RSS sobe a um teto com muitos downloads simultâneos (o V8 troca memória por vazão) e como limitá-lo com `--max-semi-space-size`, com a medição.
 
 ## [0.19.1] - 2026-11-12
 
