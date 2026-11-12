@@ -173,10 +173,19 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
     return Promise.reject(new HttpError(415, 'Expected multipart/form-data', 'UNSUPPORTED_MEDIA_TYPE'));
   }
   const { limits, tempDir } = plan.settings;
-  const temps: string[] = [];
+  /**
+   * Temporários e a gravação de cada um. O `createWriteStream` abre o arquivo de forma assíncrona: destruído antes
+   * de abrir, o arquivo ainda é criado depois. Apagar nesse intervalo deixava um órfão no disco. Por isso o `unlink`
+   * de uma gravação ainda aberta espera o `close` dela.
+   */
+  const temps = new Map<string, WriteStream>();
   // Os temporários somem quando a resposta termina, qualquer que seja o caminho.
   ctx.res.once('close', () => {
-    for (const path of temps) unlink(path).catch(() => {});
+    for (const [path, out] of temps) {
+      const remove = () => void unlink(path).catch(() => {});
+      if (out.closed) remove();
+      else out.once('close', remove);
+    }
   });
 
   return new Promise<Received>((resolve, reject) => {
@@ -239,8 +248,8 @@ export function receiveUploads(ctx: Context, plan: UploadPlan): Promise<Received
         return fail(new HttpError(400, `Too many files in "${name}" (max ${rule.maxCount})`, 'TOO_MANY_FILES'));
       }
       const path = join(tempDir, `flowing-upload-${randomUUID()}`);
-      temps.push(path);
       const out = createWriteStream(path);
+      temps.set(path, out);
       writing.add(out);
       out.once('close', () => writing.delete(out));
       const head: Buffer[] = [];

@@ -426,6 +426,10 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
     @Post('/quebra', { files: { arq: { required: true } } }) quebra() {
       throw new Error('falha no handler');
     }
+    // Limite de 1 byte: a recusa vem no primeiro pedaço, logo depois de criar a gravação, antes de o arquivo abrir.
+    @Post('/minimo', { files: { arq: { maxSize: 1 } } }) minimo() {
+      return {};
+    }
   }
   let s: TestServer;
   let dir: string;
@@ -449,6 +453,22 @@ describe('F-46 · ciclo de vida e casos de borda (revisão da 0.18.0)', () => {
     await until(() => tmpFds() === 0 && temps(dir) === 0);
     assert.equal(tmpFds(), 0, 'descritores fechados');
     assert.equal(temps(dir), 0, 'temporários apagados');
+  });
+
+  it('recusa antes de o temporário abrir não deixa arquivo órfão (corrida entre abrir e apagar)', async () => {
+    // Em paralelo, para a recusa chegar enquanto a abertura dos arquivos ainda está pendente.
+    await Promise.all(
+      Array.from({ length: 40 }, async () => {
+        const r = await fetch(`${s.url}/b/minimo`, {
+          method: 'POST',
+          body: form([['arq', new File([new Uint8Array(64 * 1024)], 'a.bin')]]),
+        });
+        assert.equal(r.status, 413);
+        await r.text();
+      }),
+    );
+    await until(() => temps(dir) === 0, 3000);
+    assert.equal(temps(dir), 0, 'nenhum temporário órfão');
   });
 
   it('campos repetidos viram array; nomes com colchetes ficam literais', async () => {
