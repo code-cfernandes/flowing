@@ -31,3 +31,29 @@ Checklist:
 | Autenticação por cookie          | `csrf()` ativo                                                                                                                      |
 | Documentação da API              | `openapi({ guards })`, ou gerar só o arquivo com `openapiDocument()`                                                                |
 | Processo                         | Rode `node dist/server.js` direto (não via `npm start`), para o SIGTERM chegar ao Node; em container, `--init` ou `tini` como PID 1 |
+| Memória em contêiner pequeno     | `--max-semi-space-size=8` quando o app serve muitos arquivos e o limite de memória é apertado (veja abaixo)                         |
+
+## Memória ao servir arquivos
+
+Com muitos downloads simultâneos pelo `app.static()` ou pelo `ctx.sendFile()`, a memória do processo (RSS) sobe até um teto e fica nele. Não é vazamento: o que ocupa esse espaço é lixo esperando a coleta, e o teto não cresce com o tempo.
+
+O teto vem de uma troca que o motor do Node (V8) faz sozinho. Quando o app está sob carga, ele aumenta a área de objetos novos do heap para coletar lixo com menos frequência. Isso rende mais requisições por segundo, e em troca os buffers dos arquivos já enviados ficam mais tempo na memória.
+
+Num contêiner com limite de memória apertado, dá para inverter a troca com uma flag do Node, que limita essa área (o valor é em MiB):
+
+```bash
+node --max-semi-space-size=8 dist/server.js
+# ou, sem mudar o comando:
+NODE_OPTIONS=--max-semi-space-size=8 node dist/server.js
+```
+
+Medição com um arquivo de 64 KB, 200 conexões simultâneas e Node 26, média de três rodadas:
+
+| Configuração                      | Pico de memória (RSS) | Requisições por segundo |
+| --------------------------------- | --------------------- | ----------------------- |
+| Padrão do Node                    | 219 MB                | 4.080                   |
+| `--max-semi-space-size=8`         | 137 MB                | 3.830                   |
+| `--max-semi-space-size=4`         | 122 MB                | 3.820                   |
+| `node:http` puro, para comparação | 175 MB                | 4.260                   |
+
+A flag corta cerca de 80 MB e custa perto de 6% da vazão. Sem limite de memória apertado, deixe o padrão: a memória a mais está comprando desempenho. Os números mudam com o tamanho dos arquivos, a concorrência e a versão do Node; meça no seu ambiente antes de fixar um valor.
